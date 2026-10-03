@@ -1,8 +1,8 @@
 //! Core language model, parser, and AI-native structural editing API for Ardisa.
 
 pub mod ast;
-pub mod edit;
 pub mod differential;
+pub mod edit;
 pub mod effects;
 pub mod format;
 pub mod lower;
@@ -11,7 +11,7 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
-pub use differential::{DifferentialCase, CORPUS as DIFFERENTIAL_CORPUS};
+pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
 pub use effects::{EffectKind, EffectModel, FunctionEffects};
 pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
 
