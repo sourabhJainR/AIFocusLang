@@ -1,6 +1,7 @@
-//! Core language model, lexer, and recursive-descent parser for AIFocusLang.
+//! Core language model, parser, and AI-native structural editing API for Ardisa.
 
 pub mod ast;
+pub mod edit;
 pub mod format;
 pub mod lower;
 pub mod ownership;
