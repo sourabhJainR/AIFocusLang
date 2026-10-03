@@ -20,7 +20,7 @@ pub fn check(module: &Module) -> Result<(), Vec<Diagnostic>> {
     for item in &module.items {
         let Item::Function(function) = item;
         let signature = FunctionSignature {
-            params: function.params.iter().map(|param| param.ty.clone()).collect(),
+            params: function\n                .params\n                .iter()\n                .map(|param| param.ty.clone())\n                .collect(),
             return_type: function.return_type.clone(),
         };
         if checker
@@ -57,7 +57,7 @@ impl Checker {
     fn check_function(&mut self, function: &Function) {
         let mut locals = HashMap::new();
         for param in &function.params {
-            if locals.insert(param.name.clone(), param.ty.clone()).is_some() {
+            if locals\n                .insert(param.name.clone(), param.ty.clone())\n                .is_some()\n            {
                 self.error(
                     "AIF301",
                     format!("duplicate parameter '{}'", param.name),
@@ -85,11 +85,7 @@ impl Checker {
         }
     }
 
-    fn check_block(
-        &mut self,
-        block: &Block,
-        locals: &mut HashMap<String, Type>,
-    ) -> Option<Type> {
+    fn check_block(&mut self, block: &Block, locals: &mut HashMap<String, Type>) -> Option<Type> {
         let mut last = None;
         for stmt in &block.stmts {
             match &stmt.kind {
@@ -119,11 +115,7 @@ impl Checker {
         last
     }
 
-    fn check_expr(
-        &mut self,
-        expr: &Expr,
-        locals: &HashMap<String, Type>,
-    ) -> Option<Type> {
+    fn check_expr(&mut self, expr: &Expr, locals: &HashMap<String, Type>) -> Option<Type> {
         match &expr.kind {
             ExprKind::Int(_) => Some(type_node(TypeKind::Int, expr.span)),
             ExprKind::Bool(_) => Some(type_node(TypeKind::Bool, expr.span)),
@@ -134,11 +126,7 @@ impl Checker {
                 } else if let Some(signature) = self.functions.get(name) {
                     signature.return_type.clone()
                 } else {
-                    self.error(
-                        "AIF304",
-                        format!("unknown name '{name}'"),
-                        expr.span,
-                    );
+                    self.error("AIF304", format!("unknown name '{name}'"), expr.span);
                     None
                 }
             }
@@ -185,11 +173,7 @@ impl Checker {
                     return None;
                 };
                 let Some(signature) = self.functions.get(name).cloned() else {
-                    self.error(
-                        "AIF308",
-                        format!("unknown function '{name}'"),
-                        callee.span,
-                    );
+                    self.error("AIF308", format!("unknown function '{name}'"), callee.span);
                     return None;
                 };
                 if args.len() != signature.params.len() {
@@ -258,7 +242,7 @@ impl Checker {
     }
 
     fn error(&mut self, code: &'static str, message: impl Into<String>, span: Span) {
-        self.errors.push(Diagnostic::error(code, message, Some(span)));
+        self.errors\n            .push(Diagnostic::error(code, message, Some(span)));
     }
 }
 
@@ -298,9 +282,10 @@ mod tests {
 
     #[test]
     fn catches_argument_type_mismatch() {
-        let module =
-            parse("module x\nfn add(a: Int, b: Int) -> Int\n  a + b\nfn main() -> Int\n  add(true, 1)\n")
-                .unwrap();
+        let module = parse(
+            "module x\nfn add(a: Int, b: Int) -> Int\n  a + b\nfn main() -> Int\n  add(true, 1)\n",
+        )
+        .unwrap();
         let errors = check(&module).unwrap_err();
         assert!(errors.iter().any(|error| error.code == "AIF310"));
     }
