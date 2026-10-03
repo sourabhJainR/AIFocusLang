@@ -1,8 +1,8 @@
 [package]
-name = "aifocus-core"
+name = "ardisa-core"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "Core language model for AIFocusLang"
+description = "Core compiler model for Ardisa, an AI-first systems language"
 
 [dependencies]
