@@ -72,7 +72,8 @@ fn {name}({params}) -> {ret} {{
             ret = f.return_type.rust_name(),
             args = args,
         )
-    }}
+    }
+}
 
 pub fn validate(function: &RustFunction) -> Result<(), String> {
     SafeRustBoundary::new(function.clone()).map(|_| ())
