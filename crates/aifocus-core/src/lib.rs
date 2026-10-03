@@ -1,6 +1,7 @@
 //! Core language model, lexer, and recursive-descent parser for AIFocusLang.
 
 pub mod ast;
+pub mod format;
 pub mod source;
 pub mod token;
 
@@ -326,7 +327,7 @@ impl Parser {
                 Some(Expr {
                     id: self.id("group", &start.to_string()),
                     span: source::Span::new(start, close.span.end),
-                    kind: expr.kind,
+                    kind: ExprKind::Group(Box::new(expr)),
                 })
             }
             TokenKind::If => self.parse_if(),
