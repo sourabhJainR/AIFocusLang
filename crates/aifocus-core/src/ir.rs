@@ -1,0 +1,119 @@
+use crate::ast::{BinaryOp, Expr, ExprKind, Item, Module, StmtKind, TypeKind};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IrModule {
+    pub name: String,
+    pub functions: Vec<IrFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IrFunction {
+    pub name: String,
+    pub params: Vec<(String, TypeKind)>,
+    pub return_type: Option<TypeKind>,
+    pub ops: Vec<IrOp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IrOp {
+    Let { name: String, value: IrValue },
+    Return(Option<IrValue>),
+    Expr(IrValue),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IrValue {
+    Int(i64),
+    Bool(bool),
+    String(String),
+    Name(String),
+    Binary {
+        op: BinaryOp,
+        left: Box<IrValue>,
+        right: Box<IrValue>,
+    },
+    Call {
+        callee: String,
+        args: Vec<IrValue>,
+    },
+}
+
+pub fn lower(module: &Module) -> IrModule {
+    IrModule {
+        name: module.name.clone(),
+        functions: module
+            .items
+            .iter()
+            .map(|item| {
+                let Item::Function(function) = item;
+                let mut ops = Vec::new();
+                for stmt in &function.body.stmts {
+                    match &stmt.kind {
+                        StmtKind::Let { name, value } => ops.push(IrOp::Let {
+                            name: name.clone(),
+                            value: value_to_ir(value),
+                        }),
+                        StmtKind::Return(value) => {
+                            ops.push(IrOp::Return(value.as_ref().map(value_to_ir)))
+                        }
+                        StmtKind::Expr(expr) => ops.push(IrOp::Expr(value_to_ir(expr))),
+                    }
+                }
+                IrFunction {
+                    name: function.name.clone(),
+                    params: function
+                        .params
+                        .iter()
+                        .map(|param| (param.name.clone(), param.ty.kind.clone()))
+                        .collect(),
+                    return_type: function.return_type.as_ref().map(|ty| ty.kind.clone()),
+                    ops,
+                }
+            })
+            .collect(),
+    }
+}
+
+fn value_to_ir(expr: &Expr) -> IrValue {
+    match &expr.kind {
+        ExprKind::Int(value) => IrValue::Int(*value),
+        ExprKind::Bool(value) => IrValue::Bool(*value),
+        ExprKind::String(value) => IrValue::String(value.clone()),
+        ExprKind::Name(name) => IrValue::Name(name.clone()),
+        ExprKind::Group(inner) => value_to_ir(inner),
+        ExprKind::Binary { op, left, right } => IrValue::Binary {
+            op: *op,
+            left: Box::new(value_to_ir(left)),
+            right: Box::new(value_to_ir(right)),
+        },
+        ExprKind::Call { callee, args } => {
+            let callee = match &callee.kind {
+                ExprKind::Name(name) => name.clone(),
+                _ => "<dynamic>".into(),
+            };
+            IrValue::Call {
+                callee,
+                args: args.iter().map(value_to_ir).collect(),
+            }
+        }
+        ExprKind::If { .. } => IrValue::Name("<if>".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parse;
+
+    #[test]
+    fn lowers_without_rust_backend_types() {
+        let module = parse("module x\nfn add(a: Int, b: Int) -> Int\n  a + b\n").unwrap();
+        let ir = lower(&module);
+        assert_eq!(ir.name, "x");
+        assert_eq!(ir.functions[0].params.len(), 2);
+        assert!(matches!(
+            ir.functions[0].ops[0],
+            IrOp::Expr(IrValue::Binary { .. })
+        ));
+    }
+}
