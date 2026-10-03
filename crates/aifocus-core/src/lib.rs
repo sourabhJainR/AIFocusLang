@@ -6,6 +6,7 @@ pub mod differential;
 pub mod edit;
 pub mod effects;
 pub mod format;
+pub mod hws_feedback;
 pub mod lower;
 pub mod ownership;
 pub mod sema;
@@ -15,6 +16,7 @@ pub mod token;
 pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
 pub use effects::{EffectKind, EffectModel, FunctionEffects};
+pub use hws_feedback::{CapabilityFeedback, EpisodeOutcome, VerificationDepth};
 pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
 
 pub use ast::{
