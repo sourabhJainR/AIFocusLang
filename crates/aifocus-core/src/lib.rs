@@ -2,6 +2,7 @@
 
 pub mod ast;
 pub mod format;
+pub mod lower;
 pub mod ownership;
 pub mod sema;
 pub mod source;
