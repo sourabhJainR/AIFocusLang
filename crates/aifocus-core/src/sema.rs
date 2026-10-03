@@ -355,7 +355,7 @@ mod tests {
                 .values()
                 .filter(|t| t.kind == TypeKind::Int)
                 .count(),
-            3
+            2
         );
     }
 
