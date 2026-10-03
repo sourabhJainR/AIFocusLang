@@ -63,6 +63,27 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 out.push('\n');
             }
         }
+        StmtKind::Scope { body } => {
+            out.push_str("scope\n");
+            format_block(body, indent + 2, out);
+        }
+        StmtKind::Spawn { name, call } => {
+            out.push_str("spawn ");
+            out.push_str(name);
+            out.push_str(" = ");
+            format_expr(call, indent, out);
+            out.push('\n');
+        }
+        StmtKind::Join { name } => {
+            out.push_str("join ");
+            out.push_str(name);
+            out.push('\n');
+        }
+        StmtKind::Cancel { name } => {
+            out.push_str("cancel ");
+            out.push_str(name);
+            out.push('\n');
+        }
     }
 }
 
