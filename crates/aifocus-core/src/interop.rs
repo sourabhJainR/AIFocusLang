@@ -87,7 +87,10 @@ mod tests {
         let function = RustFunction {
             symbol: "native_add".into(),
             name: "add".into(),
-            params: vec![("a".into(), InteropType::Int), ("b".into(), InteropType::Int)],
+            params: vec![
+                ("a".into(), InteropType::Int),
+                ("b".into(), InteropType::Int),
+            ],
             return_type: InteropType::Int,
         };
         let boundary = SafeRustBoundary::new(function).unwrap();
