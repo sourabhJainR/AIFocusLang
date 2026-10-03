@@ -9,6 +9,8 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
+pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
+
 pub use ast::{
     BinaryOp, Block, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
     Type, TypeKind,
