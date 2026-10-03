@@ -1,4 +1,4 @@
-use crate::{format, lower, ownership, parse, sema, Item};
+use crate::{Item, format, lower, ownership, parse, sema};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedCase {
