@@ -1,10 +1,10 @@
-# AIFocusLang
+# Ardisa
 
-A readable, AI-focused Rust-family language.
+Ardisa is an AI-first systems programming language designed to make software development **minimalistic, robust, effective, and traceable**.
 
-AIFocusLang keeps Rust's strengths: native performance, predictable memory use, strong types, pattern matching, and explicit concurrency. It targets the parts of Rust that make large codebases harder for humans and coding agents to produce and maintain.
+Ardisa source files use the `.ardisa` extension. The extension is part of the language contract so tools, editors, agents, and CI can identify Ardisa source unambiguously.
 
-## Goals
+## Design goals
 
 - Rust-class performance and memory safety.
 - A smaller, easier-to-generate language surface.
@@ -26,7 +26,7 @@ AIFocusLang keeps Rust's strengths: native performance, predictable memory use, 
 
 ## Example
 
-```aif
+```ardisa
 module math
 
 fn add(a: Int, b: Int) -> Int
@@ -53,3 +53,7 @@ The syntax is intentionally easy for both people and coding agents to parse.
 Bootstrap stage. The first milestone establishes a small language contract and compiler architecture before adding advanced Rust features.
 
 See `docs/ROADMAP.md` and `docs/DESIGN.md`.
+
+## Source files
+
+Use `*.ardisa` for Ardisa programs. The CLI accepts Ardisa source files and treats `.ardisa` as the canonical source extension.

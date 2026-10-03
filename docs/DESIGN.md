@@ -1,4 +1,6 @@
-# Design principles
+# Ardisa design principles
+
+Ardisa source files use the canonical `.ardisa` extension. Tooling should recognize this extension consistently so source discovery, structural editing, diagnostics, and verification remain traceable.
 
 ## Readability beats cleverness
 
@@ -14,11 +16,11 @@ Convenient syntax can remove ceremony, but it must lower to explicit ownership, 
 
 ## AI is a development client
 
-AIFocusLang has no required model or AI runtime. Models and coding agents are compiler clients.
+Ardisa has no required model or AI runtime. Models and coding agents are compiler clients.
 
 ## Rust compatibility is an escape hatch
 
-AIFocusLang should call Rust and lower to Rust, preventing premature ecosystem isolation.
+Ardisa should call Rust and lower to Rust, preventing premature ecosystem isolation.
 
 ## Small core, strong tooling
 
