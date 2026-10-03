@@ -19,6 +19,10 @@ pub enum IrOp {
     Let { name: String, value: IrValue },
     Return(Option<IrValue>),
     Expr(IrValue),
+    Scope { ops: Vec<IrOp> },
+    Spawn { name: String, call: IrValue },
+    Join { name: String },
+    Cancel { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +61,17 @@ pub fn lower(module: &Module) -> IrModule {
                             ops.push(IrOp::Return(value.as_ref().map(value_to_ir)))
                         }
                         StmtKind::Expr(expr) => ops.push(IrOp::Expr(value_to_ir(expr))),
+                        StmtKind::Scope { body } => ops.push(IrOp::Scope {
+                            ops: block_to_ops(body),
+                        }),
+                        StmtKind::Spawn { name, call } => ops.push(IrOp::Spawn {
+                            name: name.clone(),
+                            call: value_to_ir(call),
+                        }),
+                        StmtKind::Join { name } => ops.push(IrOp::Join { name: name.clone() }),
+                        StmtKind::Cancel { name } => {
+                            ops.push(IrOp::Cancel { name: name.clone() })
+                        }
                     }
                 }
                 IrFunction {
@@ -72,6 +87,30 @@ pub fn lower(module: &Module) -> IrModule {
             })
             .collect(),
     }
+}
+
+fn block_to_ops(block: &crate::Block) -> Vec<IrOp> {
+    block
+        .stmts
+        .iter()
+        .map(|stmt| match &stmt.kind {
+            StmtKind::Let { name, value } => IrOp::Let {
+                name: name.clone(),
+                value: value_to_ir(value),
+            },
+            StmtKind::Return(value) => IrOp::Return(value.as_ref().map(value_to_ir)),
+            StmtKind::Expr(expr) => IrOp::Expr(value_to_ir(expr)),
+            StmtKind::Scope { body } => IrOp::Scope {
+                ops: block_to_ops(body),
+            },
+            StmtKind::Spawn { name, call } => IrOp::Spawn {
+                name: name.clone(),
+                call: value_to_ir(call),
+            },
+            StmtKind::Join { name } => IrOp::Join { name: name.clone() },
+            StmtKind::Cancel { name } => IrOp::Cancel { name: name.clone() },
+        })
+        .collect()
 }
 
 fn value_to_ir(expr: &Expr) -> IrValue {
