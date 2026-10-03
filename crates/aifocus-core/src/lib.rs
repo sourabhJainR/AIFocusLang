@@ -230,7 +230,9 @@ impl Parser {
 
         let expr = self.parse_expr(0)?;
         let end = expr.span.end;
-        self.expect(TokenKind::Newline, "end of expression statement")?;
+        if !matches!(expr.kind, ExprKind::If { .. }) {
+            self.expect(TokenKind::Newline, "end of expression statement")?;
+        }
         Some(Stmt {
             id: self.id("expr", &start.to_string()),
             span: source::Span::new(start, end),
