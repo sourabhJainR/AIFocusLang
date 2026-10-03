@@ -35,8 +35,16 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
             params: function.params.iter().map(|p| p.ty.clone()).collect(),
             return_type: function.return_type.clone(),
         };
-        if checker.functions.insert(function.name.clone(), signature).is_some() {
-            checker.error("AIF300", format!("duplicate function '{}'", function.name), function.span);
+        if checker
+            .functions
+            .insert(function.name.clone(), signature)
+            .is_some()
+        {
+            checker.error(
+                "AIF300",
+                format!("duplicate function '{}'", function.name),
+                function.span,
+            );
         }
     }
 
@@ -90,8 +98,15 @@ impl Checker {
     fn check_function(&mut self, function: &Function) {
         let mut locals = HashMap::new();
         for param in &function.params {
-            if locals.insert(param.name.clone(), param.ty.clone()).is_some() {
-                self.error("AIF301", format!("duplicate parameter '{}'", param.name), param.span);
+            if locals
+                .insert(param.name.clone(), param.ty.clone())
+                .is_some()
+            {
+                self.error(
+                    "AIF301",
+                    format!("duplicate parameter '{}'", param.name),
+                    param.span,
+                );
             }
             self.inferred_types.insert(param.id, param.ty.clone());
         }
@@ -102,7 +117,12 @@ impl Checker {
                 if !same_type(&actual, expected) {
                     self.error(
                         "AIF302",
-                        format!("function '{}' returns {}, expected {}", function.name, actual.display_name(), expected.display_name()),
+                        format!(
+                            "function '{}' returns {}, expected {}",
+                            function.name,
+                            actual.display_name(),
+                            expected.display_name()
+                        ),
                         function.body.span,
                     );
                 }
@@ -116,7 +136,11 @@ impl Checker {
             match &stmt.kind {
                 StmtKind::Let { name, value } => {
                     if locals.contains_key(name) {
-                        self.error("AIF303", format!("binding '{}' shadows an existing local", name), stmt.span);
+                        self.error(
+                            "AIF303",
+                            format!("binding '{}' shadows an existing local", name),
+                            stmt.span,
+                        );
                     }
                     if let Some(ty) = self.check_expr(value, locals) {
                         locals.insert(name.clone(), ty);
@@ -143,7 +167,10 @@ impl Checker {
                 if let Some(ty) = locals.get(name) {
                     Some(ty.clone())
                 } else if let Some(signature) = self.functions.get(name) {
-                    signature.return_type.clone().or_else(|| self.function_returns.get(name).cloned())
+                    signature
+                        .return_type
+                        .clone()
+                        .or_else(|| self.function_returns.get(name).cloned())
                 } else {
                     self.error("AIF304", format!("unknown name '{name}'"), expr.span);
                     None
@@ -155,8 +182,14 @@ impl Checker {
                 let right_type = self.check_expr(right, locals)?;
                 match op {
                     BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-                        if !is_kind(&left_type, &TypeKind::Int) || !is_kind(&right_type, &TypeKind::Int) {
-                            self.error("AIF305", "arithmetic operators require Int operands", expr.span);
+                        if !is_kind(&left_type, &TypeKind::Int)
+                            || !is_kind(&right_type, &TypeKind::Int)
+                        {
+                            self.error(
+                                "AIF305",
+                                "arithmetic operators require Int operands",
+                                expr.span,
+                            );
                             None
                         } else {
                             Some(type_node(TypeKind::Int, expr.span))
@@ -164,7 +197,11 @@ impl Checker {
                     }
                     BinaryOp::Equal => {
                         if !same_type(&left_type, &right_type) {
-                            self.error("AIF306", "equality operands must have the same type", expr.span);
+                            self.error(
+                                "AIF306",
+                                "equality operands must have the same type",
+                                expr.span,
+                            );
                             None
                         } else {
                             Some(type_node(TypeKind::Bool, expr.span))
@@ -174,7 +211,11 @@ impl Checker {
             }
             ExprKind::Call { callee, args } => {
                 let ExprKind::Name(name) = &callee.kind else {
-                    self.error("AIF307", "only named functions are callable in this language version", callee.span);
+                    self.error(
+                        "AIF307",
+                        "only named functions are callable in this language version",
+                        callee.span,
+                    );
                     return None;
                 };
                 let Some(signature) = self.functions.get(name).cloned() else {
@@ -182,20 +223,45 @@ impl Checker {
                     return None;
                 };
                 if args.len() != signature.params.len() {
-                    self.error("AIF309", format!("function '{}' expects {} argument(s), got {}", name, signature.params.len(), args.len()), expr.span);
+                    self.error(
+                        "AIF309",
+                        format!(
+                            "function '{}' expects {} argument(s), got {}",
+                            name,
+                            signature.params.len(),
+                            args.len()
+                        ),
+                        expr.span,
+                    );
                 }
                 for (index, arg) in args.iter().enumerate() {
                     if let Some(actual) = self.check_expr(arg, locals) {
                         if let Some(expected) = signature.params.get(index) {
                             if !same_type(&actual, expected) {
-                                self.error("AIF310", format!("argument {} to '{}' has type {}, expected {}", index + 1, name, actual.display_name(), expected.display_name()), arg.span);
+                                self.error(
+                                    "AIF310",
+                                    format!(
+                                        "argument {} to '{}' has type {}, expected {}",
+                                        index + 1,
+                                        name,
+                                        actual.display_name(),
+                                        expected.display_name()
+                                    ),
+                                    arg.span,
+                                );
                             }
                         }
                     }
                 }
-                signature.return_type.or_else(|| self.function_returns.get(name).cloned())
+                signature
+                    .return_type
+                    .or_else(|| self.function_returns.get(name).cloned())
             }
-            ExprKind::If { condition, then_branch, else_branch } => {
+            ExprKind::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
                 let condition_type = self.check_expr(condition, locals)?;
                 if !is_kind(&condition_type, &TypeKind::Bool) {
                     self.error("AIF311", "if condition must be Bool", condition.span);
@@ -210,7 +276,11 @@ impl Checker {
                 match (then_type, else_type) {
                     (Some(left), Some(right)) if same_type(&left, &right) => Some(left),
                     (Some(_), Some(_)) => {
-                        self.error("AIF312", "if branches must produce the same type", expr.span);
+                        self.error(
+                            "AIF312",
+                            "if branches must produce the same type",
+                            expr.span,
+                        );
                         None
                     }
                     _ => Some(type_node(TypeKind::Unit, expr.span)),
@@ -224,17 +294,26 @@ impl Checker {
     }
 
     fn error(&mut self, code: &'static str, message: impl Into<String>, span: Span) {
-        self.errors.push(Diagnostic::error(code, message, Some(span)));
+        self.errors
+            .push(Diagnostic::error(code, message, Some(span)));
     }
 }
 
 fn type_node(kind: TypeKind, span: Span) -> Type {
-    Type { id: crate::NodeId(0), span, kind }
+    Type {
+        id: crate::NodeId(0),
+        span,
+        kind,
+    }
 }
 
-fn is_kind(ty: &Type, kind: &TypeKind) -> bool { &ty.kind == kind }
+fn is_kind(ty: &Type, kind: &TypeKind) -> bool {
+    &ty.kind == kind
+}
 
-fn same_type(left: &Type, right: &Type) -> bool { left.kind == right.kind }
+fn same_type(left: &Type, right: &Type) -> bool {
+    left.kind == right.kind
+}
 
 #[cfg(test)]
 mod tests {
@@ -256,7 +335,10 @@ mod tests {
 
     #[test]
     fn catches_argument_type_mismatch() {
-        let module = parse("module x\nfn add(a: Int, b: Int) -> Int\n  a + b\nfn main() -> Int\n  add(true, 1)\n").unwrap();
+        let module = parse(
+            "module x\nfn add(a: Int, b: Int) -> Int\n  a + b\nfn main() -> Int\n  add(true, 1)\n",
+        )
+        .unwrap();
         let errors = check(&module).unwrap_err();
         assert!(errors.iter().any(|error| error.code == "AIF310"));
     }
@@ -266,7 +348,14 @@ mod tests {
         let module = parse("module x\nfn value()\n  42\nfn main() -> Int\n  value()\n").unwrap();
         let model = analyze(&module).unwrap();
         assert_eq!(model.function_returns["value"].kind, TypeKind::Int);
-        assert_eq!(model.inferred_types.values().filter(|t| t.kind == TypeKind::Int).count(), 3);
+        assert_eq!(
+            model
+                .inferred_types
+                .values()
+                .filter(|t| t.kind == TypeKind::Int)
+                .count(),
+            3
+        );
     }
 
     #[test]
