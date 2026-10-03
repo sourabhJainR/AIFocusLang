@@ -166,18 +166,18 @@ impl Checker {
                 let ExprKind::Name(name) = &callee.kind else {
                     self.check_expr(callee, locals, AccessMode::Move);
                     for arg in args {
-                        self.check_expr(arg, locals);
+                        self.check_expr(arg, locals, AccessMode::Move);
                     }
                     return None;
                 };
                 let Some(function) = self.functions.get(name).cloned() else {
                     for arg in args {
-                        self.check_expr(arg, locals);
+                        self.check_expr(arg, locals, AccessMode::Move);
                     }
                     return None;
                 };
                 for arg in args {
-                    self.check_expr(arg, locals);
+                    self.check_expr(arg, locals, AccessMode::Move);
                 }
                 function.return_type
             }
