@@ -1,6 +1,6 @@
 use crate::{
     NodeId,
-    ast::{BinaryOp, Block, Expr, ExprKind, Function, Item, Module, StmtKind, Type, TypeKind},
+    ast::{BinaryOp, Block, Expr, ExprKind, Item, Module, StmtKind, Type, TypeKind},
     source::Span,
 };
 
