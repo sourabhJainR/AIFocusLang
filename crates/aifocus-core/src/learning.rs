@@ -158,10 +158,7 @@ mod tests {
             crate::source::Diagnostic::error("AIF304", "unknown name 'x'", Some(Span::new(1, 2)));
         let mut memory = PersistentCompilerLearning::default();
         memory.record("project-a", "compiler-edit", &diagnostic);
-        let path = std::env::temp_dir().join(format!(
-            "ardisa-learning-{}.txt",
-            std::process::id()
-        ));
+        let path = std::env::temp_dir().join(format!("ardisa-learning-{}.txt", std::process::id()));
         memory.save(&path).unwrap();
         let restored = PersistentCompilerLearning::load(&path).unwrap();
         let key = LearningKey {
