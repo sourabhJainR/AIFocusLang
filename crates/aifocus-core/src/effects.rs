@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::ast::{Block, Expr, ExprKind, Function, Item, Module, StmtKind};
+use crate::ast::{Block, Expr, ExprKind, Item, Module, StmtKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EffectKind {
@@ -64,6 +64,12 @@ fn collect_block(block: &Block, effects: &mut FunctionEffects) {
                 }
             }
             StmtKind::Expr(expr) => collect_expr(expr, effects),
+            StmtKind::Scope { body } => collect_block(body, effects),
+            StmtKind::Spawn { call, .. } => {
+                effects.effects.insert(EffectKind::Call);
+                collect_expr(call, effects);
+            }
+            StmtKind::Join { .. } | StmtKind::Cancel { .. } => {}
         }
     }
 }

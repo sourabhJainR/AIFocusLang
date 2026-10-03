@@ -124,6 +124,9 @@ fn find_stmt(stmt: &Stmt, target: NodeId) -> Option<Span> {
         StmtKind::Let { value, .. } => find_expr(value, target),
         StmtKind::Return(value) => value.as_ref().and_then(|e| find_expr(e, target)),
         StmtKind::Expr(expr) => find_expr(expr, target),
+        StmtKind::Scope { body } => find_block(body, target),
+        StmtKind::Spawn { call, .. } => find_expr(call, target),
+        StmtKind::Join { .. } | StmtKind::Cancel { .. } => None,
     }
 }
 

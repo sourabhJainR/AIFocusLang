@@ -83,6 +83,34 @@ impl Lowerer {
                     }
                     self.out.push_str(";\n");
                 }
+                StmtKind::Scope { body } => {
+                    self.record(stmt.id, stmt.span);
+                    self.out.push_str("{\n");
+                    self.block(body, indent + 1, false);
+                    self.indent(indent);
+                    self.out.push_str("}\n");
+                }
+                StmtKind::Spawn { name, call } => {
+                    self.record(stmt.id, stmt.span);
+                    self.out.push_str("let ");
+                    self.out.push_str(name);
+                    self.out.push_str(" = std::thread::spawn(move || ");
+                    self.expr(call, indent);
+                    self.out.push_str(");\n");
+                }
+                StmtKind::Join { name } => {
+                    self.record(stmt.id, stmt.span);
+                    self.out.push_str(name);
+                    self.out
+                        .push_str(".join().expect(\"Ardisa task panicked\");\n");
+                }
+                StmtKind::Cancel { name } => {
+                    self.record(stmt.id, stmt.span);
+                    self.out.push_str("let _ = &");
+                    self.out.push_str(name);
+                    self.out
+                        .push_str("; // cooperative cancellation is runtime-defined\n");
+                }
                 StmtKind::Expr(expr) => {
                     self.record(stmt.id, stmt.span);
                     self.expr(expr, indent);

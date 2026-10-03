@@ -153,6 +153,18 @@ impl Checker {
                 StmtKind::Expr(expr) => {
                     last = self.check_expr(expr, locals);
                 }
+                StmtKind::Scope { body } => {
+                    let mut scoped = locals.clone();
+                    self.check_block(body, &mut scoped);
+                    last = None;
+                }
+                StmtKind::Spawn { call, .. } => {
+                    self.check_expr(call, locals);
+                    last = None;
+                }
+                StmtKind::Join { .. } | StmtKind::Cancel { .. } => {
+                    last = None;
+                }
             }
         }
         last
