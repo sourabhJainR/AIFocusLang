@@ -29,7 +29,7 @@ fn main() -> ExitCode {
         },
         None | Some("help") | Some("--help") | Some("-h") => {
             println!("aifocus check [--json] <file>");
-            println!("  Parse and validate an AIFocusLang source file.");
+            println!("  Parse, type-check, and validate an AIFocusLang source file.");
             println!("aifocus fmt <file>");
             println!("  Print canonical AIFocusLang source.");
             ExitCode::SUCCESS
@@ -79,50 +79,44 @@ fn check(path: &str, json: bool) -> ExitCode {
 
     match aifocus_core::parse(&source) {
         Ok(module) => match aifocus_core::sema::check(&module) {
-            Ok(()) => {
-                if !json {
-                    println!(
-                        "{path}: ok (module {}, {} item(s))",
-                        module.name,
-                        module.items.len()
-                    );
-                }
-                ExitCode::SUCCESS
-            }
-            Err(errors) => {
-                for error in errors {
-                    if json {
-                        println!("{}", error.to_json(&source));
-                    } else if let Some(location) = error.location(&source) {
-                        eprintln!(
-                            "{path}:{}:{}: error[{}]: {}",
-                            location.line, location.column, error.code, error.message
+            Ok(()) => match aifocus_core::ownership::infer(&module) {
+                Ok(()) => {
+                    if !json {
+                        println!(
+                            "{path}: ok (module {}, {} item(s))",
+                            module.name,
+                            module.items.len()
                         );
-                    } else {
-                        eprintln!("{path}: error[{}]: {}", error.code, error.message);
                     }
+                    ExitCode::SUCCESS
                 }
-                ExitCode::from(1)
-            }
+                Err(errors) => emit_diagnostics(path, &source, json, errors),
+            },
+            Err(errors) => emit_diagnostics(path, &source, json, errors),
         },
-        Err(errors) => {
-            for error in errors {
-                if json {
-                    println!("{}", error.to_json(&source));
-                } else {
-                    if let Some(location) = error.location(&source) {
-                        eprintln!(
-                            "{path}:{}:{}: error[{}]: {}",
-                            location.line, location.column, error.code, error.message
-                        );
-                    } else {
-                        eprintln!("{path}: error[{}]: {}", error.code, error.message);
-                    }
-                }
-            }
-            ExitCode::from(1)
+        Err(errors) => emit_diagnostics(path, &source, json, errors),
+    }
+}
+
+fn emit_diagnostics(
+    path: &str,
+    source: &str,
+    json: bool,
+    errors: Vec<aifocus_core::source::Diagnostic>,
+) -> ExitCode {
+    for error in errors {
+        if json {
+            println!("{}", error.to_json(source));
+        } else if let Some(location) = error.location(source) {
+            eprintln!(
+                "{path}:{}:{}: error[{}]: {}",
+                location.line, location.column, error.code, error.message
+            );
+        } else {
+            eprintln!("{path}: error[{}]: {}", error.code, error.message);
         }
     }
+    ExitCode::from(1)
 }
 
 fn emit_error(
