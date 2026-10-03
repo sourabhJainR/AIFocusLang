@@ -86,20 +86,19 @@ fn find_span(module: &Module, target: NodeId) -> Option<Span> {
     }
     for item in &module.items {
         let Item::Function(function) = item;
-            if function.id == target {
-                return Some(function.span);
+        if function.id == target {
+            return Some(function.span);
+        }
+        for parameter in &function.params {
+            if parameter.id == target {
+                return Some(parameter.span);
             }
-            for parameter in &function.params {
-                if parameter.id == target {
-                    return Some(parameter.span);
-                }
-                if parameter.ty.id == target {
-                    return Some(parameter.ty.span);
-                }
+            if parameter.ty.id == target {
+                return Some(parameter.ty.span);
             }
-            if let Some(span) = find_block(&function.body, target) {
-                return Some(span);
-            }
+        }
+        if let Some(span) = find_block(&function.body, target) {
+            return Some(span);
         }
     }
     None
