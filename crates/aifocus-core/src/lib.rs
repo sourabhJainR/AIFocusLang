@@ -8,7 +8,7 @@ pub use ast::{
     BinaryOp, Block, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
     Type, TypeKind,
 };
-pub use token::{lex, Token, TokenKind};
+pub use token::{Token, TokenKind, lex};
 
 use std::collections::HashMap;
 
@@ -303,11 +303,7 @@ impl Parser {
             }
             TokenKind::String => {
                 self.bump();
-                Some(self.expr(
-                    token.span,
-                    "string",
-                    ExprKind::String(token.lexeme),
-                ))
+                Some(self.expr(token.span, "string", ExprKind::String(token.lexeme)))
             }
             TokenKind::True | TokenKind::False => {
                 self.bump();
@@ -319,11 +315,7 @@ impl Parser {
             }
             TokenKind::Ident => {
                 self.bump();
-                Some(self.expr(
-                    token.span,
-                    "name",
-                    ExprKind::Name(token.lexeme),
-                ))
+                Some(self.expr(token.span, "name", ExprKind::Name(token.lexeme)))
             }
             TokenKind::LParen => {
                 let start = self.bump().span.start;
@@ -478,8 +470,7 @@ mod tests {
 
     #[test]
     fn parses_expression_ast() {
-        let module =
-            parse("module hello\nfn add(a: Int, b: Int) -> Int\n  a + b * 2\n").unwrap();
+        let module = parse("module hello\nfn add(a: Int, b: Int) -> Int\n  a + b * 2\n").unwrap();
         let Item::Function(function) = &module.items[0];
         assert_eq!(function.params.len(), 2);
         assert!(matches!(
