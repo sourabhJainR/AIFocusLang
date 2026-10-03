@@ -115,6 +115,7 @@ pub enum ExprKind {
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
+    Group(Box<Expr>),
     If {
         condition: Box<Expr>,
         then_branch: Block,
