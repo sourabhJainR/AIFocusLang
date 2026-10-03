@@ -35,11 +35,11 @@ fn main() -> ExitCode {
             }
         },
         None | Some("help") | Some("--help") | Some("-h") => {
-            println!("aifocus check [--json] <file>");
+            println!("ardisa check [--json] <file>");
             println!("  Parse, type-check, and validate an Ardisa source file.");
-            println!("aifocus build <file>");
+            println!("ardisa build <file>");
             println!("  Lower Ardisa to readable Rust.");
-            println!("aifocus fmt <file>");
+            println!("ardisa fmt <file>");
             println!("  Print canonical Ardisa source.");
             ExitCode::SUCCESS
         }
