@@ -19,6 +19,10 @@ pub struct Diagnostic {
 
 impl Diagnostic {
     pub fn error(code: &'static str, message: impl Into<String>, span: Option<Span>) -> Self {
-        Self { code, message: message.into(), span }
+        Self {
+            code,
+            message: message.into(),
+            span,
+        }
     }
 }
