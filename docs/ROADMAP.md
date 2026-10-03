@@ -1,4 +1,6 @@
-# AIFocusLang roadmap
+# Ardisa roadmap
+
+Ardisa is built to make AI-first development minimalistic, robust, effective, and traceable.
 
 ## Phase 0: bootstrap
 
