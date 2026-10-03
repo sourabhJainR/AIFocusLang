@@ -65,11 +65,7 @@ impl Checker {
         self.check_block(&function.body, &mut locals);
     }
 
-    fn check_block(
-        &mut self,
-        block: &Block,
-        locals: &mut HashMap<String, (Type, State)>,
-    ) {
+    fn check_block(&mut self, block: &Block, locals: &mut HashMap<String, (Type, State)>) {
         for stmt in &block.stmts {
             match &stmt.kind {
                 StmtKind::Let { name, value } => {
@@ -198,8 +194,7 @@ mod tests {
 
     #[test]
     fn catches_use_after_move() {
-        let module =
-            parse("module x\nfn f(a: String) -> String\n  let b = a\n  a\n").unwrap();
+        let module = parse("module x\nfn f(a: String) -> String\n  let b = a\n  a\n").unwrap();
         let errors = infer(&module).unwrap_err();
         assert!(errors.iter().any(|error| error.code == "AIF400"));
     }
