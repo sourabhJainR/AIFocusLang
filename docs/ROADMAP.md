@@ -10,15 +10,16 @@ Ardisa is built to make AI-first development minimalistic, robust, effective, an
 - Dependency-light compiler.
 - CI and regression fixtures.
 
-## Phase 1: real parser
+## Phase 1: parser and AST foundation
 
 - Lexer with byte-accurate spans.
 - Recursive-descent parser.
 - Error recovery with multiple diagnostics.
 - Canonical formatter.
 - Snapshot and conformance tests.
+- Stable semantic identities that survive whitespace and local structural edits.
 
-## Phase 2: Rust semantic core
+## Phase 2: semantic safety core
 
 - Rust-compatible ownership and borrowing.
 - Type inference for common application code.
@@ -33,13 +34,14 @@ Expose stable AST IDs, spans, symbols, inferred types, effects, ownership transi
 
 AI tools should edit structure rather than blindly rewriting text whenever possible.
 
-## Phase 4: Rust lowering
+## Phase 4: verified Rust lowering
 
-- Lower the safe AIFocus subset to readable Rust.
+- Lower the safe Ardisa subset to readable Rust.
 - Preserve source maps.
 - Support direct Rust escape blocks.
 - Verify generated Rust with rustc.
 - Differential-test reference programs.
+- Preserve source-to-Rust-to-test evidence.
 
 ## Phase 5: reduce Rust friction
 
@@ -51,8 +53,19 @@ No feature should weaken memory safety merely to make AI generation easier.
 
 Only after semantics and lowering are stable: incremental compilation, parallel compilation, deterministic builds, and Rust crate interoperability.
 
-## Phase 7: engineering loop
+## Phase 7: AI engineering loop
 
-source -> AST -> plan -> edit -> compile -> test -> diagnose -> repair -> verify -> evidence
+```text
+source -> AST -> plan -> structural edit -> compile -> test
+-> diagnose -> repair -> verify -> evidence -> traceable outcome
+```
 
-The language remains fully usable without an AI system.
+## Completion criteria
+
+Every phase follows:
+
+```text
+implement -> PR -> verify -> fix -> review -> merge -> re-evaluate -> next phase
+```
+
+A phase is complete only when implementation, tests, CI, review, and merge are clean.
