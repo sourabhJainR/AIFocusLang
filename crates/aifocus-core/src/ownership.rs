@@ -107,6 +107,14 @@ impl Checker {
                 StmtKind::Expr(expr) => {
                     self.check_expr(expr, locals, AccessMode::Move);
                 }
+                StmtKind::Scope { body } => {
+                    let mut scoped = locals.clone();
+                    self.check_block(body, &mut scoped);
+                }
+                StmtKind::Spawn { call, .. } => {
+                    self.check_expr(call, locals, AccessMode::Move);
+                }
+                StmtKind::Join { .. } | StmtKind::Cancel { .. } => {}
             }
         }
     }
