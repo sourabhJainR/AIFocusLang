@@ -1,0 +1,132 @@
+use crate::source::Span;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NodeId(pub u64);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Module {
+    pub id: NodeId,
+    pub span: Span,
+    pub name: String,
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Item {
+    Function(Function),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Function {
+    pub id: NodeId,
+    pub span: Span,
+    pub name: String,
+    pub params: Vec<Parameter>,
+    pub return_type: Option<Type>,
+    pub body: Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Parameter {
+    pub id: NodeId,
+    pub span: Span,
+    pub name: String,
+    pub ty: Type,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Type {
+    pub id: NodeId,
+    pub span: Span,
+    pub kind: TypeKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TypeKind {
+    Int,
+    Bool,
+    String,
+    Unit,
+    Named(String),
+    Result(Box<Type>, Box<Type>),
+}
+
+impl Type {
+    pub fn display_name(&self) -> String {
+        self.kind.display_name()
+    }
+}
+
+impl TypeKind {
+    pub fn display_name(&self) -> String {
+        match self {
+            Self::Int => "Int".into(),
+            Self::Bool => "Bool".into(),
+            Self::String => "String".into(),
+            Self::Unit => "()".into(),
+            Self::Named(name) => name.clone(),
+            Self::Result(ok, err) => {
+                format!("Result<{}, {}>", ok.display_name(), err.display_name())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Block {
+    pub id: NodeId,
+    pub span: Span,
+    pub stmts: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Stmt {
+    pub id: NodeId,
+    pub span: Span,
+    pub kind: StmtKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StmtKind {
+    Let { name: String, value: Expr },
+    Return(Option<Expr>),
+    Expr(Expr),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Expr {
+    pub id: NodeId,
+    pub span: Span,
+    pub kind: ExprKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExprKind {
+    Int(i64),
+    Bool(bool),
+    String(String),
+    Name(String),
+    Binary {
+        op: BinaryOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    Call {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    If {
+        condition: Box<Expr>,
+        then_branch: Block,
+        else_branch: Option<Block>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Equal,
+}
