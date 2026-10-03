@@ -48,7 +48,7 @@ pub fn apply(source: &str, module: &Module, edit: StructuralEdit) -> Result<Edit
     };
 
     if span.start > span.end || span.end > source.len() {
-        return Err(EditError { message: "node span is outside the source".into() });
+        return Err(EditError {\n            message: "node span is outside the source".into(),\n        });
     }
 
     let mut next = String::with_capacity(source.len() + replacement.len());
@@ -73,7 +73,7 @@ pub fn apply(source: &str, module: &Module, edit: StructuralEdit) -> Result<Edit
 }
 
 fn missing(node: NodeId) -> EditError {
-    EditError { message: format!("node {:?} was not found", node) }
+    EditError {\n        message: format!("node {:?} was not found", node),\n    }
 }
 
 fn find_span(module: &Module, target: NodeId) -> Option<Span> {
@@ -155,17 +155,17 @@ mod tests {
         let source = "module x\nfn f() -> Int\n  1\n";
         let module = crate::parse(source).unwrap();
         let Item::Function(function) = &module.items[0];
-        let StmtKind::Expr(expr) = &function.body.stmts[0].kind else { panic!("expected expression") };
+        let StmtKind::Expr(expr) = &function.body.stmts[0].kind else {\n            panic!("expected expression")\n        };
 
         let result = apply(
             source,
             &module,
-            StructuralEdit::Replace { node: expr.id, source: "42".into() },
+            StructuralEdit::Replace {\n                node: expr.id,\n                source: "42".into(),\n            },
         ).unwrap();
 
         assert_eq!(result.source, "module x\nfn f() -> Int\n  42\n");
         let Item::Function(updated) = &result.module.items[0];
-        let StmtKind::Expr(updated_expr) = &updated.body.stmts[0].kind else { panic!("expected expression") };
+        let StmtKind::Expr(updated_expr) = &updated.body.stmts[0].kind else {\n            panic!("expected expression")\n        };
         assert_eq!(updated_expr.id, expr.id);
     }
 
