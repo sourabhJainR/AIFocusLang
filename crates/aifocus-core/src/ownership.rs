@@ -234,7 +234,9 @@ mod tests {
 
     #[test]
     fn equality_shared_borrows_owned_values() {
-        let module = parse("module x\\nfn f(a: String) -> String\\n  let same = a == a\\n  a\\n").unwrap();
+        let module =
+            parse("module x\nfn f(a: String) -> String\n  let same = a == a\n  a\n")
+                .unwrap();
         let model = analyze(&module).unwrap();
         assert!(
             model
