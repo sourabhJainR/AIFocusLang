@@ -23,7 +23,10 @@ pub struct CapabilityFeedback {
 
 impl CapabilityFeedback {
     pub fn is_positive(&self) -> bool {
-        matches!(self.outcome, EpisodeOutcome::Passed | EpisodeOutcome::Repaired)
+        matches!(
+            self.outcome,
+            EpisodeOutcome::Passed | EpisodeOutcome::Repaired
+        )
     }
 
     pub fn should_deepen_verification(&self) -> bool {
