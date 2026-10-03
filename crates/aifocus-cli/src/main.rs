@@ -35,12 +35,12 @@ fn main() -> ExitCode {
             }
         },
         None | Some("help") | Some("--help") | Some("-h") => {
-            println!("aifocus check [--json] <file>");
-            println!("  Parse, type-check, and validate an AIFocusLang source file.");
-            println!("aifocus build <file>");
-            println!("  Lower AIFocusLang to readable Rust.");
-            println!("aifocus fmt <file>");
-            println!("  Print canonical AIFocusLang source.");
+            println!("ardisa check [--json] <file>");
+            println!("  Parse, type-check, and validate an Ardisa source file.");
+            println!("ardisa build <file>");
+            println!("  Lower Ardisa to readable Rust.");
+            println!("ardisa fmt <file>");
+            println!("  Print canonical Ardisa source.");
             ExitCode::SUCCESS
         }
         Some(command) => {
@@ -59,11 +59,11 @@ fn build_file(path: &str) -> ExitCode {
         }
     };
 
-    match aifocus_core::parse(&source) {
-        Ok(module) => match aifocus_core::sema::check(&module) {
-            Ok(()) => match aifocus_core::ownership::infer(&module) {
+    match ardisa_core::parse(&source) {
+        Ok(module) => match ardisa_core::sema::check(&module) {
+            Ok(()) => match ardisa_core::ownership::infer(&module) {
                 Ok(()) => {
-                    print!("{}", aifocus_core::lower::lower(&module).rust);
+                    print!("{}", ardisa_core::lower::lower(&module).rust);
                     ExitCode::SUCCESS
                 }
                 Err(errors) => emit_diagnostics(path, &source, false, errors),
@@ -83,9 +83,9 @@ fn format_file(path: &str) -> ExitCode {
         }
     };
 
-    match aifocus_core::parse(&source) {
+    match ardisa_core::parse(&source) {
         Ok(module) => {
-            print!("{}", aifocus_core::format::format_module(&module));
+            print!("{}", ardisa_core::format::format_module(&module));
             ExitCode::SUCCESS
         }
         Err(errors) => {
@@ -110,9 +110,9 @@ fn check(path: &str, json: bool) -> ExitCode {
         }
     };
 
-    match aifocus_core::parse(&source) {
-        Ok(module) => match aifocus_core::sema::check(&module) {
-            Ok(()) => match aifocus_core::ownership::infer(&module) {
+    match ardisa_core::parse(&source) {
+        Ok(module) => match ardisa_core::sema::check(&module) {
+            Ok(()) => match ardisa_core::ownership::infer(&module) {
                 Ok(()) => {
                     if !json {
                         println!(
@@ -135,7 +135,7 @@ fn emit_diagnostics(
     path: &str,
     source: &str,
     json: bool,
-    errors: Vec<aifocus_core::source::Diagnostic>,
+    errors: Vec<ardisa_core::source::Diagnostic>,
 ) -> ExitCode {
     for error in errors {
         if json {
@@ -156,11 +156,11 @@ fn emit_error(
     path: &str,
     code: &'static str,
     message: &str,
-    span: Option<aifocus_core::source::Span>,
+    span: Option<ardisa_core::source::Span>,
     source: &str,
     json: bool,
 ) {
-    let diagnostic = aifocus_core::source::Diagnostic::error(code, message, span);
+    let diagnostic = ardisa_core::source::Diagnostic::error(code, message, span);
     if json {
         println!("{}", diagnostic.to_json(source));
     } else {
