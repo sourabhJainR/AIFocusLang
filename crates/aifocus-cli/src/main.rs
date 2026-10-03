@@ -78,16 +78,33 @@ fn check(path: &str, json: bool) -> ExitCode {
     };
 
     match aifocus_core::parse(&source) {
-        Ok(module) => {
-            if !json {
-                println!(
-                    "{path}: ok (module {}, {} item(s))",
-                    module.name,
-                    module.items.len()
-                );
+        Ok(module) => match aifocus_core::sema::check(&module) {
+            Ok(()) => {
+                if !json {
+                    println!(
+                        "{path}: ok (module {}, {} item(s))",
+                        module.name,
+                        module.items.len()
+                    );
+                }
+                ExitCode::SUCCESS
             }
-            ExitCode::SUCCESS
-        }
+            Err(errors) => {
+                for error in errors {
+                    if json {
+                        println!("{}", error.to_json(&source));
+                    } else if let Some(location) = error.location(&source) {
+                        eprintln!(
+                            "{path}:{}:{}: error[{}]: {}",
+                            location.line, location.column, error.code, error.message
+                        );
+                    } else {
+                        eprintln!("{path}: error[{}]: {}", error.code, error.message);
+                    }
+                }
+                ExitCode::from(1)
+            }
+        },
         Err(errors) => {
             for error in errors {
                 if json {
