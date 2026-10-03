@@ -1,6 +1,7 @@
 //! Core language model, lexer, and recursive-descent parser for AIFocusLang.
 
 pub mod ast;
+pub mod format;
 pub mod source;
 pub mod token;
 
