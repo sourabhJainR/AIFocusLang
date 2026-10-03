@@ -27,8 +27,15 @@ pub enum IrValue {
     Bool(bool),
     String(String),
     Name(String),
-    Binary { op: BinaryOp, left: Box<IrValue>, right: Box<IrValue> },
-    Call { callee: String, args: Vec<IrValue> },
+    Binary {
+        op: BinaryOp,
+        left: Box<IrValue>,
+        right: Box<IrValue>,
+    },
+    Call {
+        callee: String,
+        args: Vec<IrValue>,
+    },
 }
 
 pub fn lower(module: &Module) -> IrModule {
@@ -104,6 +111,9 @@ mod tests {
         let ir = lower(&module);
         assert_eq!(ir.name, "x");
         assert_eq!(ir.functions[0].params.len(), 2);
-        assert!(matches!(ir.functions[0].ops[0], IrOp::Expr(IrValue::Binary { .. })));
+        assert!(matches!(
+            ir.functions[0].ops[0],
+            IrOp::Expr(IrValue::Binary { .. })
+        ));
     }
 }
