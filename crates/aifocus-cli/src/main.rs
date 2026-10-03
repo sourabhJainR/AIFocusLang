@@ -20,6 +20,13 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("build") => match args.next() {
+            Some(path) => build_file(&path),
+            None => {
+                eprintln!("error: build requires a source file");
+                ExitCode::from(2)
+            }
+        },
         Some("fmt") => match args.next() {
             Some(path) => format_file(&path),
             None => {
@@ -30,6 +37,8 @@ fn main() -> ExitCode {
         None | Some("help") | Some("--help") | Some("-h") => {
             println!("aifocus check [--json] <file>");
             println!("  Parse, type-check, and validate an AIFocusLang source file.");
+            println!("aifocus build <file>");
+            println!("  Lower AIFocusLang to readable Rust.");
             println!("aifocus fmt <file>");
             println!("  Print canonical AIFocusLang source.");
             ExitCode::SUCCESS
@@ -38,6 +47,30 @@ fn main() -> ExitCode {
             eprintln!("error: unknown command '{command}'");
             ExitCode::from(2)
         }
+    }
+}
+
+fn build_file(path: &str) -> ExitCode {
+    let source = match fs::read_to_string(path) {
+        Ok(source) => source,
+        Err(error) => {
+            eprintln!("{path}: error[AIF000]: {error}");
+            return ExitCode::from(1);
+        }
+    };
+
+    match aifocus_core::parse(&source) {
+        Ok(module) => match aifocus_core::sema::check(&module) {
+            Ok(()) => match aifocus_core::ownership::infer(&module) {
+                Ok(()) => {
+                    print!("{}", aifocus_core::lower::lower(&module).rust);
+                    ExitCode::SUCCESS
+                }
+                Err(errors) => emit_diagnostics(path, &source, false, errors),
+            },
+            Err(errors) => emit_diagnostics(path, &source, false, errors),
+        },
+        Err(errors) => emit_diagnostics(path, &source, false, errors),
     }
 }
 
