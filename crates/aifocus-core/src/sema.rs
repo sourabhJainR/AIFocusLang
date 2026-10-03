@@ -20,7 +20,11 @@ pub fn check(module: &Module) -> Result<(), Vec<Diagnostic>> {
     for item in &module.items {
         let Item::Function(function) = item;
         let signature = FunctionSignature {
-            params: function\n                .params\n                .iter()\n                .map(|param| param.ty.clone())\n                .collect(),
+            params: function
+                .params
+                .iter()
+                .map(|param| param.ty.clone())
+                .collect(),
             return_type: function.return_type.clone(),
         };
         if checker
@@ -57,7 +61,10 @@ impl Checker {
     fn check_function(&mut self, function: &Function) {
         let mut locals = HashMap::new();
         for param in &function.params {
-            if locals\n                .insert(param.name.clone(), param.ty.clone())\n                .is_some()\n            {
+            if locals
+                .insert(param.name.clone(), param.ty.clone())
+                .is_some()
+            {
                 self.error(
                     "AIF301",
                     format!("duplicate parameter '{}'", param.name),
@@ -242,7 +249,8 @@ impl Checker {
     }
 
     fn error(&mut self, code: &'static str, message: impl Into<String>, span: Span) {
-        self.errors\n            .push(Diagnostic::error(code, message, Some(span)));
+        self.errors
+            .push(Diagnostic::error(code, message, Some(span)));
     }
 }
 
