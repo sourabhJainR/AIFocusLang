@@ -11,20 +11,28 @@ pub struct FunctionSignature {
     pub return_type: Option<Type>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SemanticModel {
+    pub inferred_types: HashMap<crate::NodeId, Type>,
+    pub function_returns: HashMap<String, Type>,
+}
+
 pub fn check(module: &Module) -> Result<(), Vec<Diagnostic>> {
+    analyze(module).map(|_| ())
+}
+
+pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
     let mut checker = Checker {
         functions: HashMap::new(),
+        inferred_types: HashMap::new(),
+        function_returns: HashMap::new(),
         errors: Vec::new(),
     };
 
     for item in &module.items {
         let Item::Function(function) = item;
         let signature = FunctionSignature {
-            params: function
-                .params
-                .iter()
-                .map(|param| param.ty.clone())
-                .collect(),
+            params: function.params.iter().map(|p| p.ty.clone()).collect(),
             return_type: function.return_type.clone(),
         };
         if checker
@@ -40,13 +48,40 @@ pub fn check(module: &Module) -> Result<(), Vec<Diagnostic>> {
         }
     }
 
+    // Infer omitted return types to a fixed point. This makes call sites benefit
+    // from information discovered in functions declared later in the module.
+    for _ in 0..module.items.len().max(1) {
+        let before = checker.function_returns.clone();
+        for item in &module.items {
+            let Item::Function(function) = item;
+            if function.return_type.is_none() {
+                let mut locals = function
+                    .params
+                    .iter()
+                    .map(|p| (p.name.clone(), p.ty.clone()))
+                    .collect::<HashMap<_, _>>();
+                if let Some(ty) = checker.check_block(&function.body, &mut locals) {
+                    checker.function_returns.insert(function.name.clone(), ty);
+                }
+            } else if let Some(ty) = function.return_type.clone() {
+                checker.function_returns.insert(function.name.clone(), ty);
+            }
+        }
+        if before == checker.function_returns {
+            break;
+        }
+    }
+
     for item in &module.items {
         let Item::Function(function) = item;
         checker.check_function(function);
     }
 
     if checker.errors.is_empty() {
-        Ok(())
+        Ok(SemanticModel {
+            inferred_types: checker.inferred_types,
+            function_returns: checker.function_returns,
+        })
     } else {
         Err(checker.errors)
     }
@@ -54,6 +89,8 @@ pub fn check(module: &Module) -> Result<(), Vec<Diagnostic>> {
 
 struct Checker {
     functions: HashMap<String, FunctionSignature>,
+    inferred_types: HashMap<crate::NodeId, Type>,
+    function_returns: HashMap<String, Type>,
     errors: Vec<Diagnostic>,
 }
 
@@ -71,6 +108,7 @@ impl Checker {
                     param.span,
                 );
             }
+            self.inferred_types.insert(param.id, param.ty.clone());
         }
 
         let block_type = self.check_block(&function.body, &mut locals);
@@ -110,9 +148,7 @@ impl Checker {
                     last = None;
                 }
                 StmtKind::Return(value) => {
-                    last = value
-                        .as_ref()
-                        .and_then(|expr| self.check_expr(expr, locals));
+                    last = value.as_ref().and_then(|e| self.check_expr(e, locals));
                 }
                 StmtKind::Expr(expr) => {
                     last = self.check_expr(expr, locals);
@@ -123,7 +159,7 @@ impl Checker {
     }
 
     fn check_expr(&mut self, expr: &Expr, locals: &HashMap<String, Type>) -> Option<Type> {
-        match &expr.kind {
+        let result = match &expr.kind {
             ExprKind::Int(_) => Some(type_node(TypeKind::Int, expr.span)),
             ExprKind::Bool(_) => Some(type_node(TypeKind::Bool, expr.span)),
             ExprKind::String(_) => Some(type_node(TypeKind::String, expr.span)),
@@ -131,7 +167,10 @@ impl Checker {
                 if let Some(ty) = locals.get(name) {
                     Some(ty.clone())
                 } else if let Some(signature) = self.functions.get(name) {
-                    signature.return_type.clone()
+                    signature
+                        .return_type
+                        .clone()
+                        .or_else(|| self.function_returns.get(name).cloned())
                 } else {
                     self.error("AIF304", format!("unknown name '{name}'"), expr.span);
                     None
@@ -214,7 +253,9 @@ impl Checker {
                         }
                     }
                 }
-                signature.return_type
+                signature
+                    .return_type
+                    .or_else(|| self.function_returns.get(name).cloned())
             }
             ExprKind::If {
                 condition,
@@ -227,8 +268,9 @@ impl Checker {
                 }
                 let mut then_locals = locals.clone();
                 let then_type = self.check_block(then_branch, &mut then_locals);
-                let Some(else_branch) = else_branch else {
-                    return Some(type_node(TypeKind::Unit, expr.span));
+                let else_branch = match else_branch {
+                    Some(branch) => branch,
+                    None => return Some(type_node(TypeKind::Unit, expr.span)),
                 };
                 let mut else_locals = locals.clone();
                 let else_type = self.check_block(else_branch, &mut else_locals);
@@ -245,7 +287,11 @@ impl Checker {
                     _ => Some(type_node(TypeKind::Unit, expr.span)),
                 }
             }
+        };
+        if let Some(ref ty) = result {
+            self.inferred_types.insert(expr.id, ty.clone());
         }
+        result
     }
 
     fn error(&mut self, code: &'static str, message: impl Into<String>, span: Span) {
@@ -296,5 +342,26 @@ mod tests {
         .unwrap();
         let errors = check(&module).unwrap_err();
         assert!(errors.iter().any(|error| error.code == "AIF310"));
+    }
+
+    #[test]
+    fn infers_omitted_return_type_and_propagates_it_to_calls() {
+        let module = parse("module x\nfn value()\n  42\nfn main() -> Int\n  value()\n").unwrap();
+        let model = analyze(&module).unwrap();
+        assert_eq!(model.function_returns["value"].kind, TypeKind::Int);
+        assert_eq!(
+            model
+                .inferred_types
+                .values()
+                .filter(|t| t.kind == TypeKind::Int)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn infers_return_through_later_declaration() {
+        let module = parse("module x\nfn main() -> Int\n  value()\nfn value()\n  42\n").unwrap();
+        assert!(check(&module).is_ok());
     }
 }
