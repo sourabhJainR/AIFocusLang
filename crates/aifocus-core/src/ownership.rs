@@ -1,0 +1,206 @@
+use std::collections::HashMap;
+
+use crate::{
+    ast::{BinaryOp, Block, Expr, ExprKind, Function, Item, Module, StmtKind, Type, TypeKind},
+    source::Diagnostic,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OwnershipClass {
+    Copy,
+    Move,
+}
+
+impl OwnershipClass {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Copy => "copy",
+            Self::Move => "move",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum State {
+    Available,
+    Moved,
+}
+
+pub fn infer(module: &Module) -> Result<(), Vec<Diagnostic>> {
+    let mut checker = Checker {
+        functions: module
+            .items
+            .iter()
+            .map(|item| {
+                let Item::Function(function) = item;
+                (function.name.clone(), function.clone())
+            })
+            .collect(),
+        errors: Vec::new(),
+    };
+
+    for item in &module.items {
+        let Item::Function(function) = item;
+        checker.check_function(function);
+    }
+
+    if checker.errors.is_empty() {
+        Ok(())
+    } else {
+        Err(checker.errors)
+    }
+}
+
+struct Checker {
+    functions: HashMap<String, Function>,
+    errors: Vec<Diagnostic>,
+}
+
+impl Checker {
+    fn check_function(&mut self, function: &Function) {
+        let mut locals = HashMap::new();
+        for param in &function.params {
+            locals.insert(param.name.clone(), (param.ty.clone(), State::Available));
+        }
+        self.check_block(&function.body, &mut locals);
+    }
+
+    fn check_block(
+        &mut self,
+        block: &Block,
+        locals: &mut HashMap<String, (Type, State)>,
+    ) {
+        for stmt in &block.stmts {
+            match &stmt.kind {
+                StmtKind::Let { name, value } => {
+                    if let Some(ty) = self.check_expr(value, locals) {
+                        locals.insert(name.clone(), (ty, State::Available));
+                    }
+                }
+                StmtKind::Return(value) => {
+                    if let Some(value) = value {
+                        self.check_expr(value, locals);
+                    }
+                }
+                StmtKind::Expr(expr) => {
+                    self.check_expr(expr, locals);
+                }
+            }
+        }
+    }
+
+    fn check_expr(
+        &mut self,
+        expr: &Expr,
+        locals: &mut HashMap<String, (Type, State)>,
+    ) -> Option<Type> {
+        match &expr.kind {
+            ExprKind::Int(_) => Some(type_node(TypeKind::Int, expr)),
+            ExprKind::Bool(_) => Some(type_node(TypeKind::Bool, expr)),
+            ExprKind::String(_) => Some(type_node(TypeKind::String, expr)),
+            ExprKind::Name(name) => {
+                let Some((ty, state)) = locals.get_mut(name) else {
+                    return None;
+                };
+                if *state == State::Moved {
+                    self.errors.push(Diagnostic::error(
+                        "AIF400",
+                        format!("use of moved value '{name}'"),
+                        Some(expr.span),
+                    ));
+                    return None;
+                }
+                if ownership_of(ty) == OwnershipClass::Move {
+                    *state = State::Moved;
+                }
+                Some(ty.clone())
+            }
+            ExprKind::Group(inner) => self.check_expr(inner, locals),
+            ExprKind::Binary { op, left, right } => {
+                let left_type = self.check_expr(left, locals);
+                let right_type = self.check_expr(right, locals);
+                match op {
+                    BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+                        left_type.or(right_type)
+                    }
+                    BinaryOp::Equal => Some(type_node(TypeKind::Bool, expr)),
+                }
+            }
+            ExprKind::Call { callee, args } => {
+                let ExprKind::Name(name) = &callee.kind else {
+                    self.check_expr(callee, locals);
+                    for arg in args {
+                        self.check_expr(arg, locals);
+                    }
+                    return None;
+                };
+                let Some(function) = self.functions.get(name).cloned() else {
+                    for arg in args {
+                        self.check_expr(arg, locals);
+                    }
+                    return None;
+                };
+                for arg in args {
+                    self.check_expr(arg, locals);
+                }
+                function.return_type
+            }
+            ExprKind::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                self.check_expr(condition, locals);
+                let mut then_locals = locals.clone();
+                self.check_block(then_branch, &mut then_locals);
+                if let Some(else_branch) = else_branch {
+                    let mut else_locals = locals.clone();
+                    self.check_block(else_branch, &mut else_locals);
+                    for (name, (_, state)) in locals.iter_mut() {
+                        let then_state = then_locals.get(name).map(|entry| entry.1);
+                        let else_state = else_locals.get(name).map(|entry| entry.1);
+                        if then_state == Some(State::Moved) || else_state == Some(State::Moved) {
+                            *state = State::Moved;
+                        }
+                    }
+                }
+                Some(type_node(TypeKind::Unit, expr))
+            }
+        }
+    }
+}
+
+fn ownership_of(ty: &Type) -> OwnershipClass {
+    match ty.kind {
+        TypeKind::Int | TypeKind::Bool | TypeKind::Unit => OwnershipClass::Copy,
+        TypeKind::String | TypeKind::Named(_) | TypeKind::Result(_, _) => OwnershipClass::Move,
+    }
+}
+
+fn type_node(kind: TypeKind, expr: &Expr) -> Type {
+    Type {
+        id: expr.id,
+        span: expr.span,
+        kind,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parse;
+
+    #[test]
+    fn treats_primitives_as_copy() {
+        let module = parse("module x\nfn f(a: Int) -> Int\n  a + a\n").unwrap();
+        assert!(infer(&module).is_ok());
+    }
+
+    #[test]
+    fn catches_use_after_move() {
+        let module =
+            parse("module x\nfn f(a: String) -> String\n  let b = a\n  a\n").unwrap();
+        let errors = infer(&module).unwrap_err();
+        assert!(errors.iter().any(|error| error.code == "AIF400"));
+    }
+}
