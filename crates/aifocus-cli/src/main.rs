@@ -79,7 +79,8 @@ fn check(path: &str, json: bool) -> ExitCode {
 
     match aifocus_core::parse(&source) {
         Ok(module) => match aifocus_core::sema::check(&module) {
-            Ok(()) => {
+            Ok(()) => match aifocus_core::ownership::infer(&module) {
+                Ok(()) => {
                 if !json {
                     println!(
                         "{path}: ok (module {}, {} item(s))",
@@ -87,10 +88,10 @@ fn check(path: &str, json: bool) -> ExitCode {
                         module.items.len()
                     );
                 }
-                ExitCode::SUCCESS
-            }
-            Err(errors) => {
-                for error in errors {
+                    ExitCode::SUCCESS
+                }
+                Err(errors) => {
+                    for error in errors {
                     if json {
                         println!("{}", error.to_json(&source));
                     } else if let Some(location) = error.location(&source) {
@@ -102,9 +103,11 @@ fn check(path: &str, json: bool) -> ExitCode {
                         eprintln!("{path}: error[{}]: {}", error.code, error.message);
                     }
                 }
-                ExitCode::from(1)
-            }
-        },
+                    ExitCode::from(1)
+                }
+            },
+            Err(errors) => {
+                for error in errors {
         Err(errors) => {
             for error in errors {
                 if json {
