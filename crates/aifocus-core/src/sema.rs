@@ -268,8 +268,9 @@ impl Checker {
                 }
                 let mut then_locals = locals.clone();
                 let then_type = self.check_block(then_branch, &mut then_locals);
-                let Some(else_branch) = else_branch else {
-                    Some(type_node(TypeKind::Unit, expr.span))
+                let else_branch = match else_branch {
+                    Some(branch) => branch,
+                    None => return Some(type_node(TypeKind::Unit, expr.span)),
                 };
                 let mut else_locals = locals.clone();
                 let else_type = self.check_block(else_branch, &mut else_locals);
