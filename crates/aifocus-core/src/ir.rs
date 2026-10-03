@@ -69,7 +69,7 @@ pub fn lower(module: &Module) -> IrModule {
                             call: value_to_ir(call),
                         }),
                         StmtKind::Join { name } => ops.push(IrOp::Join { name: name.clone() }),
-                        StmtKind::Cancel { name } => ops.push(IrOp::Cancel { name: name.clone() })
+                        StmtKind::Cancel { name } => ops.push(IrOp::Cancel { name: name.clone() }),
                     }
                 }
                 IrFunction {
