@@ -1,4 +1,6 @@
-# AIFocusLang roadmap
+# Ardisa roadmap
+
+The canonical source extension is `.ardisa`; all examples, fixtures, tooling, and editor integrations should use `*.ardisa`.
 
 ## Phase 0: bootstrap
 
@@ -33,7 +35,7 @@ AI tools should edit structure rather than blindly rewriting text whenever possi
 
 ## Phase 4: Rust lowering
 
-- Lower the safe AIFocus subset to readable Rust.
+- Lower the safe Ardisa subset to readable Rust.
 - Preserve source maps.
 - Support direct Rust escape blocks.
 - Verify generated Rust with rustc.
