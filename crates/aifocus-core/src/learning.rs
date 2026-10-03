@@ -33,11 +33,14 @@ impl PersistentCompilerLearning {
             task_kind: task_kind.into(),
             diagnostic: diagnostic.code.into(),
         };
-        let entry = self.entries.entry(key.clone()).or_insert_with(|| LearningEntry {
-            key,
-            message: diagnostic.message.clone(),
-            occurrences: 0,
-        });
+        let entry = self
+            .entries
+            .entry(key.clone())
+            .or_insert_with(|| LearningEntry {
+                key,
+                message: diagnostic.message.clone(),
+                occurrences: 0,
+            });
         entry.message = diagnostic.message.clone();
         entry.occurrences += 1;
     }
@@ -56,8 +59,11 @@ impl PersistentCompilerLearning {
         let mut out = String::from("ARDISA-LEARNING-V1\n");
         let mut entries = self.entries.values().collect::<Vec<_>>();
         entries.sort_by(|a, b| {
-            (&a.key.project, &a.key.task_kind, &a.key.diagnostic)
-                .cmp(&(&b.key.project, &b.key.task_kind, &b.key.diagnostic))
+            (&a.key.project, &a.key.task_kind, &a.key.diagnostic).cmp(&(
+                &b.key.project,
+                &b.key.task_kind,
+                &b.key.diagnostic,
+            ))
         });
         for entry in entries {
             out.push_str(&escape(&entry.key.project));
@@ -82,7 +88,10 @@ impl PersistentCompilerLearning {
         }
         let mut memory = Self::default();
         for line in lines {
-            let fields = line.split('\t').map(unescape).collect::<Result<Vec<_>, _>>()?;
+            let fields = line
+                .split('\t')
+                .map(unescape)
+                .collect::<Result<Vec<_>, _>>()?;
             if fields.len() != 5 {
                 return Err("invalid Ardisa learning record".into());
             }
@@ -108,7 +117,10 @@ impl PersistentCompilerLearning {
 }
 
 fn escape(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('\t', "\\t").replace('\n', "\\n")
+    value
+        .replace('\\', "\\\\")
+        .replace('\t', "\\t")
+        .replace('\n', "\\n")
 }
 
 fn unescape(value: &str) -> Result<String, String> {
@@ -142,11 +154,8 @@ mod tests {
 
     #[test]
     fn persists_contextual_learning() {
-        let diagnostic = crate::source::Diagnostic::error(
-            "AIF304",
-            "unknown name 'x'",
-            Some(Span::new(1, 2)),
-        );
+        let diagnostic =
+            crate::source::Diagnostic::error("AIF304", "unknown name 'x'", Some(Span::new(1, 2)));
         let mut memory = PersistentCompilerLearning::default();
         memory.record("project-a", "compiler-edit", &diagnostic);
         let path = std::env::temp_dir().join(format!(
