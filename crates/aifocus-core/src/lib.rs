@@ -134,9 +134,7 @@ where
     let rest = signature
         .strip_prefix("fn ")
         .ok_or("invalid function declaration")?;
-    let open = rest
-        .find('(')
-        .ok_or("function parameters are required")?;
+    let open = rest.find('(').ok_or("function parameters are required")?;
     let close = rest
         .rfind(')')
         .ok_or("missing ')' in function declaration")?;
@@ -236,8 +234,7 @@ mod tests {
 
     #[test]
     fn parses_small_program() {
-        let module =
-            parse("module hello\n\nfn add(a: Int, b: Int) -> Int\n  a + b\n").unwrap();
+        let module = parse("module hello\n\nfn add(a: Int, b: Int) -> Int\n  a + b\n").unwrap();
         assert_eq!(module.name, "hello");
         assert_eq!(module.items.len(), 1);
         let Item::Function(function) = &module.items[0];
@@ -249,8 +246,7 @@ mod tests {
 
     #[test]
     fn parses_multiple_functions() {
-        let module =
-            parse("module hello\nfn one() -> Int\n  1\nfn two() -> Int\n  2\n").unwrap();
+        let module = parse("module hello\nfn one() -> Int\n  1\nfn two() -> Int\n  2\n").unwrap();
         assert_eq!(module.items.len(), 2);
         assert_eq!(
             module.items[1],
