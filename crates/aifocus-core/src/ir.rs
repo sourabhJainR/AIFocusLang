@@ -145,10 +145,7 @@ fn value_to_ir(expr: &Expr) -> IrValue {
         } => IrValue::If {
             condition: Box::new(value_to_ir(condition)),
             then_ops: block_to_ops(then_branch),
-            else_ops: else_branch
-                .as_ref()
-                .map(block_to_ops)
-                .unwrap_or_default(),
+            else_ops: else_branch.as_ref().map(block_to_ops).unwrap_or_default(),
         },
     }
 }
