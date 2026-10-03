@@ -103,7 +103,7 @@ fn check(path: &str, json: bool) -> ExitCode {
                     }
                 }
                 ExitCode::from(1)
-            }
+            },
         }
         Err(errors) => {
             for error in errors {
