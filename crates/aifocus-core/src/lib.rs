@@ -2,6 +2,7 @@
 
 pub mod ast;
 pub mod differential;
+pub mod diagnostic_memory;
 pub mod edit;
 pub mod effects;
 pub mod format;
@@ -12,6 +13,7 @@ pub mod source;
 pub mod token;
 
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
+pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use effects::{EffectKind, EffectModel, FunctionEffects};
 pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
 
