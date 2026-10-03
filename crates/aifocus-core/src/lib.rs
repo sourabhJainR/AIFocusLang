@@ -13,6 +13,7 @@ pub mod interop;
 pub mod ir;
 pub mod lower;
 pub mod ownership;
+pub mod learning;
 pub mod protocol;
 pub mod sema;
 pub mod source;
@@ -27,6 +28,7 @@ pub use hws_feedback::{CapabilityFeedback, EpisodeOutcome, VerificationDepth};
 pub use interop::{InteropType, RustFunction, SafeRustBoundary};
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
 pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
+pub use learning::{LearningEntry, LearningKey, PersistentCompilerLearning};
 pub use protocol::{CompilerRequest, CompilerResponse, CompilerSnapshot, ProtocolError};
 
 pub use ast::{
