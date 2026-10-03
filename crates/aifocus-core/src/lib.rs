@@ -1,6 +1,7 @@
 //! Core language model, parser, and AI-native structural editing API for Ardisa.
 
 pub mod ast;
+pub mod concurrency;
 pub mod diagnostic_memory;
 pub mod differential;
 pub mod edit;
@@ -14,6 +15,7 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
+pub use concurrency::{CancellationToken, ScopeReport, TaskHandle, TaskSpec, TaskTerminal};
 pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
 pub use effects::{EffectKind, EffectModel, FunctionEffects};
@@ -242,6 +244,54 @@ impl Parser {
                 id: self.id("return", &start.to_string()),
                 span: source::Span::new(start, end),
                 kind: StmtKind::Return(value),
+            });
+        }
+
+        if self.eat(TokenKind::Scope) {
+            self.expect(TokenKind::Newline, "end of scope declaration")?;
+            let body = self.parse_block("scope body")?;
+            let end = body.span.end;
+            return Some(Stmt {
+                id: self.id("scope", &start.to_string()),
+                span: source::Span::new(start, end),
+                kind: StmtKind::Scope { body },
+            });
+        }
+
+        if self.eat(TokenKind::Spawn) {
+            let name = self.expect(TokenKind::Ident, "task name")?;
+            self.expect(TokenKind::Equal, "'=' in spawn statement")?;
+            let call = self.parse_expr(0)?;
+            if !matches!(call.kind, ExprKind::Call { .. }) {
+                self.error("AIF500", "spawn requires a function call");
+                return None;
+            }
+            let end = call.span.end;
+            self.expect(TokenKind::Newline, "end of spawn statement")?;
+            return Some(Stmt {
+                id: self.id("spawn", &start.to_string()),
+                span: source::Span::new(start, end),
+                kind: StmtKind::Spawn {
+                    name: name.lexeme,
+                    call,
+                },
+            });
+        }
+
+        if self.eat(TokenKind::Join) || self.eat(TokenKind::Cancel) {
+            let kind = self.previous_span();
+            let is_cancel = self.tokens[self.pos.saturating_sub(1)].kind == TokenKind::Cancel;
+            let name = self.expect(TokenKind::Ident, "task name")?;
+            let end = name.span.end;
+            self.expect(TokenKind::Newline, "end of task control statement")?;
+            return Some(Stmt {
+                id: self.id(if is_cancel { "cancel" } else { "join" }, &start.to_string()),
+                span: source::Span::new(start, end),
+                kind: if is_cancel {
+                    StmtKind::Cancel { name: name.lexeme }
+                } else {
+                    StmtKind::Join { name: name.lexeme }
+                },
             });
         }
 
