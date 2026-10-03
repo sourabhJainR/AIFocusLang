@@ -175,12 +175,16 @@ fn f() -> Int
                 node: expr.id,
                 source: "42".into(),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
-        assert_eq!(result.source, "module x
+        assert_eq!(
+            result.source,
+            "module x
 fn f() -> Int
   42
-");
+"
+        );
         let Item::Function(updated) = &result.module.items[0];
         let StmtKind::Expr(updated_expr) = &updated.body.stmts[0].kind else {
             panic!("expected expression")
@@ -190,15 +194,21 @@ fn f() -> Int
 
     #[test]
     fn whitespace_does_not_change_function_identity() {
-        let a = crate::parse("module x
+        let a = crate::parse(
+            "module x
 fn f() -> Int
   1
-").unwrap();
-        let b = crate::parse("module x
+",
+        )
+        .unwrap();
+        let b = crate::parse(
+            "module x
 
 fn f() -> Int
     1
-").unwrap();
+",
+        )
+        .unwrap();
         let Item::Function(fa) = &a.items[0];
         let Item::Function(fb) = &b.items[0];
         assert_eq!(fa.id, fb.id);
