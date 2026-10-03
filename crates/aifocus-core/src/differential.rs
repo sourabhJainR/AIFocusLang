@@ -22,7 +22,7 @@ pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
     sema::check(&module).map_err(|errors| format!("{}: semantic check failed: {errors:?}", case.name))?;
     ownership::infer(&module)
         .map_err(|errors| format!("{}: ownership check failed: {errors:?}", case.name))?;
-    let lowered = lower::lower(&module).map_err(|errors| format!("{}: lowering failed: {errors:?}", case.name))?;
+    let lowered = lower::lower(&module);
     if lowered.rust.trim().is_empty() {
         return Err(format!("{}: lowering produced empty Rust", case.name));
     }
