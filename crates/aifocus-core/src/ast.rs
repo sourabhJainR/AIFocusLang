@@ -91,6 +91,10 @@ pub enum StmtKind {
     Let { name: String, value: Expr },
     Return(Option<Expr>),
     Expr(Expr),
+    Scope { body: Block },
+    Spawn { name: String, call: Expr },
+    Join { name: String },
+    Cancel { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
