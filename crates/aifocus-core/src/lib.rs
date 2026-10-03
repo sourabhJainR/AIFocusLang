@@ -6,6 +6,7 @@ pub mod diagnostic_memory;
 pub mod differential;
 pub mod edit;
 pub mod effects;
+pub mod evidence;
 pub mod format;
 pub mod fuzz;
 pub mod hws_feedback;
@@ -23,6 +24,7 @@ pub use concurrency::{CancellationToken, ScopeReport, TaskHandle, TaskSpec, Task
 pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
 pub use effects::{EffectKind, EffectModel, FunctionEffects};
+pub use evidence::{CapabilityDecision, CapabilityEvaluation, EvidenceEnvelope};
 pub use fuzz::{GeneratedCase, generate as generate_fuzz_case};
 pub use hws_feedback::{CapabilityFeedback, EpisodeOutcome, VerificationDepth};
 pub use interop::{InteropType, RustFunction, SafeRustBoundary};
