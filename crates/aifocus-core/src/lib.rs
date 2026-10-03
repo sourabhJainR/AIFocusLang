@@ -1,4 +1,4 @@
-//! Core language model, lexer, and recursive-descent parser for AIFocusLang.
+//! Core language model, lexer, and recursive-descent parser for Ardisa.
 
 pub mod ast;
 pub mod format;
