@@ -2,6 +2,7 @@
 
 pub mod ast;
 pub mod edit;
+pub mod effects;
 pub mod format;
 pub mod lower;
 pub mod ownership;
@@ -9,6 +10,7 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
+pub use effects::{EffectKind, EffectModel, FunctionEffects};
 pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
 
 pub use ast::{
