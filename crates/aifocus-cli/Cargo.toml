@@ -1,8 +1,8 @@
 [package]
-name = "aifocus"
+name = "ardisa"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-aifocus-core = { path = "../aifocus-core" }
+ardisa-core = { path = "../aifocus-core" }
