@@ -11,6 +11,18 @@ pub enum OwnershipClass {
     Move,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessKind {
+    Copy,
+    Move,
+    SharedBorrow,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct OwnershipModel {
+    pub accesses: HashMap<crate::NodeId, AccessKind>,
+}
+
 impl OwnershipClass {
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -26,7 +38,17 @@ enum State {
     Moved,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AccessMode {
+    Move,
+    SharedBorrow,
+}
+
 pub fn infer(module: &Module) -> Result<(), Vec<Diagnostic>> {
+    analyze(module).map(|_| ())
+}
+
+pub fn analyze(module: &Module) -> Result<OwnershipModel, Vec<Diagnostic>> {
     let mut checker = Checker {
         functions: module
             .items
@@ -37,6 +59,7 @@ pub fn infer(module: &Module) -> Result<(), Vec<Diagnostic>> {
             })
             .collect(),
         errors: Vec::new(),
+        accesses: HashMap::new(),
     };
 
     for item in &module.items {
@@ -45,7 +68,9 @@ pub fn infer(module: &Module) -> Result<(), Vec<Diagnostic>> {
     }
 
     if checker.errors.is_empty() {
-        Ok(())
+        Ok(OwnershipModel {
+            accesses: checker.accesses,
+        })
     } else {
         Err(checker.errors)
     }
@@ -54,6 +79,7 @@ pub fn infer(module: &Module) -> Result<(), Vec<Diagnostic>> {
 struct Checker {
     functions: HashMap<String, Function>,
     errors: Vec<Diagnostic>,
+    accesses: HashMap<crate::NodeId, AccessKind>,
 }
 
 impl Checker {
@@ -69,17 +95,17 @@ impl Checker {
         for stmt in &block.stmts {
             match &stmt.kind {
                 StmtKind::Let { name, value } => {
-                    if let Some(ty) = self.check_expr(value, locals) {
+                    if let Some(ty) = self.check_expr(value, locals, AccessMode::Move) {
                         locals.insert(name.clone(), (ty, State::Available));
                     }
                 }
                 StmtKind::Return(value) => {
                     if let Some(value) = value {
-                        self.check_expr(value, locals);
+                        self.check_expr(value, locals, AccessMode::Move);
                     }
                 }
                 StmtKind::Expr(expr) => {
-                    self.check_expr(expr, locals);
+                    self.check_expr(expr, locals, AccessMode::Move);
                 }
             }
         }
@@ -89,6 +115,7 @@ impl Checker {
         &mut self,
         expr: &Expr,
         locals: &mut HashMap<String, (Type, State)>,
+        mode: AccessMode,
     ) -> Option<Type> {
         match &expr.kind {
             ExprKind::Int(_) => Some(type_node(TypeKind::Int, expr)),
@@ -106,15 +133,28 @@ impl Checker {
                     ));
                     return None;
                 }
-                if ownership_of(ty) == OwnershipClass::Move {
+                let access = if ownership_of(ty) == OwnershipClass::Copy {
+                    AccessKind::Copy
+                } else if mode == AccessMode::SharedBorrow {
+                    AccessKind::SharedBorrow
+                } else {
+                    AccessKind::Move
+                };
+                self.accesses.insert(expr.id, access);
+                if access == AccessKind::Move {
                     *state = State::Moved;
                 }
                 Some(ty.clone())
             }
-            ExprKind::Group(inner) => self.check_expr(inner, locals),
+            ExprKind::Group(inner) => self.check_expr(inner, locals, mode),
             ExprKind::Binary { op, left, right } => {
-                let left_type = self.check_expr(left, locals);
-                let right_type = self.check_expr(right, locals);
+                let operand_mode = if *op == BinaryOp::Equal {
+                    AccessMode::SharedBorrow
+                } else {
+                    AccessMode::Move
+                };
+                let left_type = self.check_expr(left, locals, operand_mode);
+                let right_type = self.check_expr(right, locals, operand_mode);
                 match op {
                     BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
                         left_type.or(right_type)
@@ -124,20 +164,20 @@ impl Checker {
             }
             ExprKind::Call { callee, args } => {
                 let ExprKind::Name(name) = &callee.kind else {
-                    self.check_expr(callee, locals);
+                    self.check_expr(callee, locals, AccessMode::Move);
                     for arg in args {
-                        self.check_expr(arg, locals);
+                        self.check_expr(arg, locals, AccessMode::Move);
                     }
                     return None;
                 };
                 let Some(function) = self.functions.get(name).cloned() else {
                     for arg in args {
-                        self.check_expr(arg, locals);
+                        self.check_expr(arg, locals, AccessMode::Move);
                     }
                     return None;
                 };
                 for arg in args {
-                    self.check_expr(arg, locals);
+                    self.check_expr(arg, locals, AccessMode::Move);
                 }
                 function.return_type
             }
@@ -146,7 +186,7 @@ impl Checker {
                 then_branch,
                 else_branch,
             } => {
-                self.check_expr(condition, locals);
+                self.check_expr(condition, locals, AccessMode::Move);
                 let mut then_locals = locals.clone();
                 self.check_block(then_branch, &mut then_locals);
                 if let Some(else_branch) = else_branch {
@@ -190,6 +230,19 @@ mod tests {
     fn treats_primitives_as_copy() {
         let module = parse("module x\nfn f(a: Int) -> Int\n  a + a\n").unwrap();
         assert!(infer(&module).is_ok());
+    }
+
+    #[test]
+    fn equality_shared_borrows_owned_values() {
+        let module =
+            parse("module x\nfn f(a: String) -> String\n  let same = a == a\n  a\n").unwrap();
+        let model = analyze(&module).unwrap();
+        assert!(
+            model
+                .accesses
+                .values()
+                .any(|access| *access == AccessKind::SharedBorrow)
+        );
     }
 
     #[test]
