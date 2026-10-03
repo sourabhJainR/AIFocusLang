@@ -1,7 +1,7 @@
 use crate::{
+    NodeId,
     ast::{BinaryOp, Block, Expr, ExprKind, Function, Item, Module, StmtKind, Type, TypeKind},
     source::Span,
-    NodeId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
