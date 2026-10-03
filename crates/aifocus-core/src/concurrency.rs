@@ -154,9 +154,8 @@ mod tests {
 
     #[test]
     fn rejects_unfinished_task_at_scope_exit() {
-        let module = crate::parse(
-            "module x\nfn main()\n  scope\n    spawn worker = work(1)\n",
-        ).unwrap();
+        let module =
+            crate::parse("module x\nfn main()\n  scope\n    spawn worker = work(1)\n").unwrap();
         let errors = analyze(&module).unwrap_err();
         assert!(errors.iter().any(|e| e.starts_with("AIF503")));
     }
