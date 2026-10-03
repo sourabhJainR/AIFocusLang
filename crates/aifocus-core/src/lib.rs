@@ -279,7 +279,6 @@ impl Parser {
         }
 
         if self.eat(TokenKind::Join) || self.eat(TokenKind::Cancel) {
-            let kind = self.previous_span();
             let is_cancel = self.tokens[self.pos.saturating_sub(1)].kind == TokenKind::Cancel;
             let name = self.expect(TokenKind::Ident, "task name")?;
             let end = name.span.end;
