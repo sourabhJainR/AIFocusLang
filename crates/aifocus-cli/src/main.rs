@@ -36,11 +36,11 @@ fn main() -> ExitCode {
         },
         None | Some("help") | Some("--help") | Some("-h") => {
             println!("aifocus check [--json] <file>");
-            println!("  Parse, type-check, and validate an AIFocusLang source file.");
+            println!("  Parse, type-check, and validate an Ardisa source file.");
             println!("aifocus build <file>");
-            println!("  Lower AIFocusLang to readable Rust.");
+            println!("  Lower Ardisa to readable Rust.");
             println!("aifocus fmt <file>");
-            println!("  Print canonical AIFocusLang source.");
+            println!("  Print canonical Ardisa source.");
             ExitCode::SUCCESS
         }
         Some(command) => {
