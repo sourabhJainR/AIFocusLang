@@ -10,6 +10,13 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
+        Some("fmt") => match args.next() {
+            Some(path) => format_file(&path),
+            None => {
+                eprintln!("error: fmt requires a source file");
+                ExitCode::from(2)
+            }
+        },
         None | Some("help") | Some("--help") | Some("-h") => {
             println!("aifocus check <file>");
             println!("  Parse and validate an AIFocusLang source file.");
@@ -18,6 +25,29 @@ fn main() -> ExitCode {
         Some(command) => {
             eprintln!("error: unknown command '{command}'");
             ExitCode::from(2)
+        }
+    }
+}
+
+fn format_file(path: &str) -> ExitCode {
+    let source = match fs::read_to_string(path) {
+        Ok(source) => source,
+        Err(error) => {
+            eprintln!("{path}: error[AIF000]: {error}");
+            return ExitCode::from(1);
+        }
+    };
+
+    match aifocus_core::parse(&source) {
+        Ok(module) => {
+            print!("{}", aifocus_core::format::format_module(&module));
+            ExitCode::SUCCESS
+        }
+        Err(errors) => {
+            for error in errors {
+                eprintln!("{path}: error[{}]: {}", error.code, error.message);
+            }
+            ExitCode::from(1)
         }
     }
 }
