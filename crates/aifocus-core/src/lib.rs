@@ -285,7 +285,10 @@ impl Parser {
             let end = name.span.end;
             self.expect(TokenKind::Newline, "end of task control statement")?;
             return Some(Stmt {
-                id: self.id(if is_cancel { "cancel" } else { "join" }, &start.to_string()),
+                id: self.id(
+                    if is_cancel { "cancel" } else { "join" },
+                    &start.to_string(),
+                ),
                 span: source::Span::new(start, end),
                 kind: if is_cancel {
                     StmtKind::Cancel { name: name.lexeme }
