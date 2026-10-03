@@ -7,6 +7,7 @@ pub mod differential;
 pub mod edit;
 pub mod effects;
 pub mod format;
+pub mod protocol;
 pub mod fuzz;
 pub mod hws_feedback;
 pub mod interop;
@@ -26,6 +27,7 @@ pub use hws_feedback::{CapabilityFeedback, EpisodeOutcome, VerificationDepth};
 pub use interop::{InteropType, RustFunction, SafeRustBoundary};
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
 pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
+pub use protocol::{CompilerRequest, CompilerResponse, CompilerSnapshot, ProtocolError};
 
 pub use ast::{
     BinaryOp, Block, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
