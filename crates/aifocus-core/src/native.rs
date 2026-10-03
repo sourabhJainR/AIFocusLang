@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::ir::{IrFunction, IrModule, IrOp, IrValue};
 use crate::TypeKind;
+use crate::ir::{IrFunction, IrModule, IrOp, IrValue};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeInstr {
@@ -80,13 +80,10 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
             emit_value(value, code)?;
             code.push(NativeInstr::Pop);
         }
-        IrOp::Scope { .. }
-        | IrOp::Spawn { .. }
-        | IrOp::Join { .. }
-        | IrOp::Cancel { .. } => {
+        IrOp::Scope { .. } | IrOp::Spawn { .. } | IrOp::Join { .. } | IrOp::Cancel { .. } => {
             return Err(NativeError::Unsupported(
                 "native backend does not yet execute concurrency operations".into(),
-            ))
+            ));
         }
     }
     Ok(())
@@ -131,14 +128,18 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
         }
         IrValue::String(_) | IrValue::Call { .. } => {
             return Err(NativeError::Unsupported(
-                "native backend currently supports literals, names, arithmetic, equality, and if".into(),
-            ))
+                "native backend currently supports literals, names, arithmetic, equality, and if"
+                    .into(),
+            ));
         }
     }
     Ok(())
 }
 
-pub fn run(code: &[NativeInstr], args: &[(String, NativeValue)]) -> Result<NativeValue, NativeError> {
+pub fn run(
+    code: &[NativeInstr],
+    args: &[(String, NativeValue)],
+) -> Result<NativeValue, NativeError> {
     let mut pc = 0usize;
     let mut stack = Vec::new();
     let mut locals = HashMap::new();
@@ -152,12 +153,11 @@ pub fn run(code: &[NativeInstr], args: &[(String, NativeValue)]) -> Result<Nativ
         match instr {
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
-            NativeInstr::Load(name) => stack.push(
-                locals
-                    .get(&name)
-                    .cloned()
-                    .ok_or_else(|| NativeError::InvalidProgram(format!("unknown local '{name}'")))?,
-            ),
+            NativeInstr::Load(name) => {
+                stack.push(locals.get(&name).cloned().ok_or_else(|| {
+                    NativeError::InvalidProgram(format!("unknown local '{name}'"))
+                })?)
+            }
             NativeInstr::Store(name) => {
                 let value = stack
                     .pop()
@@ -182,12 +182,18 @@ pub fn run(code: &[NativeInstr], args: &[(String, NativeValue)]) -> Result<Nativ
                 stack.push(NativeValue::Int(value));
             }
             NativeInstr::Equal => {
-                let right = stack.pop().ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
-                let left = stack.pop().ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let right = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let left = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
                 stack.push(NativeValue::Bool(left == right));
             }
             NativeInstr::JumpIfFalse(target) => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("empty condition stack".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty condition stack".into()))?;
                 if value != NativeValue::Bool(true) {
                     pc = target;
                 }
@@ -195,11 +201,15 @@ pub fn run(code: &[NativeInstr], args: &[(String, NativeValue)]) -> Result<Nativ
             NativeInstr::Jump(target) => pc = target,
             NativeInstr::Return => return Ok(stack.pop().unwrap_or(NativeValue::Unit)),
             NativeInstr::Pop => {
-                stack.pop().ok_or_else(|| NativeError::InvalidProgram("pop from empty stack".into()))?;
+                stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack".into()))?;
             }
         }
     }
-    Err(NativeError::InvalidProgram("program terminated without return".into()))
+    Err(NativeError::InvalidProgram(
+        "program terminated without return".into(),
+    ))
 }
 
 fn pop_int(stack: &mut Vec<NativeValue>) -> Result<i64, NativeError> {
@@ -215,13 +225,17 @@ mod tests {
 
     #[test]
     fn compiles_and_runs_arithmetic_without_rust() {
-        let module = crate::parse("module x\nfn main(a: Int, b: Int) -> Int\n  a + b * 2\n").unwrap();
+        let module =
+            crate::parse("module x\nfn main(a: Int, b: Int) -> Int\n  a + b * 2\n").unwrap();
         crate::sema::check(&module).unwrap();
         let ir = crate::ir::lower(&module);
         let code = compile(&ir).unwrap();
         let result = run(
             &code,
-            &[(String::from("a"), NativeValue::Int(3)), (String::from("b"), NativeValue::Int(4))],
+            &[
+                (String::from("a"), NativeValue::Int(3)),
+                (String::from("b"), NativeValue::Int(4)),
+            ],
         )
         .unwrap();
         assert_eq!(result, NativeValue::Int(11));
@@ -241,10 +255,7 @@ mod tests {
 
     #[test]
     fn rejects_unsupported_calls() {
-        let module = crate::parse(
-            "module x\nfn main() -> Int\n  helper()\n",
-        )
-        .unwrap();
+        let module = crate::parse("module x\nfn main() -> Int\n  helper()\n").unwrap();
         let ir = crate::ir::lower(&module);
         assert!(matches!(compile(&ir), Err(NativeError::Unsupported(_))));
     }
