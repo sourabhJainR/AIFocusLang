@@ -20,10 +20,7 @@ pub struct Function {
 pub struct Parameter { pub name: String, pub ty: Type }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
-    Int, Bool, String, Unit, Named(String),
-    Result(Box<Type>, Box<Type>),
-}
+pub enum Type { Int, Bool, String, Unit, Named(String), Result(Box<Type>, Box<Type>) }
 
 impl Type {
     pub fn display_name(&self) -> String {
@@ -39,16 +36,17 @@ impl Type {
 }
 
 pub fn parse(source: &str) -> Result<Module, Vec<source::Diagnostic>> {
-    let mut lines = source.lines().enumerate();
+    let mut lines = source.lines().enumerate().peekable();
     let mut module_name = None;
     let mut items = Vec::new();
     let mut errors = Vec::new();
 
-    while let Some((line_no, raw)) = lines.next() {
+    while let Some(&(line_no, raw)) = lines.peek() {
         let line = raw.trim();
-        if line.is_empty() { continue; }
+        if line.is_empty() { lines.next(); continue; }
 
         if let Some(name) = line.strip_prefix("module ") {
+            lines.next();
             if module_name.is_some() {
                 errors.push(source::Diagnostic::error("AIF002", "duplicate module declaration", Some(source::Span::new(line_no, line_no + 1))));
             } else if valid_name(name.trim()) {
@@ -60,6 +58,7 @@ pub fn parse(source: &str) -> Result<Module, Vec<source::Diagnostic>> {
         }
 
         if line.starts_with("fn ") {
+            lines.next();
             match parse_function(line, &mut lines) {
                 Ok(function) => items.push(Item::Function(function)),
                 Err(message) => errors.push(source::Diagnostic::error("AIF004", message, Some(source::Span::new(line_no, line_no + 1)))),
@@ -67,6 +66,7 @@ pub fn parse(source: &str) -> Result<Module, Vec<source::Diagnostic>> {
             continue;
         }
 
+        lines.next();
         errors.push(source::Diagnostic::error("AIF005", format!("unexpected declaration: {line}"), Some(source::Span::new(line_no, line_no + 1))));
     }
 
@@ -81,7 +81,7 @@ pub fn parse(source: &str) -> Result<Module, Vec<source::Diagnostic>> {
     }
 }
 
-fn parse_function<'a, I>(signature: &str, lines: &mut I) -> Result<Function, String>
+fn parse_function<'a, I>(signature: &str, lines: &mut std::iter::Peekable<I>) -> Result<Function, String>
 where I: Iterator<Item = (usize, &'a str)>
 {
     let rest = signature.strip_prefix("fn ").ok_or("invalid function declaration")?;
@@ -94,11 +94,13 @@ where I: Iterator<Item = (usize, &'a str)>
     let params = if params_text.trim().is_empty() {
         Vec::new()
     } else {
-        params_text.split(',').map(|part| {
+        let mut params = Vec::new();
+        for part in params_text.split(',') {
             let (name, ty) = part.trim().split_once(':').ok_or("parameters require name: Type")?;
-            if !valid_name(name.trim()) { return Err("invalid parameter name"); }
-            Ok(Parameter { name: name.trim().into(), ty: parse_type(ty.trim())? })
-        }).collect::<Result<Vec<_>, &str>>().map_err(str::to_owned)?
+            if !valid_name(name.trim()) { return Err("invalid parameter name".into()); }
+            params.push(Parameter { name: name.trim().into(), ty: parse_type(ty.trim())? });
+        }
+        params
     };
 
     let tail = rest[close + 1..].trim();
@@ -111,12 +113,14 @@ where I: Iterator<Item = (usize, &'a str)>
     };
 
     let mut body = String::new();
-    while let Some((_, raw)) = lines.next() {
+    while let Some(&(_, raw)) = lines.peek() {
         if raw.trim().is_empty() {
+            lines.next();
             if !body.is_empty() { body.push('\n'); }
             continue;
         }
-        if !raw.starts_with(char::is_whitespace) { break; }
+        if raw.chars().next().is_none_or(|c| !c.is_whitespace()) { break; }
+        lines.next();
         if !body.is_empty() { body.push('\n'); }
         body.push_str(raw.trim());
     }
@@ -163,6 +167,13 @@ mod tests {
         assert_eq!(function.params.len(), 2);
         assert_eq!(function.return_type, Some(Type::Int));
         assert_eq!(function.body, "a + b");
+    }
+
+    #[test]
+    fn parses_multiple_functions() {
+        let module = parse("module hello\nfn one() -> Int\n  1\nfn two() -> Int\n  2\n").unwrap();
+        assert_eq!(module.items.len(), 2);
+        assert_eq!(module.items[1], Item::Function(Function { name: "two".into(), params: vec![], return_type: Some(Type::Int), body: "2".into() }));
     }
 
     #[test]
