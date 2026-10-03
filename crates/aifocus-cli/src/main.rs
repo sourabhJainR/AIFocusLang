@@ -37,7 +37,11 @@ fn check(path: &str) -> ExitCode {
 
     match aifocus_core::parse(&source) {
         Ok(module) => {
-            println!("{path}: ok (module {}, {} item(s))", module.name, module.items.len());
+            println!(
+                "{path}: ok (module {}, {} item(s))",
+                module.name,
+                module.items.len()
+            );
             ExitCode::SUCCESS
         }
         Err(errors) => {
