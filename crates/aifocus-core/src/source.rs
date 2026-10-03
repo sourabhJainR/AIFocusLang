@@ -105,6 +105,10 @@ mod tests {
             diagnostic.location("module x\nfn"),
             Some(Location { line: 1, column: 8 })
         );
-        assert!(diagnostic.to_json("module x\nfn").contains("\"code\":\"AIF001\""));
+        assert!(
+            diagnostic
+                .to_json("module x\nfn")
+                .contains("\"code\":\"AIF001\"")
+        );
     }
 }
