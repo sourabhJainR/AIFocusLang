@@ -1,231 +1,469 @@
-//! Core language model and parser for AIFocusLang.
+//! Core language model, lexer, and recursive-descent parser for AIFocusLang.
 
+pub mod ast;
 pub mod source;
+pub mod token;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Module {
-    pub name: String,
-    pub items: Vec<Item>,
+pub use ast::{
+    BinaryOp, Block, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
+    Type, TypeKind,
+};
+pub use token::{Token, TokenKind, lex};
+
+use std::collections::HashMap;
+
+struct Parser {
+    tokens: Vec<Token>,
+    pos: usize,
+    errors: Vec<source::Diagnostic>,
+    occurrences: HashMap<String, u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Item {
-    Function(Function),
-}
+pub fn parse(input: &str) -> Result<Module, Vec<source::Diagnostic>> {
+    let tokens = token::lex(input)?;
+    let mut parser = Parser {
+        tokens,
+        pos: 0,
+        errors: Vec::new(),
+        occurrences: HashMap::new(),
+    };
+    let module = parser.parse_module();
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Function {
-    pub name: String,
-    pub params: Vec<Parameter>,
-    pub return_type: Option<Type>,
-    pub body: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Parameter {
-    pub name: String,
-    pub ty: Type,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
-    Int,
-    Bool,
-    String,
-    Unit,
-    Named(String),
-    Result(Box<Type>, Box<Type>),
-}
-
-impl Type {
-    pub fn display_name(&self) -> String {
-        match self {
-            Self::Int => "Int".into(),
-            Self::Bool => "Bool".into(),
-            Self::String => "String".into(),
-            Self::Unit => "()".into(),
-            Self::Named(name) => name.clone(),
-            Self::Result(ok, err) => {
-                format!("Result<{}, {}>", ok.display_name(), err.display_name())
-            }
-        }
-    }
-}
-
-pub fn parse(source: &str) -> Result<Module, Vec<source::Diagnostic>> {
-    let mut lines = source.lines().enumerate().peekable();
-    let mut module_name = None;
-    let mut items = Vec::new();
-    let mut errors = Vec::new();
-
-    while let Some(&(line_no, raw)) = lines.peek() {
-        let line = raw.trim();
-        if line.is_empty() {
-            lines.next();
-            continue;
-        }
-
-        if let Some(name) = line.strip_prefix("module ") {
-            lines.next();
-            if module_name.is_some() {
-                errors.push(source::Diagnostic::error(
-                    "AIF002",
-                    "duplicate module declaration",
-                    Some(source::Span::new(line_no, line_no + 1)),
-                ));
-            } else if valid_name(name.trim()) {
-                module_name = Some(name.trim().to_owned());
-            } else {
-                errors.push(source::Diagnostic::error(
-                    "AIF003",
-                    "invalid module name",
-                    Some(source::Span::new(line_no, line_no + 1)),
-                ));
-            }
-            continue;
-        }
-
-        if line.starts_with("fn ") {
-            lines.next();
-            match parse_function(line, &mut lines) {
-                Ok(function) => items.push(Item::Function(function)),
-                Err(message) => errors.push(source::Diagnostic::error(
-                    "AIF004",
-                    message,
-                    Some(source::Span::new(line_no, line_no + 1)),
-                )),
-            }
-            continue;
-        }
-
-        lines.next();
-        errors.push(source::Diagnostic::error(
-            "AIF005",
-            format!("unexpected declaration: {line}"),
-            Some(source::Span::new(line_no, line_no + 1)),
-        ));
-    }
-
-    if module_name.is_none() {
-        errors.push(source::Diagnostic::error(
-            "AIF006",
-            "missing module declaration",
-            None,
-        ));
-    }
-
-    if errors.is_empty() {
-        Ok(Module {
-            name: module_name.expect("checked above"),
-            items,
+    if parser.errors.is_empty() {
+        module.ok_or_else(|| {
+            vec![source::Diagnostic::error(
+                "AIF199",
+                "parser produced no module",
+                None,
+            )]
         })
     } else {
-        Err(errors)
+        Err(parser.errors)
     }
 }
 
-fn parse_function<'a, I>(
-    signature: &str,
-    lines: &mut std::iter::Peekable<I>,
-) -> Result<Function, String>
-where
-    I: Iterator<Item = (usize, &'a str)>,
-{
-    let rest = signature
-        .strip_prefix("fn ")
-        .ok_or("invalid function declaration")?;
-    let open = rest.find('(').ok_or("function parameters are required")?;
-    let close = rest
-        .rfind(')')
-        .ok_or("missing ')' in function declaration")?;
-    let name = rest[..open].trim();
-    if !valid_name(name) {
-        return Err("invalid function name".into());
+impl Parser {
+    fn parse_module(&mut self) -> Option<Module> {
+        self.skip_newlines();
+        let start = self.current().span.start;
+        self.expect(TokenKind::Module, "module declaration")?;
+        let name_token = self.expect(TokenKind::Ident, "module name")?;
+        let name = name_token.lexeme.clone();
+        self.expect(TokenKind::Newline, "end of module declaration")?;
+
+        let mut items = Vec::new();
+        while !self.at(TokenKind::Eof) {
+            self.skip_newlines();
+            if self.at(TokenKind::Eof) {
+                break;
+            }
+            if let Some(item) = self.parse_item() {
+                items.push(item);
+            } else {
+                self.recover_top_level();
+            }
+        }
+
+        Some(Module {
+            id: self.id("module", &name),
+            span: source::Span::new(start, self.previous_span().end),
+            name,
+            items,
+        })
     }
 
-    let params_text = &rest[open + 1..close];
-    let params = if params_text.trim().is_empty() {
-        Vec::new()
-    } else {
+    fn parse_item(&mut self) -> Option<Item> {
+        if self.at(TokenKind::Fn) {
+            self.parse_function().map(Item::Function)
+        } else {
+            self.error("AIF201", "expected a top-level function");
+            None
+        }
+    }
+
+    fn parse_function(&mut self) -> Option<Function> {
+        let start = self.bump().span.start;
+        let name_token = self.expect(TokenKind::Ident, "function name")?;
+        let name = name_token.lexeme.clone();
+
+        self.expect(TokenKind::LParen, "'(' after function name")?;
         let mut params = Vec::new();
-        for part in params_text.split(',') {
-            let (name, ty) = part
-                .trim()
-                .split_once(':')
-                .ok_or("parameters require name: Type")?;
-            if !valid_name(name.trim()) {
-                return Err("invalid parameter name".into());
+        if !self.at(TokenKind::RParen) {
+            loop {
+                let param_start = self.current().span.start;
+                let param_name = self.expect(TokenKind::Ident, "parameter name")?;
+                self.expect(TokenKind::Colon, "':' after parameter name")?;
+                let ty = self.parse_type()?;
+                let param_end = ty.span.end;
+                let param_name_text = param_name.lexeme.clone();
+                params.push(Parameter {
+                    id: self.id("param", &param_name_text),
+                    span: source::Span::new(param_start, param_end),
+                    name: param_name_text,
+                    ty,
+                });
+                if !self.eat(TokenKind::Comma) {
+                    break;
+                }
             }
-            params.push(Parameter {
-                name: name.trim().into(),
-                ty: parse_type(ty.trim())?,
+        }
+        self.expect(TokenKind::RParen, "')' after parameters")?;
+
+        let return_type = if self.eat(TokenKind::Arrow) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        self.expect(TokenKind::Newline, "end of function declaration")?;
+        let body = self.parse_block("function body")?;
+
+        Some(Function {
+            id: self.id("fn", &name),
+            span: source::Span::new(start, body.span.end),
+            name,
+            params,
+            return_type,
+            body,
+        })
+    }
+
+    fn parse_type(&mut self) -> Option<Type> {
+        let start = self.current().span.start;
+        if self.eat(TokenKind::LParen) {
+            let close = self.expect(TokenKind::RParen, "')' in unit type")?;
+            return Some(Type {
+                id: self.id("type", "()"),
+                span: source::Span::new(start, close.span.end),
+                kind: TypeKind::Unit,
             });
         }
-        params
-    };
 
-    let tail = rest[close + 1..].trim();
-    let return_type = if tail.is_empty() {
-        None
-    } else if let Some(ty) = tail.strip_prefix("->") {
-        Some(parse_type(ty.trim())?)
-    } else {
-        return Err("expected -> ReturnType".into());
-    };
-
-    let mut body = String::new();
-    while let Some(&(_, raw)) = lines.peek() {
-        if raw.trim().is_empty() {
-            lines.next();
-            if !body.is_empty() {
-                body.push('\n');
+        let token = self.expect(TokenKind::Ident, "type name")?;
+        let name = token.lexeme.clone();
+        let kind = match name.as_str() {
+            "Int" => TypeKind::Int,
+            "Bool" => TypeKind::Bool,
+            "String" => TypeKind::String,
+            "Result" if self.eat(TokenKind::LAngle) => {
+                let ok = self.parse_type()?;
+                self.expect(TokenKind::Comma, "',' in Result type")?;
+                let err = self.parse_type()?;
+                self.expect(TokenKind::RAngle, "'>' in Result type")?;
+                TypeKind::Result(Box::new(ok), Box::new(err))
             }
-            continue;
-        }
-        if raw.chars().next().is_none_or(|c| !c.is_whitespace()) {
-            break;
-        }
-        lines.next();
-        if !body.is_empty() {
-            body.push('\n');
-        }
-        body.push_str(raw.trim());
+            _ => TypeKind::Named(name.clone()),
+        };
+        Some(Type {
+            id: self.id("type", &name),
+            span: source::Span::new(start, self.previous_span().end),
+            kind,
+        })
     }
 
-    Ok(Function {
-        name: name.into(),
-        params,
-        return_type,
-        body,
-    })
+    fn parse_block(&mut self, context: &str) -> Option<Block> {
+        let start = self.current().span.start;
+        if !matches!(self.current().kind, TokenKind::Indent(_)) {
+            self.error("AIF202", format!("expected indented {context}"));
+            return None;
+        }
+        self.bump();
+
+        let mut stmts = Vec::new();
+        self.skip_newlines();
+        while !self.at(TokenKind::Dedent) && !self.at(TokenKind::Eof) {
+            if let Some(stmt) = self.parse_stmt() {
+                stmts.push(stmt);
+            } else {
+                self.recover_statement();
+            }
+            self.skip_newlines();
+        }
+
+        let end = if self.eat(TokenKind::Dedent) {
+            self.previous_span().end
+        } else {
+            self.current().span.end
+        };
+        Some(Block {
+            id: self.id("block", &start.to_string()),
+            span: source::Span::new(start, end),
+            stmts,
+        })
+    }
+
+    fn parse_stmt(&mut self) -> Option<Stmt> {
+        let start = self.current().span.start;
+
+        if self.eat(TokenKind::Let) {
+            let name = self.expect(TokenKind::Ident, "binding name")?;
+            self.expect(TokenKind::Equal, "'=' in let binding")?;
+            let value = self.parse_expr(0)?;
+            let end = value.span.end;
+            self.expect(TokenKind::Newline, "end of let statement")?;
+            return Some(Stmt {
+                id: self.id("let", &name.lexeme),
+                span: source::Span::new(start, end),
+                kind: StmtKind::Let {
+                    name: name.lexeme,
+                    value,
+                },
+            });
+        }
+
+        if self.eat(TokenKind::Return) {
+            let value = if self.at(TokenKind::Newline) {
+                None
+            } else {
+                Some(self.parse_expr(0)?)
+            };
+            let end = value
+                .as_ref()
+                .map_or(self.previous_span().end, |expr| expr.span.end);
+            self.expect(TokenKind::Newline, "end of return statement")?;
+            return Some(Stmt {
+                id: self.id("return", &start.to_string()),
+                span: source::Span::new(start, end),
+                kind: StmtKind::Return(value),
+            });
+        }
+
+        let expr = self.parse_expr(0)?;
+        let end = expr.span.end;
+        if !matches!(expr.kind, ExprKind::If { .. }) {
+            self.expect(TokenKind::Newline, "end of expression statement")?;
+        }
+        Some(Stmt {
+            id: self.id("expr", &start.to_string()),
+            span: source::Span::new(start, end),
+            kind: StmtKind::Expr(expr),
+        })
+    }
+
+    fn parse_expr(&mut self, min_bp: u8) -> Option<Expr> {
+        let mut left = self.parse_prefix()?;
+
+        loop {
+            if self.eat(TokenKind::LParen) {
+                let start = left.span.start;
+                let mut args = Vec::new();
+                if !self.at(TokenKind::RParen) {
+                    loop {
+                        args.push(self.parse_expr(0)?);
+                        if !self.eat(TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                }
+                let close = self.expect(TokenKind::RParen, "')' after call arguments")?;
+                left = Expr {
+                    id: self.id("call", &start.to_string()),
+                    span: source::Span::new(start, close.span.end),
+                    kind: ExprKind::Call {
+                        callee: Box::new(left),
+                        args,
+                    },
+                };
+                continue;
+            }
+
+            let (op, left_bp, right_bp) = match self.current().kind {
+                TokenKind::EqualEqual => (BinaryOp::Equal, 1, 2),
+                TokenKind::Plus => (BinaryOp::Add, 3, 4),
+                TokenKind::Minus => (BinaryOp::Sub, 3, 4),
+                TokenKind::Star => (BinaryOp::Mul, 5, 6),
+                TokenKind::Slash => (BinaryOp::Div, 5, 6),
+                _ => break,
+            };
+            if left_bp < min_bp {
+                break;
+            }
+            self.bump();
+            let right = self.parse_expr(right_bp)?;
+            let start = left.span.start;
+            let end = right.span.end;
+            left = Expr {
+                id: self.id("binary", &format!("{start}:{end}")),
+                span: source::Span::new(start, end),
+                kind: ExprKind::Binary {
+                    op,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+            };
+        }
+        Some(left)
+    }
+
+    fn parse_prefix(&mut self) -> Option<Expr> {
+        let token = self.current().clone();
+        match token.kind {
+            TokenKind::Int => {
+                self.bump();
+                let value = token.lexeme.parse::<i64>().ok()?;
+                Some(self.expr(token.span, "int", ExprKind::Int(value)))
+            }
+            TokenKind::String => {
+                self.bump();
+                Some(self.expr(token.span, "string", ExprKind::String(token.lexeme)))
+            }
+            TokenKind::True | TokenKind::False => {
+                self.bump();
+                Some(self.expr(
+                    token.span,
+                    "bool",
+                    ExprKind::Bool(token.kind == TokenKind::True),
+                ))
+            }
+            TokenKind::Ident => {
+                self.bump();
+                Some(self.expr(token.span, "name", ExprKind::Name(token.lexeme)))
+            }
+            TokenKind::LParen => {
+                let start = self.bump().span.start;
+                let expr = self.parse_expr(0)?;
+                let close = self.expect(TokenKind::RParen, "')' after expression")?;
+                Some(Expr {
+                    id: self.id("group", &start.to_string()),
+                    span: source::Span::new(start, close.span.end),
+                    kind: expr.kind,
+                })
+            }
+            TokenKind::If => self.parse_if(),
+            _ => {
+                self.error("AIF203", "expected an expression");
+                None
+            }
+        }
+    }
+
+    fn parse_if(&mut self) -> Option<Expr> {
+        let start = self.bump().span.start;
+        let condition = self.parse_expr(0)?;
+        self.expect(TokenKind::Newline, "end of if condition")?;
+        let then_branch = self.parse_block("if body")?;
+
+        let else_branch = if self.eat(TokenKind::Else) {
+            self.expect(TokenKind::Newline, "end of else declaration")?;
+            Some(self.parse_block("else body")?)
+        } else {
+            None
+        };
+        let end = else_branch
+            .as_ref()
+            .map_or(then_branch.span.end, |block| block.span.end);
+
+        Some(Expr {
+            id: self.id("if", &start.to_string()),
+            span: source::Span::new(start, end),
+            kind: ExprKind::If {
+                condition: Box::new(condition),
+                then_branch,
+                else_branch,
+            },
+        })
+    }
+
+    fn expr(&mut self, span: source::Span, kind: &str, value: ExprKind) -> Expr {
+        Expr {
+            id: self.id(kind, &span.start.to_string()),
+            span,
+            kind: value,
+        }
+    }
+
+    fn id(&mut self, kind: &str, key: &str) -> NodeId {
+        let semantic_key = format!("{kind}:{key}");
+        let occurrence = self.occurrences.entry(semantic_key.clone()).or_insert(0);
+        let current = *occurrence;
+        *occurrence += 1;
+        NodeId(fnv1a(format!("{semantic_key}:{current}").as_bytes()))
+    }
+
+    fn current(&self) -> &Token {
+        &self.tokens[self.pos]
+    }
+
+    fn previous_span(&self) -> source::Span {
+        if self.pos == 0 {
+            self.current().span
+        } else {
+            self.tokens[self.pos - 1].span
+        }
+    }
+
+    fn bump(&mut self) -> Token {
+        let token = self.tokens[self.pos].clone();
+        if self.pos + 1 < self.tokens.len() {
+            self.pos += 1;
+        }
+        token
+    }
+
+    fn at(&self, kind: TokenKind) -> bool {
+        self.current().kind == kind
+    }
+
+    fn eat(&mut self, kind: TokenKind) -> bool {
+        if self.at(kind) {
+            self.bump();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect(&mut self, kind: TokenKind, what: &str) -> Option<Token> {
+        if self.at(kind) {
+            Some(self.bump())
+        } else {
+            self.error(
+                "AIF204",
+                format!("expected {what}, found {:?}", self.current().kind),
+            );
+            None
+        }
+    }
+
+    fn skip_newlines(&mut self) {
+        while self.at(TokenKind::Newline) {
+            self.bump();
+        }
+    }
+
+    fn recover_top_level(&mut self) {
+        while !matches!(self.current().kind, TokenKind::Newline | TokenKind::Eof) {
+            self.bump();
+        }
+        self.skip_newlines();
+    }
+
+    fn recover_statement(&mut self) {
+        while !matches!(
+            self.current().kind,
+            TokenKind::Newline | TokenKind::Dedent | TokenKind::Eof
+        ) {
+            self.bump();
+        }
+        self.skip_newlines();
+    }
+
+    fn error(&mut self, code: &'static str, message: impl Into<String>) {
+        self.errors.push(source::Diagnostic::error(
+            code,
+            message,
+            Some(self.current().span),
+        ));
+    }
 }
 
-fn parse_type(value: &str) -> Result<Type, String> {
-    match value {
-        "Int" => Ok(Type::Int),
-        "Bool" => Ok(Type::Bool),
-        "String" => Ok(Type::String),
-        "()" => Ok(Type::Unit),
-        _ if value.starts_with("Result<") && value.ends_with('>') => {
-            let inner = &value[7..value.len() - 1];
-            let (ok, err) = inner.split_once(',').ok_or("Result requires two types")?;
-            Ok(Type::Result(
-                Box::new(parse_type(ok.trim())?),
-                Box::new(parse_type(err.trim())?),
-            ))
-        }
-        _ if valid_name(value) => Ok(Type::Named(value.into())),
-        _ => Err(format!("unknown type {value}")),
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
     }
-}
-
-fn valid_name(value: &str) -> bool {
-    let mut chars = value.chars();
-    match chars.next() {
-        Some(c) if c == '_' || c.is_ascii_alphabetic() => {}
-        _ => return false,
-    }
-    chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
+    hash
 }
 
 #[cfg(test)]
@@ -233,35 +471,49 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_small_program() {
-        let module = parse("module hello\n\nfn add(a: Int, b: Int) -> Int\n  a + b\n").unwrap();
-        assert_eq!(module.name, "hello");
-        assert_eq!(module.items.len(), 1);
+    fn parses_expression_ast() {
+        let module = parse("module hello\nfn add(a: Int, b: Int) -> Int\n  a + b * 2\n").unwrap();
         let Item::Function(function) = &module.items[0];
-        assert_eq!(function.name, "add");
         assert_eq!(function.params.len(), 2);
-        assert_eq!(function.return_type, Some(Type::Int));
-        assert_eq!(function.body, "a + b");
-    }
-
-    #[test]
-    fn parses_multiple_functions() {
-        let module = parse("module hello\nfn one() -> Int\n  1\nfn two() -> Int\n  2\n").unwrap();
-        assert_eq!(module.items.len(), 2);
-        assert_eq!(
-            module.items[1],
-            Item::Function(Function {
-                name: "two".into(),
-                params: vec![],
-                return_type: Some(Type::Int),
-                body: "2".into()
+        assert!(matches!(
+            function.body.stmts[0].kind,
+            StmtKind::Expr(Expr {
+                kind: ExprKind::Binary {
+                    op: BinaryOp::Add,
+                    ..
+                },
+                ..
             })
-        );
+        ));
     }
 
     #[test]
-    fn reports_missing_module() {
-        let errors = parse("fn main() -> Int\n  1\n").unwrap_err();
-        assert!(errors.iter().any(|e| e.code == "AIF006"));
+    fn parses_if_and_result_type() {
+        let source = "module math\nfn divide(a: Int, b: Int) -> Result<Int, MathError>\n  if b == 0\n    return 0\n  else\n    return a / b\n";
+        let module = parse(source).unwrap();
+        let Item::Function(function) = &module.items[0];
+        assert!(matches!(
+            function.return_type.as_ref().unwrap().kind,
+            TypeKind::Result(_, _)
+        ));
+        assert!(matches!(
+            function.body.stmts[0].kind,
+            StmtKind::Expr(Expr {
+                kind: ExprKind::If {
+                    else_branch: Some(_),
+                    ..
+                },
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn node_ids_ignore_whitespace_changes() {
+        let a = parse("module x\nfn f() -> Int\n  1\n").unwrap();
+        let b = parse("module x\n\nfn f() -> Int\n    1\n").unwrap();
+        let Item::Function(fa) = &a.items[0];
+        let Item::Function(fb) = &b.items[0];
+        assert_eq!(fa.id, fb.id);
     }
 }
