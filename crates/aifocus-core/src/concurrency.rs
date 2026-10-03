@@ -31,7 +31,11 @@ pub fn analyze(module: &Module) -> Result<Vec<ScopeReport>, Vec<String>> {
         let Item::Function(function) = item;
         analyze_block(&function.body, &mut reports, &mut errors);
     }
-    if errors.is_empty() { Ok(reports) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(reports)
+    } else {
+        Err(errors)
+    }
 }
 
 fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec<String>) {
@@ -53,7 +57,10 @@ fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec
                             },
                             _ => "<invalid>".into(),
                         };
-                        report.tasks.push(TaskSpec { name: name.clone(), callee });
+                        report.tasks.push(TaskSpec {
+                            name: name.clone(),
+                            callee,
+                        });
                     }
                     StmtKind::Join { name } | StmtKind::Cancel { name } => {
                         match tasks.get_mut(name) {
@@ -67,7 +74,9 @@ fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec
             }
             for (name, done) in tasks {
                 if !done {
-                    errors.push(format!("AIF503: task '{name}' must be joined or cancelled before scope exit"));
+                    errors.push(format!(
+                        "AIF503: task '{name}' must be joined or cancelled before scope exit"
+                    ));
                 }
             }
             reports.push(report);
@@ -137,7 +146,8 @@ mod tests {
     fn accepts_joined_structured_scope() {
         let module = crate::parse(
             "module x\nfn main()\n  scope\n    spawn worker = work(1)\n    join worker\n",
-        ).unwrap();
+        )
+        .unwrap();
         let reports = analyze(&module).unwrap();
         assert_eq!(reports[0].tasks[0].name, "worker");
     }
