@@ -233,6 +233,8 @@ mod tests {
         let status = std::process::Command::new("rustc")
             .arg("--crate-type=lib")
             .arg("--emit=metadata")
+            .arg("-o")
+            .arg(&output_path)
             .arg(&source_path)
             .status()
             .expect("rustc must be available for lowering verification");
