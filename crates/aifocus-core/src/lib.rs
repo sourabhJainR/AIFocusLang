@@ -11,6 +11,7 @@ pub mod fuzz;
 pub mod hws_feedback;
 pub mod interop;
 pub mod ir;
+pub mod learning;
 pub mod lower;
 pub mod ownership;
 pub mod protocol;
@@ -26,6 +27,7 @@ pub use fuzz::{GeneratedCase, generate as generate_fuzz_case};
 pub use hws_feedback::{CapabilityFeedback, EpisodeOutcome, VerificationDepth};
 pub use interop::{InteropType, RustFunction, SafeRustBoundary};
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
+pub use learning::{LearningEntry, LearningKey, PersistentCompilerLearning};
 pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
 pub use protocol::{CompilerRequest, CompilerResponse, CompilerSnapshot, ProtocolError};
 
