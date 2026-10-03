@@ -37,7 +37,9 @@ pub fn analyze(module: &Module) -> EffectModel {
         for effects in functions.values_mut() {
             for callee in effects.calls.clone() {
                 if let Some(callee_effects) = snapshot.get(&callee) {
-                    effects.effects.extend(callee_effects.effects.iter().copied());
+                    effects
+                        .effects
+                        .extend(callee_effects.effects.iter().copied());
                 }
             }
         }
@@ -87,7 +89,11 @@ fn collect_expr(expr: &Expr, effects: &mut FunctionEffects) {
             }
         }
         ExprKind::Group(inner) => collect_expr(inner, effects),
-        ExprKind::If { condition, then_branch, else_branch } => {
+        ExprKind::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
             collect_expr(condition, effects);
             collect_block(then_branch, effects);
             if let Some(else_branch) = else_branch {
@@ -105,7 +111,8 @@ mod tests {
 
     #[test]
     fn propagates_callee_effects_to_callers() {
-        let module = parse("module x\nfn leaf(a: Int) -> Int\n  a\nfn main() -> Int\n  leaf(1)\n").unwrap();
+        let module =
+            parse("module x\nfn leaf(a: Int) -> Int\n  a\nfn main() -> Int\n  leaf(1)\n").unwrap();
         let model = analyze(&module);
         let main = &model.functions["main"];
         assert!(main.effects.contains(&EffectKind::Call));
