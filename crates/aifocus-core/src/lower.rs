@@ -220,4 +220,24 @@ mod tests {
         let lowered = lower(&module);
         assert!(lowered.rust.contains("(a + b) * 2"));
     }
+
+    #[test]
+    fn generated_rust_is_accepted_by_rustc() {
+        let module = parse("module x\nfn add(a: Int, b: Int) -> Int\n  a + b\n").unwrap();
+        let lowered = lower(&module);
+        let base = std::env::temp_dir().join(format!("aifocus-lowering-{}", std::process::id()));
+        let source_path = base.with_extension("rs");
+        let output_path = base.with_extension("rlib");
+        std::fs::write(&source_path, lowered.rust).unwrap();
+
+        let status = std::process::Command::new("rustc")
+            .arg("--crate-type=lib")
+            .arg("--emit=metadata")
+            .arg(&source_path)
+            .status()
+            .expect("rustc must be available for lowering verification");
+        let _ = std::fs::remove_file(&source_path);
+        let _ = std::fs::remove_file(&output_path);
+        assert!(status.success());
+    }
 }
