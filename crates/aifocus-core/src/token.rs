@@ -185,10 +185,12 @@ pub fn lex(input: &str) -> Result<Vec<Token>, Vec<Diagnostic>> {
                 continue;
             }
 
-            let (kind, width) = match &content[start..] {
-                "->" => (TokenKind::Arrow, 2),
-                "==" => (TokenKind::EqualEqual, 2),
-                _ => match c {
+            let (kind, width) = if content[start..].starts_with("->") {
+                (TokenKind::Arrow, 2)
+            } else if content[start..].starts_with("==") {
+                (TokenKind::EqualEqual, 2)
+            } else {
+                match c {
                     '=' => (TokenKind::Equal, 1),
                     '+' => (TokenKind::Plus, 1),
                     '-' => (TokenKind::Minus, 1),
@@ -209,7 +211,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, Vec<Diagnostic>> {
                         cursor += 1;
                         continue;
                     }
-                },
+                }
             };
             cursor += width;
             tokens.push(Token {
