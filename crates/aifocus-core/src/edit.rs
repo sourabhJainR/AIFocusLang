@@ -85,7 +85,7 @@ fn find_span(module: &Module, target: NodeId) -> Option<Span> {
         return Some(module.span);
     }
     for item in &module.items {
-        if let Item::Function(function) = item {
+        let Item::Function(function) = item;
             if function.id == target {
                 return Some(function.span);
             }
