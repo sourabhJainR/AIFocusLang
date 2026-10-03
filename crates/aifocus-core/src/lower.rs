@@ -207,7 +207,10 @@ mod tests {
     fn lowers_function_to_readable_rust() {
         let module = parse("module x\nfn add(a: Int, b: Int) -> Int\n  a + b\n").unwrap();
         let lowered = lower(&module);
-        assert_eq!(lowered.rust, "fn add(a: i64, b: i64) -> i64 {\n    a + b\n}\n");
+        assert_eq!(
+            lowered.rust,
+            "fn add(a: i64, b: i64) -> i64 {\n    a + b\n}\n"
+        );
         assert!(!lowered.source_map.is_empty());
     }
 
