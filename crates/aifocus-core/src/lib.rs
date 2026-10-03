@@ -2,6 +2,7 @@
 
 pub mod ast;
 pub mod edit;
+pub mod differential;
 pub mod effects;
 pub mod format;
 pub mod lower;
@@ -10,6 +11,7 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
+pub use differential::{DifferentialCase, CORPUS as DIFFERENTIAL_CORPUS};
 pub use effects::{EffectKind, EffectModel, FunctionEffects};
 pub use ownership::{AccessKind, OwnershipClass, OwnershipModel};
 
