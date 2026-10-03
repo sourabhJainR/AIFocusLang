@@ -16,11 +16,14 @@ pub struct DiagnosticMemory {
 
 impl DiagnosticMemory {
     pub fn record(&mut self, diagnostic: &Diagnostic) {
-        let entry = self.entries.entry(diagnostic.code).or_insert_with(|| DiagnosticHistoryEntry {
-            code: diagnostic.code,
-            message: diagnostic.message.clone(),
-            occurrences: 0,
-        });
+        let entry = self
+            .entries
+            .entry(diagnostic.code)
+            .or_insert_with(|| DiagnosticHistoryEntry {
+                code: diagnostic.code,
+                message: diagnostic.message.clone(),
+                occurrences: 0,
+            });
         entry.message = diagnostic.message.clone();
         entry.occurrences += 1;
     }
@@ -53,6 +56,9 @@ mod tests {
         memory.record(&diagnostic);
         memory.record(&diagnostic);
         assert!(memory.likely_recurring("AIF304", 2));
-        assert_eq!(memory.history("AIF304").unwrap().message, "unknown name 'x'");
+        assert_eq!(
+            memory.history("AIF304").unwrap().message,
+            "unknown name 'x'"
+        );
     }
 }
