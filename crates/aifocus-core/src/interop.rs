@@ -45,7 +45,6 @@ impl SafeRustBoundary {
 
     pub fn wrapper(&self) -> String {
         let f = &self.function;
-        let raw_name = format!("__ardisa_{}", f.name);
         let params = f
             .params
             .iter()
@@ -59,17 +58,21 @@ impl SafeRustBoundary {
             .collect::<Vec<_>>()
             .join(", ");
         format!(
-            "unsafe extern "C" {{\n    fn {symbol}({params}) -> {ret};\n}}\n\nfn {name}({params}) -> {ret} {{\n    unsafe {{ {raw_name}({args}) }}\n}}\n",
+            r#"unsafe extern "C" {{
+    fn {symbol}({params}) -> {ret};
+}}
+
+fn {name}({params}) -> {ret} {{
+    unsafe {{ {symbol}({args}) }}
+}}
+"#,
             symbol = f.symbol,
             name = f.name,
-            raw_name = raw_name,
             params = params,
             ret = f.return_type.rust_name(),
             args = args,
         )
-        .replace(&format!("fn {raw_name}"), &format!("fn {}", f.symbol))
-    }
-}
+    }}
 
 pub fn validate(function: &RustFunction) -> Result<(), String> {
     SafeRustBoundary::new(function.clone()).map(|_| ())
