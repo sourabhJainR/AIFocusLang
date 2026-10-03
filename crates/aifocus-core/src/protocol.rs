@@ -1,6 +1,6 @@
 use crate::{
-    DiagnosticMemory, EffectModel, IrModule, Module, NodeId, OwnershipModel, StructuralEdit, edit,
-    effects, ir, ownership, sema, source::Diagnostic,
+    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit,
+    edit::StructuralEdit, effects, ir, ownership, sema, source::Diagnostic,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn diagnostic_memory_can_be_attached_by_clients_without_protocol_state() {
-        let memory = DiagnosticMemory::default();
+        let memory = crate::DiagnosticMemory::default();
         assert!(memory.history("AIF304").is_none());
     }
 }
