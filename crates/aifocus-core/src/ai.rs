@@ -11,19 +11,42 @@ pub struct Embedding {
 }
 
 impl Embedding {
-    pub fn new(values: Vec<f32>) -> Self { Self { values } }
-    pub fn values(&self) -> &[f32] { &self.values }
-    pub fn dimension(&self) -> usize { self.values.len() }
+    pub fn new(values: Vec<f32>) -> Self {
+        Self { values }
+    }
+
+    pub fn values(&self) -> &[f32] {
+        &self.values
+    }
+
+    pub fn dimension(&self) -> usize {
+        self.values.len()
+    }
+
     pub fn dot(&self, other: &Self) -> Option<f32> {
         (self.dimension() == other.dimension()).then(|| {
-            self.values.iter().zip(&other.values).map(|(a,b)| a*b).sum()
+            self.values
+                .iter()
+                .zip(&other.values)
+                .map(|(a, b)| a * b)
+                .sum()
         })
     }
+
     pub fn cosine_similarity(&self, other: &Self) -> Option<f32> {
         let dot = self.dot(other)?;
-        let a = self.values.iter().map(|v| v*v).sum::<f32>().sqrt();
-        let b = other.values.iter().map(|v| v*v).sum::<f32>().sqrt();
-        if a == 0.0 || b == 0.0 { None } else { Some(dot / (a*b)) }
+        let a = self.values.iter().map(|v| v * v).sum::<f32>().sqrt();
+        let b = other
+            .values
+            .iter()
+            .map(|v| v * v)
+            .sum::<f32>()
+            .sqrt();
+        if a == 0.0 || b == 0.0 {
+            None
+        } else {
+            Some(dot / (a * b))
+        }
     }
 }
 
@@ -32,9 +55,15 @@ pub struct Probability(f32);
 
 impl Probability {
     pub fn new(value: f32) -> Option<Self> {
-        value.is_finite().then_some(value).filter(|v| (0.0..=1.0).contains(v))
+        value
+            .is_finite()
+            .then_some(value)
+            .filter(|v| (0.0..=1.0).contains(v))
     }
-    pub fn value(self) -> f32 { self.0 }
+
+    pub fn value(self) -> f32 {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,18 +73,37 @@ pub struct Distribution {
 
 impl Distribution {
     pub fn from_logits(logits: &[f32]) -> Self {
-        if logits.is_empty() { return Self { weights: Vec::new() }; }
+        if logits.is_empty() {
+            return Self {
+                weights: Vec::new(),
+            };
+        }
         let max = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-        let mut weights: Vec<f32> = logits.iter().map(|x| (x-max).exp()).collect();
+        let mut weights: Vec<f32> = logits.iter().map(|x| (x - max).exp()).collect();
         let sum: f32 = weights.iter().sum();
-        if sum > 0.0 { for x in &mut weights { *x /= sum; } }
+        if sum > 0.0 {
+            for x in &mut weights {
+                *x /= sum;
+            }
+        }
         Self { weights }
     }
-    pub fn weights(&self) -> &[f32] { &self.weights }
-    pub fn entropy(&self) -> f32 {
-        -self.weights.iter().filter(|p| **p > 0.0).map(|p| p * p.ln()).sum::<f32>()
+
+    pub fn weights(&self) -> &[f32] {
+        &self.weights
     }
-    pub fn confidence(&self) -> f32 { self.weights.iter().copied().fold(0.0, f32::max) }
+
+    pub fn entropy(&self) -> f32 {
+        -self.weights
+            .iter()
+            .filter(|p| **p > 0.0)
+            .map(|p| p * p.ln())
+            .sum::<f32>()
+    }
+
+    pub fn confidence(&self) -> f32 {
+        self.weights.iter().copied().fold(0.0, f32::max)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,13 +124,32 @@ pub struct Tensor {
 }
 
 impl Tensor {
-    pub fn new(shape: Vec<usize>, values: Vec<f32>, quantization: Quantization) -> Option<Self> {
-        let elements = shape.iter().try_fold(1usize, |a,b| a.checked_mul(*b))?;
-        (elements == values.len()).then_some(Self { shape, values, quantization })
+    pub fn new(
+        shape: Vec<usize>,
+        values: Vec<f32>,
+        quantization: Quantization,
+    ) -> Option<Self> {
+        let elements = shape
+            .iter()
+            .try_fold(1usize, |a, b| a.checked_mul(*b))?;
+        (elements == values.len()).then_some(Self {
+            shape,
+            values,
+            quantization,
+        })
     }
-    pub fn shape(&self) -> &[usize] { &self.shape }
-    pub fn values(&self) -> &[f32] { &self.values }
-    pub fn quantization(&self) -> Quantization { self.quantization }
+
+    pub fn shape(&self) -> &[usize] {
+        &self.shape
+    }
+
+    pub fn values(&self) -> &[f32] {
+        &self.values
+    }
+
+    pub fn quantization(&self) -> Quantization {
+        self.quantization
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,12 +169,21 @@ pub struct SemanticValue {
 
 impl SemanticValue {
     pub fn new(embedding: Embedding, modality: Modality) -> Self {
-        Self { embedding, modality, metadata: BTreeMap::new() }
+        Self {
+            embedding,
+            modality,
+            metadata: BTreeMap::new(),
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TraceLevel { Debug, Info, Warn, Error }
+pub enum TraceLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TraceEvent {
@@ -129,10 +205,23 @@ pub struct TraceBuffer {
 
 impl TraceBuffer {
     pub fn with_capacity(capacity: usize) -> Self {
-        Self { events: VecDeque::with_capacity(capacity), capacity, next_sequence: 0 }
+        Self {
+            events: VecDeque::with_capacity(capacity),
+            capacity,
+            next_sequence: 0,
+        }
     }
-    pub fn push(&mut self, level: TraceLevel, operation: &'static str, duration_ns: u64, message: impl Into<String>) {
-        if self.capacity == 0 { return; }
+
+    pub fn push(
+        &mut self,
+        level: TraceLevel,
+        operation: &'static str,
+        duration_ns: u64,
+        message: impl Into<String>,
+    ) {
+        if self.capacity == 0 {
+            return;
+        }
         let event = TraceEvent {
             sequence: self.next_sequence,
             level,
@@ -143,11 +232,19 @@ impl TraceBuffer {
             message: message.into(),
         };
         self.next_sequence = self.next_sequence.wrapping_add(1);
-        if self.events.len() == self.capacity { self.events.pop_front(); }
+        if self.events.len() == self.capacity {
+            self.events.pop_front();
+        }
         self.events.push_back(event);
     }
-    pub fn events(&self) -> impl DoubleEndedIterator<Item = &TraceEvent> { self.events.iter() }
-    pub fn clear(&mut self) { self.events.clear(); }
+
+    pub fn events(&self) -> impl DoubleEndedIterator<Item = &TraceEvent> {
+        self.events.iter()
+    }
+
+    pub fn clear(&mut self) {
+        self.events.clear();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,10 +257,23 @@ pub struct RuntimeError {
 
 impl RuntimeError {
     pub fn new(code: &'static str, message: impl Into<String>) -> Self {
-        Self { code, message: message.into(), operation: None, span: None }
+        Self {
+            code,
+            message: message.into(),
+            operation: None,
+            span: None,
+        }
     }
-    pub fn at(mut self, span: (usize, usize)) -> Self { self.span = Some(span); self }
-    pub fn in_operation(mut self, operation: &'static str) -> Self { self.operation = Some(operation); self }
+
+    pub fn at(mut self, span: (usize, usize)) -> Self {
+        self.span = Some(span);
+        self
+    }
+
+    pub fn in_operation(mut self, operation: &'static str) -> Self {
+        self.operation = Some(operation);
+        self
+    }
 }
 
 #[cfg(test)]
