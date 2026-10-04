@@ -306,12 +306,11 @@ mod tests {
 
     #[test]
     fn renders_native_values_deterministically() {
-        let value = ardisa_core::NativeValue::ResultOk(Box::new(
-            ardisa_core::NativeValue::List(vec![
+        let value =
+            ardisa_core::NativeValue::ResultOk(Box::new(ardisa_core::NativeValue::List(vec![
                 ardisa_core::NativeValue::Int(1),
                 ardisa_core::NativeValue::Int(2),
-            ]),
-        ));
+            ])));
         assert_eq!(display_value(&value), "Ok([1, 2])");
     }
 }
