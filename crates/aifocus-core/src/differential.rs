@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{BinaryOp, Expr, ExprKind, Function, Item, Module, StmtKind, TypeKind},
+    ast::{BinaryOp, Expr, ExprKind, Function, Item, Module, StmtKind},
     lower, native, ownership, parse, sema,
 };
 
