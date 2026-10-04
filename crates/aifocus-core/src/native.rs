@@ -13,6 +13,7 @@ pub enum NativeInstr {
     Len,
     Append(String),
     MakeOk,
+    Chr,
     MakeErr,
     Unwrap,
     Load(String),
@@ -237,7 +238,9 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
             for arg in args {
                 emit_value(arg, code)?;
             }
-            if callee == "ok" && args.len() == 1 {
+            if callee == "chr" && args.len() == 1 {
+                code.push(NativeInstr::Chr);
+            } else if callee == "ok" && args.len() == 1 {
                 code.push(NativeInstr::MakeOk);
             } else if callee == "err" && args.len() == 1 {
                 code.push(NativeInstr::MakeErr);
@@ -342,6 +345,12 @@ pub fn run(
                 };
                 items.push(value);
                 stack.push(NativeValue::Unit);
+            }
+            NativeInstr::Chr => {
+                let value = pop_int(&mut stack)?;
+                let byte = u8::try_from(value)
+                    .map_err(|_| NativeError::Type("chr requires a byte in 0..=255".into()))?;
+                stack.push(NativeValue::String(char::from(byte).to_string()));
             }
             NativeInstr::MakeOk => {
                 let value = stack
@@ -577,6 +586,12 @@ fn run_function(
                 };
                 items.push(value);
                 stack.push(NativeValue::Unit);
+            }
+            NativeInstr::Chr => {
+                let value = pop_int(&mut stack)?;
+                let byte = u8::try_from(value)
+                    .map_err(|_| NativeError::Type("chr requires a byte in 0..=255".into()))?;
+                stack.push(NativeValue::String(char::from(byte).to_string()));
             }
             NativeInstr::MakeOk => {
                 let value = stack
