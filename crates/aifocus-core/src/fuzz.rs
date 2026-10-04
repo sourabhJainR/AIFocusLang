@@ -59,8 +59,7 @@ pub fn mutate(case: &GeneratedCase, seed: u64) -> MutationCase {
         2 if case.source.contains(" * ") => ("mul-to-mod", case.source.replacen(" * ", " % ", 1)),
         _ => (
             "whitespace",
-            format!("{}
-", case.source),
+            format!("{}\\n", case.source),
         ),
     };
     MutationCase {
