@@ -119,13 +119,9 @@ pub fn compile_program(module: &IrModule) -> Result<NativeProgram, NativeError> 
 }
 
 pub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, NativeError> {
-    if function
-        .params
-        .iter()
-        .any(|(_, ty)| !matches!(ty, TypeKind::Int | TypeKind::Bool | TypeKind::String))
-    {
+    if function.params.iter().any(|(_, ty)| !is_native_type(ty)) {
         return Err(NativeError::Unsupported(
-            "native backend currently supports Int and Bool parameters only".into(),
+            "native backend does not support this parameter type".into(),
         ));
     }
     let mut code = Vec::new();
@@ -146,6 +142,15 @@ pub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, Nativ
         code.push(NativeInstr::Return);
     }
     Ok(code)
+}
+
+fn is_native_type(ty: &TypeKind) -> bool {
+    match ty {
+        TypeKind::Int | TypeKind::Bool | TypeKind::String | TypeKind::Unit => true,
+        TypeKind::List(element) => is_native_type(&element.kind),
+        TypeKind::Result(ok, err) => is_native_type(&ok.kind) && is_native_type(&err.kind),
+        TypeKind::Named(_) => false,
+    }
 }
 
 fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
@@ -957,6 +962,65 @@ fn pop_int(stack: &mut Vec<NativeValue>) -> Result<i64, NativeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_type_coverage_includes_aggregate_parameters() {
+        assert!(is_native_type(&TypeKind::Int));
+        assert!(is_native_type(&TypeKind::List(Box::new(crate::ast::Type {
+            id: crate::NodeId(1),
+            span: crate::source::Span::new(0, 0),
+            kind: TypeKind::Int,
+        }))));
+        assert!(is_native_type(&TypeKind::Result(
+            Box::new(crate::ast::Type {
+                id: crate::NodeId(2),
+                span: crate::source::Span::new(0, 0),
+                kind: TypeKind::Int,
+            }),
+            Box::new(crate::ast::Type {
+                id: crate::NodeId(3),
+                span: crate::source::Span::new(0, 0),
+                kind: TypeKind::String,
+            }),
+        )));
+        assert!(!is_native_type(&TypeKind::Named("Custom".into())));
+    }
+
+    #[test]
+    fn compiles_and_runs_aggregate_values_without_rust() {
+        let module = crate::parse(
+            "module x\nfn main(values: List<Int>) -> Int\n  len(values)\n",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        let ir = crate::ir::lower(&module);
+        let program = compile_program(&ir).unwrap();
+        let result = run_program(
+            &program,
+            "main",
+            &[NativeValue::List(vec![NativeValue::Int(1), NativeValue::Int(2)])],
+        )
+        .unwrap();
+        assert_eq!(result, NativeValue::Int(2));
+    }
+
+    #[test]
+    fn compiles_and_runs_result_values_without_rust() {
+        let module = crate::parse(
+            "module x\nfn main(value: Result<Int, String>) -> Int\n  unwrap(value)\n",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        let ir = crate::ir::lower(&module);
+        let program = compile_program(&ir).unwrap();
+        let result = run_program(
+            &program,
+            "main",
+            &[NativeValue::ResultOk(Box::new(NativeValue::Int(9)))],
+        )
+        .unwrap();
+        assert_eq!(result, NativeValue::Int(9));
+    }
 
     #[test]
     fn compiles_and_runs_arithmetic_without_rust() {
