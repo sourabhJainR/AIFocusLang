@@ -287,8 +287,13 @@ impl Checker {
                 }
                 match collection_type.kind {
                     TypeKind::List(element) => Some((*element).clone()),
+                    TypeKind::String => Some(type_node(TypeKind::Int, expr.span)),
                     _ => {
-                        self.error("AIF319", "indexing requires List<T>", collection.span);
+                        self.error(
+                            "AIF319",
+                            "indexing requires List<T> or String",
+                            collection.span,
+                        );
                         None
                     }
                 }
