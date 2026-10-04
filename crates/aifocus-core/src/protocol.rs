@@ -7,7 +7,7 @@ use crate::{
     edit::{NodeQuery, StructuralEdit},
     effects, ir,
     learning::PersistentCompilerLearning,
-    concurrency, ownership, sema,
+    ownership, sema,
     source::Diagnostic,
 };
 
@@ -331,9 +331,9 @@ fn snapshot(
     let effects = effects::analyze(&module);
     let effects_ns = effects_start.elapsed().as_nanos() as u64;
 
-    let concurrency_diagnostics = concurrency::analyze_with_diagnostics(&module)
-        .map_err(ProtocolError::Concurrency)?;
-    
+    let concurrency_diagnostics =
+        concurrency::analyze_with_diagnostics(&module).map_err(ProtocolError::Concurrency)?;
+
     let ir_start = Instant::now();
     let ir = ir::lower(&module);
     let ir_ns = ir_start.elapsed().as_nanos() as u64;
