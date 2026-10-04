@@ -54,7 +54,7 @@ impl SafeRustBoundary {
         if function
             .params
             .iter()
-            .any(|(_, ty)| !matches!(ty, InteropType::Int | InteropType::Bool | InteropType::Unit))
+            .any(|(_, ty)| !matches!(ty, InteropType::Int | InteropType::Bool | InteropType::Unit | InteropType::IntSliceRef))
             || !matches!(
                 function.return_type,
                 InteropType::Int | InteropType::Bool | InteropType::Unit
