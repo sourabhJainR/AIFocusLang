@@ -3,8 +3,12 @@ use std::time::Instant;
 pub const PROTOCOL_VERSION: &str = "ardisa-compiler-protocol-v1";
 
 use crate::{
-    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit, edit::{NodeQuery, StructuralEdit}, effects, ir,
-    learning::PersistentCompilerLearning, ownership, sema, source::Diagnostic,
+    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit,
+    edit::{NodeQuery, StructuralEdit},
+    effects, ir,
+    learning::PersistentCompilerLearning,
+    ownership, sema,
+    source::Diagnostic,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,7 +90,8 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
             })
         }
         CompilerRequest::QueryNode(node) => {
-            let queried_node = edit::query(&module, node).map_err(|error| ProtocolError::Edit(error.to_string()))?;
+            let queried_node = edit::query(&module, node)
+                .map_err(|error| ProtocolError::Edit(error.to_string()))?;
             snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
                 snapshot,
                 changed_node: None,
