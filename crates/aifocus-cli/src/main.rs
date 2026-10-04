@@ -43,6 +43,10 @@ fn main() -> ExitCode {
                 Some(output) => bootstrap_run(&output, args.collect()),
                 None => { eprintln!("error: bootstrap run requires an executable artifact"); ExitCode::from(2) }
             },
+            Some("compile-from-executable") => match (args.next(), args.next(), args.next()) {
+                (Some(compiler), Some(source), Some(output)) => bootstrap_compile_from_executable(&compiler, &source, &output),
+                _ => { eprintln!("error: bootstrap compile-from-executable requires compiler, source, and output"); ExitCode::from(2) }
+            },
             Some("verify") => match args.next() {
                 Some(output) => bootstrap_verify(&output),
                 None => { eprintln!("error: bootstrap verify requires an executable artifact"); ExitCode::from(2) }
@@ -67,6 +71,8 @@ fn main() -> ExitCode {
             println!("ardisa bootstrap compile <source.ardisa> <output.aexe>");
             println!("  Produce a deterministic native executable artifact without invoking Rust at run time.");
             println!("ardisa bootstrap run <output.aexe> [args...]");
+            println!("ardisa bootstrap compile-from-executable <compiler.aexe> <source.ardisa> <output.aexe>");
+            println!("  Run an already-built Ardisa compiler executable and require an ARDISA-EXEC-V1 result.");
             println!("  Execute a previously produced Ardisa executable artifact.");
             println!("ardisa fmt <file>");
             println!("  Print canonical Ardisa source.");
@@ -76,6 +82,44 @@ fn main() -> ExitCode {
             eprintln!("error: unknown command '{command}'");
             ExitCode::from(2)
         }
+    }
+}
+
+fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, output_path: &str) -> ExitCode {
+    require_ardisa_extension(source_path);
+    let compiler_artifact = match fs::read_to_string(compiler_path) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{compiler_path}: error[AIF000]: {error}"); return ExitCode::from(1); }
+    };
+    let compiler = match ardisa_core::native::decode_program(&compiler_artifact) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{compiler_path}: error[AIF603]: invalid compiler executable: {error:?}"); return ExitCode::from(1); }
+    };
+    let source = match fs::read_to_string(source_path) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{source_path}: error[AIF000]: {error}"); return ExitCode::from(1); }
+    };
+    let output = match ardisa_core::native::run_program(&compiler, "main", &[ardisa_core::NativeValue::String(source)]) {
+        Ok(ardisa_core::NativeValue::String(value)) => value,
+        Ok(value) => { eprintln!("{compiler_path}: error[AIF606]: compiler returned non-string value: {}", display_value(&value)); return ExitCode::from(1); }
+        Err(error) => { eprintln!("{compiler_path}: error[AIF607]: compiler execution failed: {error:?}"); return ExitCode::from(1); }
+    };
+    let program = match ardisa_core::native::decode_program(&output) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{compiler_path}: error[AIF608]: compiler output is not ARDISA-EXEC-V1: {error:?}"); return ExitCode::from(1); }
+    };
+    if !program.functions.contains_key("main") {
+        eprintln!("{compiler_path}: error[AIF609]: compiler output has no main entry");
+        return ExitCode::from(1);
+    }
+    let canonical = ardisa_core::native::encode_program(&program);
+    if canonical != output {
+        eprintln!("{compiler_path}: error[AIF610]: compiler output is not canonically encoded");
+        return ExitCode::from(1);
+    }
+    match fs::write(output_path, canonical) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => { eprintln!("{output_path}: error[AIF000]: {error}"); ExitCode::from(1) }
     }
 }
 
