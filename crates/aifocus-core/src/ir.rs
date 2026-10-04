@@ -17,6 +17,7 @@ pub struct IrFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrOp {
     Let { name: String, value: IrValue },
+    Set { name: String, value: IrValue },
     Return(Option<IrValue>),
     Expr(IrValue),
     Scope { ops: Vec<IrOp> },
@@ -59,6 +60,10 @@ pub fn lower(module: &Module) -> IrModule {
                 let mut ops = Vec::new();
                 for stmt in &function.body.stmts {
                     match &stmt.kind {
+                        StmtKind::Set { name, value } => ops.push(IrOp::Set {
+                            name: name.clone(),
+                            value: value_to_ir(value),
+                        }),
                         StmtKind::Let { name, value } => ops.push(IrOp::Let {
                             name: name.clone(),
                             value: value_to_ir(value),
@@ -102,6 +107,10 @@ fn block_to_ops(block: &crate::Block) -> Vec<IrOp> {
         .stmts
         .iter()
         .map(|stmt| match &stmt.kind {
+            StmtKind::Set { name, value } => IrOp::Set {
+                name: name.clone(),
+                value: value_to_ir(value),
+            },
             StmtKind::Let { name, value } => IrOp::Let {
                 name: name.clone(),
                 value: value_to_ir(value),
