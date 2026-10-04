@@ -1,30 +1,45 @@
 module semantic
 
-fn has_prefix(text: String, prefix: String) -> Bool
+fn contains(text: String, needle: String) -> Bool
   let index = 0
-  let same = true
-  while index < len(prefix)
-    if index >= len(text)
-      set same = false
-    else
-      if text[index] != prefix[index]
-        set same = false
+  let found = false
+  while index < len(text)
+    if found == false
+      let offset = 0
+      let same = true
+      while offset < len(needle)
+        if index + offset >= len(text)
+          set same = false
+        else
+          if text[index + offset] != needle[offset]
+            set same = false
+        set offset = offset + 1
+      if same == true
+        set found = true
     set index = index + 1
-  same
+  found
 
 fn balanced(ast: String) -> Bool
   let depth = 0
   let index = 0
   let valid = true
+  let in_string = false
   while index < len(ast)
-    if ast[index] == 40
-      set depth = depth + 1
+    if ast[index] == 34
+      if in_string == true
+        set in_string = false
+      else
+        set in_string = true
     else
-      if ast[index] == 41
-        if depth > 0
-          set depth = depth - 1
+      if in_string == false
+        if ast[index] == 40
+          set depth = depth + 1
         else
-          set valid = false
+          if ast[index] == 41
+            if depth > 0
+              set depth = depth - 1
+            else
+              set valid = false
     set index = index + 1
   if depth == 0
     valid
@@ -35,10 +50,22 @@ fn check(ast: String) -> String
   if len(ast) == 0
     "Err:empty-ast"
   else
-    if has_prefix(ast, "(Module")
-      if balanced(ast)
-        "Ok"
+    if contains(ast, "(Module")
+      if contains(ast, "(ModuleDecl")
+        if contains(ast, "(Function")
+          if contains(ast, "(Body")
+            if contains(ast, "(Unknown")
+              "Err:unknown-token"
+            else
+              if balanced(ast)
+                "Ok"
+              else
+                "Err:unbalanced-ast"
+          else
+            "Err:missing-function-body"
+        else
+          "Err:missing-function"
       else
-        "Err:unbalanced-ast"
+        "Err:missing-module-name"
     else
       "Err:missing-module"
