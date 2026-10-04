@@ -10,18 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Format source for verification artifact
-        run: cargo fmt --all
-      - name: Upload formatted native runtime
-        uses: actions/upload-artifact@v4
-        with:
-          name: formatted-native
-          path: crates/aifocus-core/src/native.rs
-      - name: Emit formatted native runtime
-        run: |
-          echo FORMAT_BEGIN
-          cat crates/aifocus-core/src/native.rs
-          echo FORMAT_END
       - run: cargo fmt --all -- --check
       - run: cargo check --workspace
       - run: cargo test --workspace
