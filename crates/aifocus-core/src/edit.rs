@@ -126,6 +126,7 @@ fn find_stmt(stmt: &Stmt, target: NodeId) -> Option<Span> {
         StmtKind::Expr(expr) => find_expr(expr, target),
         StmtKind::Scope { body } => find_block(body, target),
         StmtKind::Spawn { call, .. } => find_expr(call, target),
+        StmtKind::While { condition, body } => find_expr(condition, target).or_else(|| find_block(body, target)),
         StmtKind::Join { .. } | StmtKind::Cancel { .. } => None,
     }
 }
