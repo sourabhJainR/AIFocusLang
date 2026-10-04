@@ -7,10 +7,12 @@ fn token_at(stream: String, start: Int) -> String
       set end = len(stream)
     else
       set end = end + 1
-  if end > start
-    stream
-  else
-    ""
+  let result = ""
+  let index = start
+  while index < end
+    set result = result + chr(stream[index])
+    set index = index + 1
+  result
 
 fn parse(stream: String) -> String
   let ast = "(module "
