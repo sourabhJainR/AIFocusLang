@@ -149,7 +149,7 @@ fn find_expr(expr: &Expr, target: NodeId) -> Option<Span> {
         ExprKind::List(items) => items.iter().find_map(|e| find_expr(e, target)),
         ExprKind::Index { collection, index } => {
             find_expr(collection, target).or_else(|| find_expr(index, target))
-        },
+        }
         ExprKind::If {
             condition,
             then_branch,
