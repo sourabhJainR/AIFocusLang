@@ -73,6 +73,8 @@ fn lower(ast: String) -> String
                   else
                     set atom = atom + chr(ast[index])
                     set index = index + 1
+          if scanning == true
+            set pending_index = index
           set index = pending_index
           set result = result + op(classify(atom), atom) + ","
   result + "]"
