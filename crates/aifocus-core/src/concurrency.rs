@@ -41,12 +41,12 @@ pub fn analyze(module: &Module) -> Result<Vec<ScopeReport>, Vec<String>> {
 fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec<String>) {
     for stmt in &block.stmts {
         if let StmtKind::Scope { body } = &stmt.kind {
-            let mut tasks = HashMap::<String, bool>::new();
+            let mut tasks = HashMap::<String, TaskState>::new();
             let mut report = ScopeReport { tasks: Vec::new() };
             for child in &body.stmts {
                 match &child.kind {
                     StmtKind::Spawn { name, call } => {
-                        if tasks.insert(name.clone(), false).is_some() {
+                        if tasks.insert(name.clone(), TaskState::Running).is_some() {
                             errors.push(format!("AIF501: duplicate task '{name}' in scope"));
                             continue;
                         }
@@ -62,18 +62,30 @@ fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec
                             callee,
                         });
                     }
-                    StmtKind::Join { name } | StmtKind::Cancel { name } => {
-                        match tasks.get_mut(name) {
-                            Some(done) => *done = true,
-                            None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
+                    StmtKind::Join { name } => match tasks.get(name).copied() {
+                        Some(TaskState::Running) => {
+                            tasks.insert(name.clone(), TaskState::Joined);
                         }
-                    }
+                        Some(_) => {
+                            errors.push(format!("AIF504: task '{name}' is already terminal"))
+                        }
+                        None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
+                    },
+                    StmtKind::Cancel { name } => match tasks.get(name).copied() {
+                        Some(TaskState::Running) => {
+                            tasks.insert(name.clone(), TaskState::Cancelled);
+                        }
+                        Some(_) => {
+                            errors.push(format!("AIF504: task '{name}' is already terminal"))
+                        }
+                        None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
+                    },
                     StmtKind::Scope { .. } => analyze_block(child_block(child), reports, errors),
                     _ => {}
                 }
             }
             for (name, done) in tasks {
-                if !done {
+                if done == TaskState::Running {
                     errors.push(format!(
                         "AIF503: task '{name}' must be joined or cancelled before scope exit"
                     ));
@@ -90,6 +102,13 @@ fn child_block(stmt: &crate::Stmt) -> &Block {
         StmtKind::Scope { body } => body,
         _ => unreachable!(),
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TaskState {
+    Running,
+    Joined,
+    Cancelled,
 }
 
 #[derive(Debug, Clone)]
@@ -158,6 +177,22 @@ mod tests {
             crate::parse("module x\nfn main()\n  scope\n    spawn worker = work(1)\n").unwrap();
         let errors = analyze(&module).unwrap_err();
         assert!(errors.iter().any(|e| e.starts_with("AIF503")));
+    }
+
+    #[test]
+    fn rejects_double_terminal_task_control() {
+        let module = crate::parse(
+            "module x
+fn main()
+  scope
+    spawn worker = work(1)
+    join worker
+    cancel worker
+",
+        )
+        .unwrap();
+        let errors = analyze(&module).unwrap_err();
+        assert!(errors.iter().any(|e| e.starts_with("AIF504")));
     }
 
     #[test]

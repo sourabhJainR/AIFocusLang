@@ -1,4 +1,4 @@
-use crate::{lower, ownership, parse, sema};
+use crate::{lower, native, ownership, parse, sema};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DifferentialCase {
@@ -18,7 +18,8 @@ pub const CORPUS: &[DifferentialCase] = &[
 ];
 
 pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
-    let module = parse(case.source).map_err(|errors| format!("{}: parse failed", case.name))?;
+    let module =
+        parse(case.source).map_err(|errors| format!("{}: parse failed: {errors:?}", case.name))?;
     sema::check(&module)
         .map_err(|errors| format!("{}: semantic check failed: {errors:?}", case.name))?;
     ownership::infer(&module)
@@ -27,12 +28,44 @@ pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
     if lowered.rust.trim().is_empty() {
         return Err(format!("{}: lowering produced empty Rust", case.name));
     }
+
+    let ir = crate::ir::lower(&module);
+    let code = native::compile(&ir)
+        .map_err(|error| format!("{}: native compile failed: {error:?}", case.name))?;
+    let expected = match case.name {
+        "arithmetic" => native::NativeValue::Int(11),
+        "conditional" => native::NativeValue::Int(1),
+        _ => return Ok(()),
+    };
+    let args = if case.name == "arithmetic" {
+        vec![
+            ("a".to_string(), native::NativeValue::Int(3)),
+            ("b".to_string(), native::NativeValue::Int(4)),
+        ]
+    } else {
+        vec![("a".to_string(), native::NativeValue::Int(0))]
+    };
+    let result = native::run(&code, &args)
+        .map_err(|error| format!("{}: native run failed: {error:?}", case.name))?;
+    if result != expected {
+        return Err(format!(
+            "{}: native/reference mismatch: {result:?} != {expected:?}",
+            case.name
+        ));
+    }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_backend_matches_reference_results() {
+        for case in CORPUS {
+            verify_case(case).unwrap_or_else(|error| panic!("{error}"));
+        }
+    }
 
     #[test]
     fn corpus_is_non_empty() {

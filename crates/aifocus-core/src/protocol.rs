@@ -1,6 +1,6 @@
 use crate::{
     EffectModel, IrModule, Module, NodeId, OwnershipModel, edit, edit::StructuralEdit, effects, ir,
-    ownership, sema, source::Diagnostic,
+    learning::PersistentCompilerLearning, ownership, sema, source::Diagnostic,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +62,43 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 changed_node,
             })
         }
+    }
+}
+
+pub struct CompilerSession {
+    pub project: String,
+    pub task_kind: String,
+    pub learning: PersistentCompilerLearning,
+}
+
+impl CompilerSession {
+    pub fn new(project: impl Into<String>, task_kind: impl Into<String>) -> Self {
+        Self {
+            project: project.into(),
+            task_kind: task_kind.into(),
+            learning: PersistentCompilerLearning::default(),
+        }
+    }
+
+    pub fn execute(
+        &mut self,
+        source: &str,
+        request: CompilerRequest,
+    ) -> Result<CompilerResponse, ProtocolError> {
+        let result = execute(source, request);
+        if let Err(error) = &result {
+            let diagnostics: &[Diagnostic] = match error {
+                ProtocolError::InvalidSource(items)
+                | ProtocolError::Semantic(items)
+                | ProtocolError::Ownership(items) => items.as_slice(),
+                ProtocolError::Edit(_) => &[],
+            };
+            for diagnostic in diagnostics {
+                self.learning
+                    .record(&self.project, &self.task_kind, diagnostic);
+            }
+        }
+        result
     }
 }
 
@@ -127,6 +164,19 @@ mod tests {
             }),
         );
         assert!(matches!(result, Err(ProtocolError::Edit(_))));
+    }
+
+    #[test]
+    fn session_records_contextual_learning_on_failures() {
+        let source = "module x\nfn main() -> Int\n  missing\n";
+        let mut session = CompilerSession::new("project-a", "compiler-edit");
+        assert!(session.execute(source, CompilerRequest::Inspect).is_err());
+        let key = crate::learning::LearningKey {
+            project: "project-a".into(),
+            task_kind: "compiler-edit".into(),
+            diagnostic: "AIF304".into(),
+        };
+        assert!(session.learning.recurring(&key, 1));
     }
 
     #[test]

@@ -18,6 +18,7 @@ pub struct FunctionEffects {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EffectModel {
     pub functions: HashMap<String, FunctionEffects>,
+    pub dependencies: HashMap<String, HashSet<String>>,
 }
 
 pub fn analyze(module: &Module) -> EffectModel {
@@ -48,7 +49,36 @@ pub fn analyze(module: &Module) -> EffectModel {
         }
     }
 
-    EffectModel { functions }
+    let dependencies = functions
+        .iter()
+        .map(|(name, effects)| (name.clone(), effects.calls.clone()))
+        .collect();
+    EffectModel {
+        functions,
+        dependencies,
+    }
+}
+
+impl EffectModel {
+    pub fn depends_on(&self, caller: &str, callee: &str) -> bool {
+        if caller == callee {
+            return true;
+        }
+        let mut pending = vec![caller.to_string()];
+        let mut seen = HashSet::new();
+        while let Some(current) = pending.pop() {
+            if !seen.insert(current.clone()) {
+                continue;
+            }
+            for next in self.dependencies.get(&current).into_iter().flatten() {
+                if next == callee {
+                    return true;
+                }
+                pending.push(next.clone());
+            }
+        }
+        false
+    }
 }
 
 fn collect_block(block: &Block, effects: &mut FunctionEffects) {
@@ -124,6 +154,8 @@ mod tests {
         assert!(main.effects.contains(&EffectKind::Call));
         assert!(main.effects.contains(&EffectKind::Read));
         assert!(main.calls.contains("leaf"));
+        assert!(model.dependencies["main"].contains("leaf"));
+        assert!(model.depends_on("main", "leaf"));
     }
 
     #[test]
