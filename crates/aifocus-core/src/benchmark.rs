@@ -89,7 +89,9 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
 
 fn fingerprint(mut hash: u64, source: &str) -> u64 {
     for byte in source.bytes() {
-        hash = hash.wrapping_mul(0x100000001b3).wrapping_add(u64::from(byte));
+        hash = hash
+            .wrapping_mul(0x100000001b3)
+            .wrapping_add(u64::from(byte));
     }
     hash
 }
