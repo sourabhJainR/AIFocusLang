@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 
-use crate::{Block, ExprKind, Item, Module, StmtKind, source::Diagnostic};
+use crate::{source::Diagnostic, Block, ExprKind, Item, Module, StmtKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskTerminal {
@@ -32,17 +32,7 @@ pub fn analyze(module: &Module) -> Result<Vec<ScopeReport>, Vec<String>> {
 pub fn analyze_with_diagnostics(module: &Module) -> Result<Vec<ScopeReport>, Vec<Diagnostic>> {
     let mut reports = Vec::new();
     let mut errors = Vec::new();
-    for item in &module.items {
-        let Item::Function(function) = item;
-        analyze_block_with_diagnostics(&function.body, &mut reports, &mut errors);
-    }
-    if errors.is_empty() {
-        Ok(reports)
-    } else {
-        Err(errors)
-    }
-}
-fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec<String>) {
+    for item in &mofn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec<String>) {
     let mut diagnostics = Vec::new();
     analyze_block_with_diagnostics(block, reports, &mut diagnostics);
     errors.extend(diagnostics.into_iter().map(|error| error.message));
@@ -126,3 +116,344 @@ fn analyze_block_with_diagnostics(
     }
 }
 
+fn child_block(stmt: &crate::Stmt) -> &Block {
+    match &stmt.kind {
+        StmtKind::Scope { body } => body,
+        _ => unreachable!(),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TaskState {
+    Running,
+    Joined,
+    Cancelled,
+}
+
+#[derive(Debug, Clone)]
+pub struct CancellationToken {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl CancellationToken {
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+}
+
+pub struct TaskHandle<T> {
+    token: CancellationToken,
+    join: Option<JoinHandle<T>>,
+}
+
+impl<T: Send + 'static> TaskHandle<T> {
+    pub fn cancel(&self) {
+        self.token.cancelled.store(true, Ordering::Release);
+    }
+
+    pub fn join(mut self) -> thread::Result<T> {
+        self.join.take().expect("task already joined").join()
+    }
+
+    pub fn token(&self) -> CancellationToken {
+        self.token.clone()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScopeEvent {
+    Spawned(String),
+    Joined(String),
+    Cancelled(String),
+    Failed(String),
+}
+
+pub struct StructuredScope {
+    tasks: BTreeMap<String, (TaskHandle<()>, TaskState)>,
+    events: Vec<ScopeEvent>,
+}
+
+impl StructuredScope {
+    pub fn new() -> Self {
+        Self {
+            tasks: BTreeMap::new(),
+            events: Vec::new(),
+        }
+    }
+
+    pub fn spawn<F>(&mut self, name: impl Into<String>, task: F) -> Result<(), String>
+    where
+        F: FnOnce(CancellationToken) + Send + 'static,
+    {
+        let name = name.into();
+        if self.tasks.contains_key(&name) {
+            return Err(format!("AIF501: duplicate task '{name}'"));
+        }
+        self.tasks
+            .insert(name.clone(), (spawn(task), TaskState::Running));
+        self.events.push(ScopeEvent::Spawned(name));
+        Ok(())
+    }
+
+    pub fn join(&mut self, name: &str) -> Result<(), String> {
+        let Some((handle, state)) = self.tasks.remove(name) else {
+            return Err(format!("AIF502: unknown task '{name}'"));
+        };
+        if state != TaskState::Running {
+            return Err(format!("AIF504: task '{name}' is already terminal"));
+        }
+        match handle.join() {
+            Ok(()) => {
+                self.events.push(ScopeEvent::Joined(name.into()));
+                Ok(())
+            }
+            Err(_) => {
+                self.events.push(ScopeEvent::Failed(name.into()));
+                self.cancel_running_siblings();
+                Err(format!(
+                    "AIF505: task '{name}' panicked; siblings cancelled"
+                ))
+            }
+        }
+    }
+
+    pub fn cancel(&mut self, name: &str) -> Result<(), String> {
+        let Some((handle, state)) = self.tasks.get_mut(name) else {
+            return Err(format!("AIF502: unknown task '{name}'"));
+        };
+        if *state != TaskState::Running {
+            return Err(format!("AIF504: task '{name}' is already terminal"));
+        }
+        handle.cancel();
+        *state = TaskState::Cancelled;
+        self.events.push(ScopeEvent::Cancelled(name.into()));
+        Ok(())
+    }
+
+    pub fn finish(mut self) -> Result<Vec<ScopeEvent>, String> {
+        let names = self.tasks.keys().cloned().collect::<Vec<_>>();
+        for name in names {
+            let (handle, state) = self.tasks.remove(&name).expect("task disappeared");
+            if handle.join().is_err() {
+                return Err(format!("AIF505: task '{name}' panicked"));
+            }
+            if state == TaskState::Running {
+                self.events.push(ScopeEvent::Joined(name));
+            }
+        }
+        Ok(self.events.clone())
+    }
+
+    pub fn events(&self) -> &[ScopeEvent] {
+        &self.events
+    }
+
+    fn cancel_running_siblings(&mut self) {
+        let names = self
+            .tasks
+            .iter()
+            .filter_map(|(name, (_, state))| (*state == TaskState::Running).then_some(name.clone()))
+            .collect::<Vec<_>>();
+        for name in names {
+            if let Some((handle, state)) = self.tasks.get_mut(&name) {
+                handle.cancel();
+                *state = TaskState::Cancelled;
+                self.events.push(ScopeEvent::Cancelled(name));
+            }
+        }
+    }
+}
+
+impl Default for StructuredScope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for StructuredScope {
+    fn drop(&mut self) {
+        for (handle, state) in self.tasks.values_mut() {
+            if *state == TaskState::Running {
+                handle.cancel();
+                *state = TaskState::Cancelled;
+            }
+        }
+        for (_, (handle, _)) in std::mem::take(&mut self.tasks) {
+            let _ = handle.join();
+        }
+    }
+}
+
+pub fn spawn<T, F>(task: F) -> TaskHandle<T>
+where
+    T: Send + 'static,
+    F: FnOnce(CancellationToken) -> T + Send + 'static,
+{
+    let token = CancellationToken {
+        cancelled: Arc::new(AtomicBool::new(false)),
+    };
+    let child_token = token.clone();
+    let join = thread::spawn(move || task(child_token));
+    TaskHandle {
+        token,
+        join: Some(join),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn concurrency_diagnostics_carry_source_spans() {
+        let module = crate::parse(
+            "module x
+fn main()
+  scope
+    spawn worker = work(1)
+",
+        )
+        .unwrap();
+        let errors = analyze_with_diagnostics(&module).unwrap_err();
+        assert_eq!(errors[0].code, "AIF503");
+        assert!(errors[0].span.is_some());
+    }
+
+    #[test]
+    fn accepts_joined_structured_scope() {
+        let module = crate::parse(
+            "module x\nfn main()\n  scope\n    spawn worker = work(1)\n    join worker\n",
+        )
+        .unwrap();
+        let reports = analyze(&module).unwrap();
+        assert_eq!(reports[0].tasks[0].name, "worker");
+    }
+
+    #[test]
+    fn rejects_unfinished_task_at_scope_exit() {
+        let module =
+            crate::parse("module x\nfn main()\n  scope\n    spawn worker = work(1)\n").unwrap();
+        let errors = analyze(&module).unwrap_err();
+        assert!(errors.iter().any(|e| e.starts_with("AIF503")));
+    }
+
+    #[test]
+    fn rejects_double_terminal_task_control() {
+        let module = crate::parse(
+            "module x
+fn main()
+  scope
+    spawn worker = work(1)
+    join worker
+    cancel worker
+",
+        )
+        .unwrap();
+        let errors = analyze(&module).unwrap_err();
+        assert!(errors.iter().any(|e| e.starts_with("AIF504")));
+    }
+
+    #[test]
+    fn structured_scope_cleans_up_unfinished_tasks_on_drop() {
+        let mut scope = StructuredScope::new();
+        scope
+            .spawn("worker", |token| {
+                while !token.is_cancelled() {
+                    thread::yield_now();
+                }
+            })
+            .unwrap();
+        assert_eq!(scope.events(), &[ScopeEvent::Spawned("worker".into())]);
+    }
+
+    #[test]
+    fn structured_scope_requires_explicit_terminal_state() {
+        let mut scope = StructuredScope::new();
+        scope.spawn("worker", |_token| {}).unwrap();
+        assert!(scope.join("worker").is_ok());
+        assert_eq!(
+            scope.events(),
+            &[
+                ScopeEvent::Spawned("worker".into()),
+                ScopeEvent::Joined("worker".into())
+            ]
+        );
+    }
+    #[test]
+    fn structured_scope_cancellation_is_followed_by_scope_cleanup() {
+        let mut scope = StructuredScope::new();
+        scope
+            .spawn("worker", |token| {
+                while !token.is_cancelled() {
+                    thread::yield_now();
+                }
+            })
+            .unwrap();
+        scope.cancel("worker").unwrap();
+        let events = scope.finish().unwrap();
+        assert_eq!(
+            events,
+            vec![
+                ScopeEvent::Spawned("worker".into()),
+                ScopeEvent::Cancelled("worker".into())
+            ]
+        );
+    }
+
+    #[test]
+    fn child_failure_cancels_running_siblings() {
+        let mut scope = StructuredScope::new();
+        scope
+            .spawn("a", |_token| {
+                panic!("boom");
+            })
+            .unwrap();
+        scope
+            .spawn("b", |token| {
+                while !token.is_cancelled() {
+                    thread::yield_now();
+                }
+            })
+            .unwrap();
+        let result = scope.join("a");
+        assert!(result.is_err());
+        assert!(scope.events().contains(&ScopeEvent::Failed("a".into())));
+        assert!(scope.events().contains(&ScopeEvent::Cancelled("b".into())));
+    }
+
+    #[test]
+    fn scope_event_order_is_deterministic_for_cleanup() {
+        let mut scope = StructuredScope::new();
+        scope.spawn("z", |_token| {}).unwrap();
+        scope.spawn("a", |_token| {}).unwrap();
+        let events = scope.finish().unwrap();
+        assert_eq!(
+            events,
+            vec![
+                ScopeEvent::Spawned("z".into()),
+                ScopeEvent::Spawned("a".into()),
+                ScopeEvent::Joined("a".into()),
+                ScopeEvent::Joined("z".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn structured_scope_rejects_duplicate_tasks() {
+        let mut scope = StructuredScope::new();
+        scope.spawn("worker", |_token| {}).unwrap();
+        assert!(scope.spawn("worker", |_token| {}).is_err());
+    }
+
+    #[test]
+    fn cancellation_token_is_cooperative() {
+        let handle = spawn(|token| {
+            while !token.is_cancelled() {
+                thread::yield_now();
+            }
+            7
+        });
+        handle.cancel();
+        assert_eq!(handle.join().unwrap(), 7);
+    }
+}
