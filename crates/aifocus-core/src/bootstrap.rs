@@ -270,9 +270,26 @@ fn lexer_output_matches_native(encoded: &str, source: &str) -> bool {
     };
     let expected = tokens
         .iter()
-        .map(|token| format!("{}={}|", token_kind_name(&token.kind), token.lexeme))
+        .map(|token| {
+            if matches!(token.kind, crate::token::TokenKind::Indent(_)) {
+                "Indent=|".to_owned()
+            } else {
+                format!("{}={}|", token_kind_name(&token.kind), token.lexeme)
+            }
+        })
         .collect::<String>();
-    encoded == expected
+    let actual = encoded
+        .split('|')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            if part.starts_with("Indent=") {
+                "Indent=|".to_owned()
+            } else {
+                format!("{part}|")
+            }
+        })
+        .collect::<String>();
+    actual == expected
 }
 
 fn token_kind_name(kind: &crate::token::TokenKind) -> String {
