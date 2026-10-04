@@ -469,6 +469,39 @@ fn reuse(source: String) -> String
     }
 
     #[test]
+    fn conservatively_tracks_move_through_if_without_else() {
+        let module = parse(
+            "module x\nfn f(flag: Bool, value: String) -> String\n  if flag\n    let consumed = value\n  value\n",
+        )
+        .unwrap();
+        let errors = infer(&module).unwrap_err();
+        assert!(errors.iter().any(|error| error.code == "AIF400"));
+    }
+
+    #[test]
+    fn tracks_move_through_loop_body() {
+        let module = parse(
+            "module x\nfn f(flag: Bool, value: String) -> String\n  while flag\n    let consumed = value\n  value\n",
+        )
+        .unwrap();
+        let errors = infer(&module).unwrap_err();
+        assert!(errors.iter().any(|error| error.code == "AIF400"));
+    }
+
+    #[test]
+    fn models_push_as_a_mutable_borrow() {
+        let module = parse(
+            "module x\nfn f(value: Int) -> Int\n  let items = [1]\n  push(items, value)\n  len(items)\n",
+        )
+        .unwrap();
+        let model = analyze(&module).unwrap();
+        assert!(model
+            .accesses
+            .values()
+            .any(|access| *access == AccessKind::MutableBorrow));
+    }
+
+    #[test]
     fn catches_use_after_move() {
         let module = parse("module x\nfn f(a: String) -> String\n  let b = a\n  a\n").unwrap();
         let errors = infer(&module).unwrap_err();
