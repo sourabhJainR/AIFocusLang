@@ -26,7 +26,10 @@ pub const CORPUS: &[DifferentialCase] = &[
     },
     DifferentialCase {
         name: "string",
-        source: r#"module x\nfn main() -> String\n  "hello " + "ardisa"\n"#,
+        source: r#"module x
+fn main() -> String
+  "hello " + "ardisa"
+"#,
     },
 ];
 
