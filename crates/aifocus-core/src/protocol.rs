@@ -1,6 +1,32 @@
 use std::time::Instant;
 
-pub const PROTOCOL_VERSION: &str = "ardisa-compiler-protocol-v1";
+pub const PROTOCOL_VERSION: &str = "ardisa-compiler-protocol-v2";
+pub const PROTOCOL_SCHEMA_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerCapabilities {
+    pub protocol_version: &'static str,
+    pub schema_version: u32,
+    pub supports_ir: bool,
+    pub supports_effects: bool,
+    pub supports_ownership: bool,
+    pub supports_structured_concurrency: bool,
+    pub supports_transactional_edits: bool,
+    pub supports_persistent_learning: bool,
+}
+
+pub fn capabilities() -> CompilerCapabilities {
+    CompilerCapabilities {
+        protocol_version: PROTOCOL_VERSION,
+        schema_version: PROTOCOL_SCHEMA_VERSION,
+        supports_ir: true,
+        supports_effects: true,
+        supports_ownership: true,
+        supports_structured_concurrency: true,
+        supports_transactional_edits: true,
+        supports_persistent_learning: true,
+    }
+}
 
 use crate::{
     EffectModel, IrModule, Module, NodeId, OwnershipModel, concurrency, edit,
@@ -38,6 +64,7 @@ pub struct CompilerSnapshot {
     pub concurrency_diagnostics: Vec<Diagnostic>,
     pub diagnostics: Vec<Diagnostic>,
     pub verification: Vec<VerificationRequirement>,
+    pub source_fingerprint: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -502,7 +529,17 @@ fn snapshot(
         concurrency_diagnostics,
         diagnostics: Vec::new(),
         verification: verification_requirements(),
+        source_fingerprint: source_fingerprint(source),
     })
+}
+
+fn source_fingerprint(source: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in source.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 fn verification_requirements() -> Vec<VerificationRequirement> {
@@ -628,6 +665,8 @@ mod tests {
         let source = "module x\nfn main(a: Int) -> Int\n  a + 1\n";
         let response = execute(source, CompilerRequest::Inspect).unwrap();
         assert_eq!(response.snapshot.protocol_version, PROTOCOL_VERSION);
+        assert_eq!(capabilities().schema_version, PROTOCOL_SCHEMA_VERSION);
+        assert_eq!(response.snapshot.source_fingerprint, source_fingerprint(source));
         assert_eq!(response.snapshot.module.name, "x");
         assert_eq!(response.snapshot.ir.functions.len(), 1);
         assert!(response.snapshot.effects.functions.contains_key("main"));
