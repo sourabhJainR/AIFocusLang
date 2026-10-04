@@ -18,12 +18,13 @@ pub struct BenchmarkResult {
     pub lowered_rust_bytes: usize,
     pub native_compile_ns: u128,
     pub native_execute_ns: u128,
+    pub native_artifact_bytes: usize,
 }
 
 impl BenchmarkResult {
     pub fn deterministic_report(&self) -> String {
         format!(
-            "cases={} parsed={} semantic={} ownership={} native_compiled={} native_executed={} failed={} source_bytes={} native_instructions={} rust_bytes={} fingerprint={:016x}",
+            "cases={} parsed={} semantic={} ownership={} native_compiled={} native_executed={} failed={} source_bytes={} native_instructions={} artifact_bytes={} rust_bytes={} fingerprint={:016x}",
             self.cases,
             self.parsed,
             self.semantically_valid,
@@ -33,6 +34,7 @@ impl BenchmarkResult {
             self.failed_cases,
             self.total_source_bytes,
             self.native_instruction_count,
+            self.native_artifact_bytes,
             self.lowered_rust_bytes,
             self.fingerprint
         )
@@ -70,6 +72,7 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
         lowered_rust_bytes: 0,
         native_compile_ns: 0,
         native_execute_ns: 0,
+        native_artifact_bytes: 0,
     };
 
     for offset in 0..cases {
@@ -105,6 +108,7 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
         result.native_compile_ns += compile_started.elapsed().as_nanos();
         result.native_compiled += 1;
         result.native_instruction_count += code.len();
+        result.native_artifact_bytes += native::encode_program(&native::compile_program(&lowered).expect("program already compiled")).len();
         let execute_started = Instant::now();
         let executed = native::run(
             &code,
