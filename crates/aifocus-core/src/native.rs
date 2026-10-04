@@ -11,6 +11,7 @@ pub enum NativeInstr {
     PushList(usize),
     Index,
     Len,
+    Append(String),
     Load(String),
     Store(String),
     StoreIndex(String),
@@ -233,6 +234,14 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
             }
             if callee == "len" && args.len() == 1 {
                 code.push(NativeInstr::Len);
+            } else if callee == "push" && args.len() == 2 {
+                let crate::ir::IrValue::Name(name) = &args[0] else {
+                    return Err(NativeError::Unsupported(
+                        "push currently requires a named list binding".into(),
+                    ));
+                };
+                emit_value(&args[1], code)?;
+                code.push(NativeInstr::Append(name.clone()));
             } else {
                 code.push(NativeInstr::Call {
                     callee: callee.clone(),
@@ -312,6 +321,16 @@ pub fn run(
                     }
                 };
                 stack.push(NativeValue::Int(length as i64));
+            }
+            NativeInstr::Append(name) => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("push value missing".into()))?;
+                let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
+                    return Err(NativeError::Type("push requires a List binding".into()));
+                };
+                items.push(value);
+                stack.push(NativeValue::Unit);
             }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
@@ -513,6 +532,16 @@ fn run_function(
                     }
                 };
                 stack.push(NativeValue::Int(length as i64));
+            }
+            NativeInstr::Append(name) => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("push value missing".into()))?;
+                let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
+                    return Err(NativeError::Type("push requires a List binding".into()));
+                };
+                items.push(value);
+                stack.push(NativeValue::Unit);
             }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
