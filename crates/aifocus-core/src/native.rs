@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::TypeKind;
 use crate::ir::{IrFunction, IrModule, IrOp, IrValue};
@@ -21,7 +21,7 @@ pub enum NativeInstr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NativeValue {
+pub struct NativeProgram {\n    pub functions: BTreeMap<String, Vec<NativeInstr>>,\n}\n\n#[derive(Debug, Clone, PartialEq, Eq)]\npub enum NativeValue {
     Int(i64),
     Bool(bool),
     Unit,
@@ -42,7 +42,7 @@ pub fn compile(module: &IrModule) -> Result<Vec<NativeInstr>, NativeError> {
     compile_function(function)
 }
 
-pub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, NativeError> {
+pub fn compile_program(module: &IrModule) -> Result<NativeProgram, NativeError> {\n    let mut functions = BTreeMap::new();\n    for function in &module.functions {\n        functions.insert(function.name.clone(), compile_function(function)?);\n    }\n    Ok(NativeProgram { functions })\n}\n\npub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, NativeError> {
     if function
         .params
         .iter()
