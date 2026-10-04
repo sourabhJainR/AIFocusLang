@@ -1,4 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+use std::thread::{self, JoinHandle};
 
 use crate::TypeKind;
 use crate::ir::{IrFunction, IrModule, IrOp, IrValue};
@@ -36,6 +38,11 @@ pub enum NativeInstr {
     Return,
     Pop,
     Call { callee: String, argc: usize },
+    ScopeStart,
+    ScopeEnd,
+    Spawn { name: String, callee: String, argc: usize },
+    Join { name: String },
+    Cancel { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,11 +178,28 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
             let end = code.len();
             code[jump_if] = NativeInstr::JumpIfFalse(end);
         }
-        IrOp::Scope { .. } | IrOp::Spawn { .. } | IrOp::Join { .. } | IrOp::Cancel { .. } => {
-            return Err(NativeError::Unsupported(
-                "native backend does not yet execute concurrency operations".into(),
-            ));
+        IrOp::Scope { ops } => {
+            code.push(NativeInstr::ScopeStart);
+            for op in ops {
+                emit_op(op, code)?;
+            }
+            code.push(NativeInstr::ScopeEnd);
         }
+        IrOp::Spawn { name, call } => {
+            let IrValue::Call { callee, args } = call else {
+                return Err(NativeError::Unsupported("spawn requires a function call".into()));
+            };
+            for arg in args {
+                emit_value(arg, code)?;
+            }
+            code.push(NativeInstr::Spawn {
+                name: name.clone(),
+                callee: callee.clone(),
+                argc: args.len(),
+            });
+        }
+        IrOp::Join { name } => code.push(NativeInstr::Join { name: name.clone() }),
+        IrOp::Cancel { name } => code.push(NativeInstr::Cancel { name: name.clone() }),
     }
     Ok(())
 }
