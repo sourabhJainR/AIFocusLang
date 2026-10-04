@@ -49,11 +49,7 @@ pub fn verify() -> BootstrapReport {
         0,
         BOOTSTRAP_SOURCE,
         &lowered,
-        stage0_program
-            .functions
-            .values()
-            .map(Vec::len)
-            .sum(),
+        stage0_program.functions.values().map(Vec::len).sum(),
     );
 
     let Ok(stage1_program) = native::compile_program(&lowered) else {
@@ -63,11 +59,7 @@ pub fn verify() -> BootstrapReport {
         1,
         BOOTSTRAP_SOURCE,
         &lowered,
-        stage1_program
-            .functions
-            .values()
-            .map(Vec::len)
-            .sum(),
+        stage1_program.functions.values().map(Vec::len).sum(),
     );
 
     let main_code = stage1_program
@@ -134,7 +126,8 @@ fn artifact(
 
 fn fingerprint(source: &str) -> u64 {
     source.bytes().fold(0xcbf29ce484222325u64, |hash, byte| {
-        hash.wrapping_mul(0x100000001b3).wrapping_add(u64::from(byte))
+        hash.wrapping_mul(0x100000001b3)
+            .wrapping_add(u64::from(byte))
     })
 }
 
@@ -145,10 +138,7 @@ pub fn stage_manifest() -> BTreeMap<&'static str, &'static str> {
             "stage1",
             "Native Ardisa program compiled by the same deterministic pipeline",
         ),
-        (
-            "stage2",
-            "Reserved for Ardisa compiler compiling itself",
-        ),
+        ("stage2", "Reserved for Ardisa compiler compiling itself"),
     ])
 }
 
@@ -159,9 +149,7 @@ mod tests {
     #[test]
     fn bootstrap_pipeline_is_multi_function_and_reproducible() {
         let report = verify();
-        assert!(
-            report.parsed && report.semantically_valid && report.ownership_valid
-        );
+        assert!(report.parsed && report.semantically_valid && report.ownership_valid);
         assert!(report.native_compiled);
         assert_eq!(
             report.native_result,
