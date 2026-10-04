@@ -53,18 +53,27 @@ pub fn analyze(module: &Module) -> EffectModel {
         .iter()
         .map(|(name, effects)| (name.clone(), effects.calls.clone()))
         .collect();
-    EffectModel { functions, dependencies }
+    EffectModel {
+        functions,
+        dependencies,
+    }
 }
 
 impl EffectModel {
     pub fn depends_on(&self, caller: &str, callee: &str) -> bool {
-        if caller == callee { return true; }
+        if caller == callee {
+            return true;
+        }
         let mut pending = vec![caller.to_string()];
         let mut seen = HashSet::new();
         while let Some(current) = pending.pop() {
-            if !seen.insert(current.clone()) { continue; }
+            if !seen.insert(current.clone()) {
+                continue;
+            }
             for next in self.dependencies.get(&current).into_iter().flatten() {
-                if next == callee { return true; }
+                if next == callee {
+                    return true;
+                }
                 pending.push(next.clone());
             }
         }
