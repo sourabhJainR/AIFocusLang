@@ -204,8 +204,14 @@ fn main(a: Int) -> Int
     let semantic = programs.get("semantic").ok_or("missing semantic program")?;
     let ir_program = programs.get("ir").ok_or("missing ir program")?;
 
-    let tokens = native::run_program(lexer, "lex", &[native::NativeValue::String(source.into())])
-        .map_err(|_| "self-hosted lexer execution failed")?;
+    let tokens = match native::run_program(
+        lexer,
+        "lex",
+        &[native::NativeValue::String(source.into())],
+    ) {
+        Ok(value) => value,
+        Err(error) => panic!("self-hosted lexer execution error: {:?}", error),
+    };
     let tokens = match tokens {
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted lexer returned non-string tokens"),
