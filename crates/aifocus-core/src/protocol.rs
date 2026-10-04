@@ -1,6 +1,7 @@
 use crate::{
-    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit, edit::StructuralEdit, effects, ir,
-    ownership, sema, source::Diagnostic, learning::PersistentCompilerLearning,
+    edit, edit::StructuralEdit, effects, ir,
+    learning::PersistentCompilerLearning, ownership, sema, source::Diagnostic, EffectModel, IrModule,
+    Module, NodeId, OwnershipModel,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,7 +95,8 @@ impl CompilerSession {
                 ProtocolError::Edit(_) => &[],
             };
             for diagnostic in diagnostics {
-                self.learning.record(&self.project, &self.task_kind, diagnostic);
+                self.learning
+                    .record(&self.project, &self.task_kind, diagnostic);
             }
         }
         result
