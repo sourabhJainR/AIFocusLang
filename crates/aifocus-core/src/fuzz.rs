@@ -1,6 +1,6 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use crate::{Item, format, lower, ownership, parse, sema};
+use crate::{Item, format, ir, lower, native, ownership, parse, sema};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedCase {
@@ -152,6 +152,40 @@ pub fn verify_malformed(source: &str) -> Result<(), String> {
     }
 }
 
+pub fn verify_native_roundtrip(case: &GeneratedCase) -> Result<(), String> {
+    let module = parse(&case.source).map_err(|e| format!("parse {:?}: {e:?}", case.seed))?;
+    sema::check(&module).map_err(|e| format!("sema {:?}: {e:?}", case.seed))?;
+    ownership::infer(&module).map_err(|e| format!("ownership {:?}: {e:?}", case.seed))?;
+    let ir = ir::lower(&module);
+    let program = native::compile_program(&ir)
+        .map_err(|e| format!("native compile {:?}: {e:?}", case.seed))?;
+    let encoded = native::encode_program(&program);
+    let decoded = native::decode_program(&encoded)
+        .map_err(|e| format!("artifact decode {:?}: {e:?}", case.seed))?;
+    if encoded != native::encode_program(&decoded) {
+        return Err(format!("artifact encoding is not canonical for seed {}", case.seed));
+    }
+    let main = program.functions.get("main").ok_or("generated case has no main")?;
+    let args = main
+        .params
+        .iter()
+        .map(|(_, ty)| match ty {
+            crate::TypeKind::Int => native::NativeValue::Int(3),
+            crate::TypeKind::Bool => native::NativeValue::Bool(true),
+            crate::TypeKind::String => native::NativeValue::String("ardisa".into()),
+            _ => native::NativeValue::Unit,
+        })
+        .collect::<Vec<_>>();
+    let left = native::run_program(&program, "main", &args)
+        .map_err(|e| format!("native execution {:?}: {e:?}", case.seed))?;
+    let right = native::run_program(&decoded, "main", &args)
+        .map_err(|e| format!("decoded execution {:?}: {e:?}", case.seed))?;
+    if left != right {
+        return Err(format!("native/artifact execution mismatch for seed {}", case.seed));
+    }
+    Ok(())
+}
+
 pub fn verify(case: &GeneratedCase) -> Result<(), String> {
     let first = parse(&case.source).map_err(|e| format!("parse {:?}: {e:?}", case.seed))?;
     sema::check(&first).map_err(|e| format!("sema {:?}: {e:?}", case.seed))?;
@@ -227,6 +261,13 @@ mod tests {
         assert_eq!(generate(1).kind, "conditional");
         assert_eq!(generate(2).kind, "list");
         assert_eq!(generate(3).kind, "string");
+    }
+
+    #[test]
+    fn generated_native_artifacts_round_trip_without_semantic_drift() {
+        for seed in 0..256 {
+            verify_native_roundtrip(&generate(seed)).unwrap_or_else(|error| panic!("{error}"));
+        }
     }
 
     #[test]
