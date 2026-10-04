@@ -109,9 +109,9 @@ impl PersistentCompilerLearning {
         let occurrences = {
             let entry = self
                 .entries
-                .entry(key)
+                .entry(key.clone())
                 .or_insert_with(|| LearningEntry {
-                    key: key.clone(),
+                    key,
                     message: diagnostic.message.clone(),
                     occurrences: 0,
                     status: LearningStatus::Observed,
@@ -122,7 +122,7 @@ impl PersistentCompilerLearning {
             entry.occurrences
         };
         self.record_provenance(
-            format!("repair:{}:{occurrences}", diagnostic.code),
+            format!("repair:{}:{}", diagnostic.code, occurrences),
             ProvenanceKind::Repair,
             diagnostic.code,
             None,
