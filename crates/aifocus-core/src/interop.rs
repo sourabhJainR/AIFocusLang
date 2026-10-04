@@ -218,6 +218,28 @@ mod tests {
     }
 
     #[test]
+    fn generated_slice_abi_wrapper_is_accepted_by_rustc() {
+        let function = RustFunction {
+            symbol: "native_sum".into(),
+            name: "sum".into(),
+            params: vec![("values".into(), InteropType::IntSliceRef)],
+            return_type: InteropType::Int,
+        };
+        let wrapper = SafeRustBoundary::new(function).unwrap().wrapper();
+        let base = std::env::temp_dir().join(format!("ardisa-slice-abi-{}", std::process::id()));
+        let source = base.with_extension("rs");
+        std::fs::write(&source, wrapper).unwrap();
+        let status = std::process::Command::new("rustc")
+            .arg("--crate-type=lib")
+            .arg("--emit=metadata")
+            .arg(&source)
+            .status()
+            .expect("rustc must be available for slice ABI fixture verification");
+        let _ = std::fs::remove_file(&source);
+        assert!(status.success());
+    }
+
+    #[test]
     fn generated_abi_wrapper_is_accepted_by_rustc() {
         let function = RustFunction {
             symbol: "native_add".into(),
