@@ -273,7 +273,7 @@ impl Checker {
                     BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
                         left_type.or(right_type)
                     }
-                    BinaryOp::Equal => Some(type_node(TypeKind::Bool, expr)),
+                    BinaryOp::Equal | BinaryOp::NotEqual | BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual => Some(type_node(TypeKind::Bool, expr)),
                 }
             }
             ExprKind::Call { callee, args } => {
