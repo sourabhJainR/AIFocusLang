@@ -401,7 +401,10 @@ pub fn encode_stdio_frame(payload: &[u8]) -> Result<Vec<u8>, ProtocolError> {
 /// Decode exactly one complete Content-Length frame and return any trailing bytes.
 pub fn decode_stdio_frame(input: &[u8]) -> Result<(Vec<u8>, &[u8]), ProtocolError> {
     const HEADER_END: &[u8] = b"\r\n\r\n";
-    let Some(header_end) = input.windows(HEADER_END.len()).position(|w| w == HEADER_END) else {
+    let Some(header_end) = input
+        .windows(HEADER_END.len())
+        .position(|window| window == HEADER_END)
+    else {
         return Err(ProtocolError::Edit("incomplete stdio header".into()));
     };
     let header = &input[..header_end];
