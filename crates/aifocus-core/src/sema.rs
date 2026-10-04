@@ -194,12 +194,11 @@ impl Checker {
                 let right_type = self.check_expr(right, locals)?;
                 match op {
                     BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-                        let int_operands =
-                            is_kind(&left_type, &TypeKind::Int) && is_kind(&right_type, &TypeKind::Int);
-                        let string_add =
-                            matches!(op, BinaryOp::Add)
-                                && is_kind(&left_type, &TypeKind::String)
-                                && is_kind(&right_type, &TypeKind::String);
+                        let int_operands = is_kind(&left_type, &TypeKind::Int)
+                            && is_kind(&right_type, &TypeKind::Int);
+                        let string_add = matches!(op, BinaryOp::Add)
+                            && is_kind(&left_type, &TypeKind::String)
+                            && is_kind(&right_type, &TypeKind::String);
                         if int_operands {
                             Some(type_node(TypeKind::Int, expr.span))
                         } else if string_add {
