@@ -16,11 +16,63 @@ pub enum AccessKind {
     Copy,
     Move,
     SharedBorrow,
+    MutableBorrow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowKind {
+    Shared,
+    Mutable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OwnershipTransition {
+    Move,
+    BorrowStart(BorrowKind),
+    BorrowEnd(BorrowKind),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct OwnershipModel {
     pub accesses: HashMap<crate::NodeId, AccessKind>,
+    pub transitions: Vec<(crate::NodeId, OwnershipTransition)>,
+}
+
+impl OwnershipModel {
+    pub fn validate_borrow_transitions(
+        transitions: &[(crate::NodeId, OwnershipTransition)],
+    ) -> Result<(), &'static str> {
+        let mut shared = 0usize;
+        let mut mutable = false;
+        for (_, transition) in transitions {
+            match transition {
+                OwnershipTransition::Move if shared > 0 || mutable => {
+                    return Err("cannot move while a borrow is active");
+                }
+                OwnershipTransition::Move => {}
+                OwnershipTransition::BorrowStart(BorrowKind::Shared) if mutable => {
+                    return Err("cannot shared-borrow while a mutable borrow is active");
+                }
+                OwnershipTransition::BorrowStart(BorrowKind::Shared) => shared += 1,
+                OwnershipTransition::BorrowStart(BorrowKind::Mutable) if mutable || shared > 0 => {
+                    return Err("cannot create a mutable borrow while another borrow is active");
+                }
+                OwnershipTransition::BorrowStart(BorrowKind::Mutable) => mutable = true,
+                OwnershipTransition::BorrowEnd(BorrowKind::Shared) if shared == 0 => {
+                    return Err("shared borrow ended without a matching borrow");
+                }
+                OwnershipTransition::BorrowEnd(BorrowKind::Shared) => shared -= 1,
+                OwnershipTransition::BorrowEnd(BorrowKind::Mutable) if !mutable => {
+                    return Err("mutable borrow ended without a matching borrow");
+                }
+                OwnershipTransition::BorrowEnd(BorrowKind::Mutable) => mutable = false,
+            }
+        }
+        if mutable || shared > 0 {
+            return Err("borrow remains active at scope exit");
+        }
+        Ok(())
+    }
 }
 
 impl OwnershipClass {
@@ -68,8 +120,11 @@ pub fn analyze(module: &Module) -> Result<OwnershipModel, Vec<Diagnostic>> {
     }
 
     if checker.errors.is_empty() {
+        OwnershipModel::validate_borrow_transitions(&checker.transitions)
+            .map_err(|message| vec![Diagnostic::error("AIF403", message, None)])?;
         Ok(OwnershipModel {
             accesses: checker.accesses,
+            transitions: checker.transitions,
         })
     } else {
         Err(checker.errors)
@@ -80,6 +135,7 @@ struct Checker {
     functions: HashMap<String, Function>,
     errors: Vec<Diagnostic>,
     accesses: HashMap<crate::NodeId, AccessKind>,
+    transitions: Vec<(crate::NodeId, OwnershipTransition)>,
 }
 
 impl Checker {
@@ -149,8 +205,16 @@ impl Checker {
                     AccessKind::Move
                 };
                 self.accesses.insert(expr.id, access);
-                if access == AccessKind::Move {
-                    *state = State::Moved;
+                match access {
+                    AccessKind::Move => {
+                        self.transitions.push((expr.id, OwnershipTransition::Move));
+                        *state = State::Moved;
+                    }
+                    AccessKind::SharedBorrow => {
+                        self.transitions.push((expr.id, OwnershipTransition::BorrowStart(BorrowKind::Shared)));
+                        self.transitions.push((expr.id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)));
+                    }
+                    _ => {}
                 }
                 Some(ty.clone())
             }
@@ -233,6 +297,31 @@ fn type_node(kind: TypeKind, expr: &Expr) -> Type {
 mod tests {
     use super::*;
     use crate::parse;
+
+    #[test]
+    fn validates_borrow_conflicts_and_lifetimes() {
+        let id = crate::NodeId(1);
+        assert!(OwnershipModel::validate_borrow_transitions(&[
+            (id, OwnershipTransition::BorrowStart(BorrowKind::Shared)),
+            (id, OwnershipTransition::BorrowStart(BorrowKind::Shared)),
+            (id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)),
+            (id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)),
+        ]).is_ok());
+        assert_eq!(
+            OwnershipModel::validate_borrow_transitions(&[
+                (id, OwnershipTransition::BorrowStart(BorrowKind::Mutable)),
+                (id, OwnershipTransition::BorrowStart(BorrowKind::Shared)),
+            ]),
+            Err("cannot shared-borrow while a mutable borrow is active")
+        );
+        assert_eq!(
+            OwnershipModel::validate_borrow_transitions(&[
+                (id, OwnershipTransition::BorrowStart(BorrowKind::Shared)),
+                (id, OwnershipTransition::Move),
+            ]),
+            Err("cannot move while a borrow is active")
+        );
+    }
 
     #[test]
     fn treats_primitives_as_copy() {
