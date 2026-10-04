@@ -31,7 +31,7 @@ pub use ai::{
     Tensor, TraceBuffer, TraceEvent, TraceLevel,
 };
 pub use arena::{Arena, ArenaId, RecordField, RecordSchema, RecordValue};
-pub use concurrency::{CancellationToken, ScopeReport, TaskHandle, TaskSpec, TaskTerminal};
+pub use concurrency::{CancellationToken, ScopeEvent, ScopeReport, StructuredScope, TaskHandle, TaskSpec, TaskTerminal};
 pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
 pub use effects::{EffectKind, EffectModel, FunctionEffects};
