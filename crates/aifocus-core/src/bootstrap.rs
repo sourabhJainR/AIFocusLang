@@ -49,7 +49,7 @@ pub fn verify() -> BootstrapReport {
         0,
         BOOTSTRAP_SOURCE,
         &lowered,
-        stage0_program.functions.values().map(Vec::len).sum(),
+        stage0_program.functions.values().map(|function| function.code.len()).sum(),
     );
 
     let Ok(stage1_program) = native::compile_program(&lowered) else {
@@ -67,7 +67,7 @@ pub fn verify() -> BootstrapReport {
         .get("main")
         .expect("bootstrap main must compile");
     let native_result = native::run(
-        main_code,
+        main_code.code.as_slice(),
         &[
             ("a".into(), native::NativeValue::Int(3)),
             ("b".into(), native::NativeValue::Int(4)),
