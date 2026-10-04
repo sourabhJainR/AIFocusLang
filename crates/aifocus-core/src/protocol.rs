@@ -110,6 +110,7 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
         CompilerRequest::QueryNode(node) => {
             let queried_node = edit::query(&module, node)
                 .map_err(|error| ProtocolError::Edit(error.to_string()))?;
+            let evidence = source_evidence(source, node, "ast:queried")?;
             snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
                 snapshot,
                 changed_node: None,
@@ -117,7 +118,7 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 queried_node: Some(queried_node),
                 queried_type: None,
                 queried_effects: None,
-                source_evidence: vec![source_evidence(source, node, "ast:queried")?],
+                source_evidence: vec![evidence],
             })
         }
         CompilerRequest::QueryType(node) => {
@@ -127,6 +128,7 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 .get(&node)
                 .ok_or_else(|| ProtocolError::Edit("node has no inferred type".into()))?
                 .display_name();
+            let evidence = source_evidence(source, node, "type:verified")?;
             snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
                 snapshot,
                 changed_node: None,
@@ -134,7 +136,7 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 queried_node: None,
                 queried_type: Some(ty),
                 queried_effects: None,
-                source_evidence: vec![source_evidence(source, node, "type:verified")?],
+                source_evidence: vec![evidence],
             })
         }
         CompilerRequest::QueryEffects(function) => {
@@ -158,6 +160,7 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
             let result = edit::apply(source, &module, edit_request)
                 .map_err(|error| ProtocolError::Edit(error.to_string()))?;
             let changed_node = Some(result.replaced_node);
+            let evidence = source_evidence(&result.source, changed_node.unwrap(), "edit:applied")?;
             snapshot(&result.source, result.module, parse_ns).map(|snapshot| CompilerResponse {
                 snapshot,
                 changed_node,
@@ -165,11 +168,7 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 queried_node: None,
                 queried_type: None,
                 queried_effects: None,
-                source_evidence: vec![source_evidence(
-                    &result.source,
-                    changed_node.unwrap(),
-                    "edit:applied",
-                )?],
+                source_evidence: vec![evidence],
             })
         }
         CompilerRequest::ApplyEdits(edits) => {
