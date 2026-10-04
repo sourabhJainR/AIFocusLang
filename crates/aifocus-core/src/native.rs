@@ -313,8 +313,8 @@ pub fn run(
                 })?;
                 let NativeValue::List(mut items) = collection else {
                     return Err(NativeError::Type(
-                    "indexed assignment requires a list".into(),
-                ));
+                        "indexed assignment requires a list".into(),
+                    ));
                 };
                 let index = usize::try_from(index)
                     .map_err(|_| NativeError::Type("negative list index".into()))?;
