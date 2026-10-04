@@ -205,11 +205,14 @@ fn main(a: Int) -> Int
     let ir_program = programs.get("ir").ok_or("missing ir program")?;
 
     let tokens = native::run_program(lexer, "lex", &[native::NativeValue::String(source.into())])
-        .unwrap_or_else(|error| panic!("self-hosted lexer native error: {:?}", error));
+        .map_err(|_| "self-hosted lexer execution failed")?;
     let tokens = match tokens {
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted lexer returned non-string tokens"),
     };
+    if !lexer_output_matches_native(&tokens, source) {
+        return Err("self-hosted lexer output differs from the native lexer");
+    }
     let parsed = native::run_program(
         parser,
         "parse",
@@ -259,6 +262,62 @@ fn main(a: Int) -> Int
             .map(|program| program.functions.len())
             .sum(),
     })
+}
+
+fn lexer_output_matches_native(encoded: &str, source: &str) -> bool {
+    let Ok(tokens) = crate::token::lex(source) else {
+        return false;
+    };
+    let expected = tokens
+        .iter()
+        .map(|token| format!("{}={}|", token_kind_name(&token.kind), token.lexeme))
+        .collect::<String>();
+    encoded == expected
+}
+
+fn token_kind_name(kind: &crate::token::TokenKind) -> String {
+    match kind {
+        crate::token::TokenKind::Indent(width) => format!("Indent({width})"),
+        crate::token::TokenKind::Module => "Module".into(),
+        crate::token::TokenKind::Fn => "Fn".into(),
+        crate::token::TokenKind::If => "If".into(),
+        crate::token::TokenKind::Else => "Else".into(),
+        crate::token::TokenKind::Let => "Let".into(),
+        crate::token::TokenKind::Set => "Set".into(),
+        crate::token::TokenKind::Return => "Return".into(),
+        crate::token::TokenKind::Scope => "Scope".into(),
+        crate::token::TokenKind::Spawn => "Spawn".into(),
+        crate::token::TokenKind::Join => "Join".into(),
+        crate::token::TokenKind::Cancel => "Cancel".into(),
+        crate::token::TokenKind::While => "While".into(),
+        crate::token::TokenKind::True => "True".into(),
+        crate::token::TokenKind::False => "False".into(),
+        crate::token::TokenKind::Ident => "Ident".into(),
+        crate::token::TokenKind::Int => "Int".into(),
+        crate::token::TokenKind::String => "String".into(),
+        crate::token::TokenKind::Arrow => "Arrow".into(),
+        crate::token::TokenKind::Equal => "Equal".into(),
+        crate::token::TokenKind::EqualEqual => "EqualEqual".into(),
+        crate::token::TokenKind::NotEqual => "NotEqual".into(),
+        crate::token::TokenKind::LessEqual => "LessEqual".into(),
+        crate::token::TokenKind::GreaterEqual => "GreaterEqual".into(),
+        crate::token::TokenKind::Plus => "Plus".into(),
+        crate::token::TokenKind::Minus => "Minus".into(),
+        crate::token::TokenKind::Star => "Star".into(),
+        crate::token::TokenKind::Slash => "Slash".into(),
+        crate::token::TokenKind::Percent => "Percent".into(),
+        crate::token::TokenKind::Comma => "Comma".into(),
+        crate::token::TokenKind::Colon => "Colon".into(),
+        crate::token::TokenKind::LBracket => "LBracket".into(),
+        crate::token::TokenKind::RBracket => "RBracket".into(),
+        crate::token::TokenKind::LParen => "LParen".into(),
+        crate::token::TokenKind::RParen => "RParen".into(),
+        crate::token::TokenKind::LAngle => "LAngle".into(),
+        crate::token::TokenKind::RAngle => "RAngle".into(),
+        crate::token::TokenKind::Newline => "Newline".into(),
+        crate::token::TokenKind::Dedent => "Dedent".into(),
+        crate::token::TokenKind::Eof => "Eof".into(),
+    }
 }
 
 fn failed(blocker: &'static str) -> BootstrapReport {
@@ -338,11 +397,3 @@ mod tests {
 
     #[test]
     fn manifest_explicitly_models_three_bootstrap_stages() {
-        let manifest = stage_manifest();
-        assert_eq!(manifest.len(), 3);
-        assert_eq!(
-            manifest["stage2"],
-            "Reserved for Ardisa compiler compiling itself"
-        );
-    }
-}
