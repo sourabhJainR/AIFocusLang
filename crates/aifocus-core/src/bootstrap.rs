@@ -166,13 +166,13 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
             "ir" => "self-hosted IR fails semantic validation",
             _ => "self-hosted source fails semantic validation",
         })?;
-        ownership::infer(&module).map_err(|_| match *name {
-            "lexer" => "self-hosted lexer fails ownership validation",
-            "parser" => "self-hosted parser fails ownership validation",
-            "ast" => "self-hosted AST fails ownership validation",
-            "semantic" => "self-hosted semantic source fails ownership validation",
-            "ir" => "self-hosted IR fails ownership validation",
-            _ => "self-hosted source fails ownership validation",
+        ownership::infer(&module).map_err(|errors| {
+            let code = errors.first().map(|error| error.code).unwrap_or("AIF000");
+            match code {
+                "AIF400" => "self-hosted source has a use-after-move",
+                "AIF403" => "self-hosted source has an ownership conflict",
+                _ => "self-hosted source fails ownership validation",
+            }
         })?;
         let lowered = ir::lower(&module);
         let program = native::compile_program(&lowered)
