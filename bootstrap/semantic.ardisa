@@ -23,15 +23,23 @@ fn balanced(ast: String) -> Bool
   let depth = 0
   let index = 0
   let valid = true
+  let in_string = false
   while index < len(ast)
-    if ast[index] == 40
-      set depth = depth + 1
+    if ast[index] == 34
+      if in_string == true
+        set in_string = false
+      else
+        set in_string = true
     else
-      if ast[index] == 41
-        if depth > 0
-          set depth = depth - 1
+      if in_string == false
+        if ast[index] == 40
+          set depth = depth + 1
         else
-          set valid = false
+          if ast[index] == 41
+            if depth > 0
+              set depth = depth - 1
+            else
+              set valid = false
     set index = index + 1
   if depth == 0
     valid
