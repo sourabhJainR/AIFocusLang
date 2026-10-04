@@ -13,6 +13,28 @@ pub struct BenchmarkResult {
     pub failed_cases: usize,
     pub fingerprint: u64,
     pub duration_ms: u128,
+    pub total_source_bytes: usize,
+    pub native_instruction_count: usize,
+    pub lowered_rust_bytes: usize,
+}
+
+impl BenchmarkResult {
+    pub fn deterministic_report(&self) -> String {
+        format!(
+            "cases={} parsed={} semantic={} ownership={} native_compiled={} native_executed={} failed={} source_bytes={} native_instructions={} rust_bytes={} fingerprint={:016x}",
+            self.cases,
+            self.parsed,
+            self.semantically_valid,
+            self.ownership_valid,
+            self.native_compiled,
+            self.native_executed,
+            self.failed_cases,
+            self.total_source_bytes,
+            self.native_instruction_count,
+            self.lowered_rust_bytes,
+            self.fingerprint
+        )
+    }
 }
 
 impl BenchmarkResult {
@@ -41,11 +63,15 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
         failed_cases: 0,
         fingerprint: 0xcbf29ce484222325,
         duration_ms: 0,
+        total_source_bytes: 0,
+        native_instruction_count: 0,
+        lowered_rust_bytes: 0,
     };
 
     for offset in 0..cases {
         let case = fuzz::generate(seed_start.wrapping_add(offset as u64));
         result.fingerprint = fingerprint(result.fingerprint, &case.source);
+        result.total_source_bytes += case.source.len();
         let Ok(module) = parse(&case.source) else {
             result.failed_cases += 1;
             continue;
@@ -61,7 +87,10 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
             continue;
         }
         result.ownership_valid += 1;
-        let code = match native::compile(&ir::lower(&module)) {
+        let lowered = ir::lower(&module);
+        let rust = crate::lower::lower(&module);
+        result.lowered_rust_bytes += rust.rust.len();
+        let code = match native::compile(&lowered) {
             Ok(code) => code,
             Err(_) => {
                 result.failed_cases += 1;
@@ -69,6 +98,7 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
             }
         };
         result.native_compiled += 1;
+        result.native_instruction_count += code.len();
         if native::run(
             &code,
             &[
@@ -110,5 +140,14 @@ mod tests {
         assert_eq!(result.failed_cases, 0);
         assert!(result.generation_success_rate() > 0.9);
         assert_eq!(result.fingerprint, run(0, 64).fingerprint);
+        assert_eq!(
+            result.deterministic_report(),
+            run(0, 64).deterministic_report()
+        );
+        assert!(
+            result
+                .deterministic_report()
+                .contains("native_instructions=")
+        );
     }
 }
