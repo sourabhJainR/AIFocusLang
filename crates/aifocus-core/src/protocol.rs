@@ -384,6 +384,52 @@ fn verification_requirements() -> Vec<VerificationRequirement> {
     ]
 }
 
+
+pub const MAX_STDIO_FRAME_BYTES: usize = 8 * 1024 * 1024;
+
+/// Encode one protocol payload using Content-Length framing.
+/// The header is ASCII and the length is measured in bytes, not characters.
+pub fn encode_stdio_frame(payload: &[u8]) -> Result<Vec<u8>, ProtocolError> {
+    if payload.len() > MAX_STDIO_FRAME_BYTES {
+        return Err(ProtocolError::Edit("stdio payload exceeds 8 MiB limit".into()));
+    }
+    let mut frame = format!("Content-Length: {}\r\n\r\n", payload.len()).into_bytes();
+    frame.extend_from_slice(payload);
+    Ok(frame)
+}
+
+/// Decode exactly one complete Content-Length frame and return any trailing bytes.
+pub fn decode_stdio_frame(input: &[u8]) -> Result<(Vec<u8>, &[u8]), ProtocolError> {
+    const HEADER_END: &[u8] = b"\r\n\r\n";
+    let Some(header_end) = input.windows(HEADER_END.len()).position(|w| w == HEADER_END) else {
+        return Err(ProtocolError::Edit("incomplete stdio header".into()));
+    };
+    let header = &input[..header_end];
+    let prefix = b"Content-Length: ";
+    if !header.starts_with(prefix) {
+        return Err(ProtocolError::Edit("invalid stdio header".into()));
+    }
+    let length_text = &header[prefix.len()..];
+    if length_text.is_empty() || !length_text.iter().all(u8::is_ascii_digit) {
+        return Err(ProtocolError::Edit("invalid Content-Length".into()));
+    }
+    let length = std::str::from_utf8(length_text)
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .ok_or_else(|| ProtocolError::Edit("invalid Content-Length".into()))?;
+    if length > MAX_STDIO_FRAME_BYTES {
+        return Err(ProtocolError::Edit("stdio payload exceeds 8 MiB limit".into()));
+    }
+    let payload_start = header_end + HEADER_END.len();
+    let payload_end = payload_start
+        .checked_add(length)
+        .ok_or_else(|| ProtocolError::Edit("stdio frame length overflow".into()))?;
+    if input.len() < payload_end {
+        return Err(ProtocolError::Edit("incomplete stdio payload".into()));
+    }
+    Ok((input[payload_start..payload_end].to_vec(), &input[payload_end..]))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
