@@ -94,6 +94,7 @@ enum State {
 enum AccessMode {
     Move,
     SharedBorrow,
+    MutableBorrow,
 }
 
 pub fn infer(module: &Module) -> Result<(), Vec<Diagnostic>> {
@@ -162,7 +163,7 @@ impl Checker {
                     index,
                     value,
                 } => {
-                    self.check_expr(collection, locals, AccessMode::SharedBorrow);
+                    self.check_expr(collection, locals, AccessMode::MutableBorrow);
                     self.check_expr(index, locals, AccessMode::Move);
                     self.check_expr(value, locals, AccessMode::Move);
                 }
@@ -182,6 +183,7 @@ impl Checker {
                 StmtKind::Scope { body } => {
                     let mut scoped = locals.clone();
                     self.check_block(body, &mut scoped);
+                    merge_states(locals, &scoped, false);
                 }
                 StmtKind::Spawn { call, .. } => {
                     self.check_expr(call, locals, AccessMode::Move);
@@ -190,6 +192,7 @@ impl Checker {
                     self.check_expr(condition, locals, AccessMode::Move);
                     let mut scoped = locals.clone();
                     self.check_block(body, &mut scoped);
+                    merge_states(locals, &scoped, true);
                 }
                 StmtKind::Join { .. } | StmtKind::Cancel { .. } => {}
             }
@@ -222,6 +225,8 @@ impl Checker {
                     AccessKind::Copy
                 } else if mode == AccessMode::SharedBorrow {
                     AccessKind::SharedBorrow
+                } else if mode == AccessMode::MutableBorrow {
+                    AccessKind::MutableBorrow
                 } else {
                     AccessKind::Move
                 };
@@ -238,6 +243,14 @@ impl Checker {
                         ));
                         self.transitions
                             .push((expr.id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)));
+                    }
+                    AccessKind::MutableBorrow => {
+                        self.transitions.push((
+                            expr.id,
+                            OwnershipTransition::BorrowStart(BorrowKind::Mutable),
+                        ));
+                        self.transitions
+                            .push((expr.id, OwnershipTransition::BorrowEnd(BorrowKind::Mutable)));
                     }
                     _ => {}
                 }
@@ -306,6 +319,8 @@ impl Checker {
                     for arg in args {
                         let mode = if name == "len" || name == "unwrap" {
                             AccessMode::SharedBorrow
+                        } else if name == "push" && index == 0 {
+                            AccessMode::MutableBorrow
                         } else {
                             AccessMode::Move
                         };
@@ -359,6 +374,22 @@ fn ownership_of(ty: &Type) -> OwnershipClass {
         TypeKind::Int | TypeKind::Bool | TypeKind::Unit => OwnershipClass::Copy,
         TypeKind::String | TypeKind::Named(_) | TypeKind::Result(_, _) | TypeKind::List(_) => {
             OwnershipClass::Move
+        }
+    }
+}
+
+fn merge_states(
+    outer: &mut HashMap<String, (Type, State)>,
+    inner: &HashMap<String, (Type, State)>,
+    loop_body: bool,
+) {
+    for (name, (_, state)) in outer.iter_mut() {
+        if inner.get(name).map(|entry| entry.1) == Some(State::Moved) {
+            *state = State::Moved;
+        }
+        if loop_body && inner.get(name).map(|entry| entry.1) == Some(State::Available) {
+            // A loop body may execute zero or many times; availability is safe to
+            // retain only when the body itself did not consume the value.
         }
     }
 }
