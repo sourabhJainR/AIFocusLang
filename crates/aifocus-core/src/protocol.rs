@@ -1,7 +1,6 @@
 use crate::{
-    edit, edit::StructuralEdit, effects, ir,
-    learning::PersistentCompilerLearning, ownership, sema, source::Diagnostic, EffectModel, IrModule,
-    Module, NodeId, OwnershipModel,
+    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit, edit::StructuralEdit, effects, ir,
+    learning::PersistentCompilerLearning, ownership, sema, source::Diagnostic,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
