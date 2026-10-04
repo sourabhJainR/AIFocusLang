@@ -2,11 +2,17 @@ module parser
 
 fn token_at(stream: String, start: Int) -> String
   let end = start
+  let delimiter = start
+  let scanning = true
   while end < len(stream)
-    if stream[end] == 124
-      set end = len(stream)
-    else
-      set end = end + 1
+    if scanning == true
+      if stream[end] == 124
+        set delimiter = end
+        set scanning = false
+        set end = len(stream)
+      else
+        set end = end + 1
+  set end = delimiter
   let result = ""
   let index = start
   while index < end
