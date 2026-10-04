@@ -146,6 +146,9 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
         let module = match parse(source) {
             Ok(module) => module,
             Err(errors) => {
+                if *name == "lexer" {
+                    panic!("self-hosted lexer parse errors: {:?}", errors);
+                }
                 let code = errors.first().map(|error| error.code).unwrap_or("AIF000");
                 return Err(match code {
                     "lexer" => "self-hosted lexer does not parse",
