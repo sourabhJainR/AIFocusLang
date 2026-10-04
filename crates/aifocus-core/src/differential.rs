@@ -18,7 +18,8 @@ pub const CORPUS: &[DifferentialCase] = &[
 ];
 
 pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
-    let module = parse(case.source).map_err(|errors| format!("{}: parse failed: {errors:?}", case.name))?;
+    let module =
+        parse(case.source).map_err(|errors| format!("{}: parse failed: {errors:?}", case.name))?;
     sema::check(&module)
         .map_err(|errors| format!("{}: semantic check failed: {errors:?}", case.name))?;
     ownership::infer(&module)
@@ -29,7 +30,8 @@ pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
     }
 
     let ir = crate::ir::lower(&module);
-    let code = native::compile(&ir).map_err(|error| format!("{}: native compile failed: {error:?}", case.name))?;
+    let code = native::compile(&ir)
+        .map_err(|error| format!("{}: native compile failed: {error:?}", case.name))?;
     let expected = match case.name {
         "arithmetic" => native::NativeValue::Int(11),
         "conditional" => native::NativeValue::Int(1),
@@ -43,9 +45,13 @@ pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
     } else {
         vec![("a".to_string(), native::NativeValue::Int(0))]
     };
-    let result = native::run(&code, &args).map_err(|error| format!("{}: native run failed: {error:?}", case.name))?;
+    let result = native::run(&code, &args)
+        .map_err(|error| format!("{}: native run failed: {error:?}", case.name))?;
     if result != expected {
-        return Err(format!("{}: native/reference mismatch: {result:?} != {expected:?}", case.name));
+        return Err(format!(
+            "{}: native/reference mismatch: {result:?} != {expected:?}",
+            case.name
+        ));
     }
     Ok(())
 }
