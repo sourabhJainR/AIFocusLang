@@ -140,7 +140,7 @@ impl SafeRustBoundary {
     }
 
     pub fn validate_contract(&self) -> Result<(), String> {
-        if matches!(self.function.return_type, InteropType::IntSliceRef | InteropType::ListIntRef) {
+        if matches!(&self.function.return_type, InteropType::IntSliceRef | InteropType::ListIntRef) {
             return Err("borrowed pointer ABI types cannot cross the return boundary".into());
         }
         if self.function.params.iter().any(|(_, ty)| matches!(ty, InteropType::IntSliceRef | InteropType::ListIntRef)) && !self.contract().unsafe_call_isolated {
