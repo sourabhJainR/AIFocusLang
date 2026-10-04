@@ -207,6 +207,12 @@ pub fn lex(input: &str) -> Result<Vec<Token>, Vec<Diagnostic>> {
                 (TokenKind::Arrow, 2)
             } else if content[start..].starts_with("==") {
                 (TokenKind::EqualEqual, 2)
+            } else if content[start..].starts_with("!=") {
+                (TokenKind::NotEqual, 2)
+            } else if content[start..].starts_with("<=") {
+                (TokenKind::LessEqual, 2)
+            } else if content[start..].starts_with(">=") {
+                (TokenKind::GreaterEqual, 2)
             } else {
                 match c {
                     '=' => (TokenKind::Equal, 1),
