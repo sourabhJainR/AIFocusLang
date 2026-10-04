@@ -18,12 +18,19 @@ pub enum NativeInstr {
     Jump(usize),
     Return,
     Pop,
+    Call { callee: String, argc: usize },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Deterministic collection of compiled Ardisa functions.
 pub struct NativeProgram {
-    pub functions: BTreeMap<String, Vec<NativeInstr>>,
+    pub functions: BTreeMap<String, NativeFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeFunction {
+    pub params: Vec<String>,
+    pub code: Vec<NativeInstr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,7 +58,17 @@ pub fn compile(module: &IrModule) -> Result<Vec<NativeInstr>, NativeError> {
 pub fn compile_program(module: &IrModule) -> Result<NativeProgram, NativeError> {
     let mut functions = BTreeMap::new();
     for function in &module.functions {
-        functions.insert(function.name.clone(), compile_function(function)?);
+        functions.insert(
+            function.name.clone(),
+            NativeFunction {
+                params: function
+                    .params
+                    .iter()
+                    .map(|(name, _)| name.clone())
+                    .collect(),
+                code: compile_function(function)?,
+            },
+        );
     }
     Ok(NativeProgram { functions })
 }
@@ -150,9 +167,18 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
             code[jump_if] = NativeInstr::JumpIfFalse(else_start);
             code[jump_end] = NativeInstr::Jump(end);
         }
-        IrValue::String(_) | IrValue::Call { .. } => {
+        IrValue::Call { callee, args } => {
+            for arg in args {
+                emit_value(arg, code)?;
+            }
+            code.push(NativeInstr::Call {
+                callee: callee.clone(),
+                argc: args.len(),
+            });
+        }
+        IrValue::String(_) => {
             return Err(NativeError::Unsupported(
-                "native backend currently supports literals, names, arithmetic, equality, and if"
+                "native backend currently supports literals, names, arithmetic, equality, if, and function calls"
                     .into(),
             ));
         }
@@ -192,6 +218,121 @@ pub fn run(
                 let right = pop_int(&mut stack)?;
                 let left = pop_int(&mut stack)?;
                 let value = match code[pc - 1] {
+                    NativeInstr::Add => left + right,
+                    NativeInstr::Sub => left - right,
+                    NativeInstr::Mul => left * right,
+                    NativeInstr::Div => {
+                        if right == 0 {
+                            return Err(NativeError::Type("division by zero".into()));
+                        }
+                        left / right
+                    }
+                    _ => unreachable!(),
+                };
+                stack.push(NativeValue::Int(value));
+            }
+            NativeInstr::Equal => {
+                let right = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let left = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                stack.push(NativeValue::Bool(left == right));
+            }
+            NativeInstr::JumpIfFalse(target) => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty condition stack".into()))?;
+                if value != NativeValue::Bool(true) {
+                    pc = target;
+                }
+            }
+            NativeInstr::Jump(target) => pc = target,
+            NativeInstr::Call { .. } => {
+                return Err(NativeError::Unsupported(
+                    "direct run does not support function calls; use run_program".into(),
+                ));
+            }
+            NativeInstr::Return => return Ok(stack.pop().unwrap_or(NativeValue::Unit)),
+            NativeInstr::Pop => {
+                stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack".into()))?;
+            }
+        }
+    }
+    Err(NativeError::InvalidProgram(
+        "program terminated without return".into(),
+    ))
+}
+
+pub fn run_program(
+    program: &NativeProgram,
+    entry: &str,
+    args: &[NativeValue],
+) -> Result<NativeValue, NativeError> {
+    let function = program
+        .functions
+        .get(entry)
+        .ok_or_else(|| NativeError::InvalidProgram(format!("unknown function '{entry}'")))?;
+    run_function(program, function, args)
+}
+
+fn run_function(
+    program: &NativeProgram,
+    function: &NativeFunction,
+    args: &[NativeValue],
+) -> Result<NativeValue, NativeError> {
+    if args.len() != function.params.len() {
+        return Err(NativeError::InvalidProgram(format!(
+            "function expects {} argument(s), got {}",
+            function.params.len(),
+            args.len()
+        )));
+    }
+    let mut pc = 0usize;
+    let mut stack = Vec::new();
+    let mut locals = HashMap::new();
+    for (name, value) in function.params.iter().zip(args.iter()) {
+        locals.insert(name.clone(), value.clone());
+    }
+
+    while pc < function.code.len() {
+        let instr = function.code[pc].clone();
+        pc += 1;
+        match instr {
+            NativeInstr::Call { callee, argc } => {
+                if stack.len() < argc {
+                    return Err(NativeError::InvalidProgram(
+                        "call has fewer stack arguments than declared".into(),
+                    ));
+                }
+                let start = stack.len() - argc;
+                let call_args = stack.split_off(start);
+                let callee = program.functions.get(&callee).ok_or_else(|| {
+                    NativeError::InvalidProgram(format!("unknown function '{callee}'"))
+                })?;
+                let value = run_function(program, callee, &call_args)?;
+                stack.push(value);
+            }
+            NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
+            NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
+            NativeInstr::Load(name) => {
+                stack.push(locals.get(&name).cloned().ok_or_else(|| {
+                    NativeError::InvalidProgram(format!("unknown local '{name}'"))
+                })?)
+            }
+            NativeInstr::Store(name) => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
+                locals.insert(name, value);
+            }
+            NativeInstr::Add | NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div => {
+                let right = pop_int(&mut stack)?;
+                let left = pop_int(&mut stack)?;
+                let value = match instr {
                     NativeInstr::Add => left + right,
                     NativeInstr::Sub => left - right,
                     NativeInstr::Mul => left * right,
@@ -289,15 +430,39 @@ fn main(a: Int) -> Int
     }
 
     #[test]
-    fn rejects_unsupported_calls() {
+    fn compiles_and_runs_function_calls() {
         let module = crate::parse(
             "module x
-fn main() -> Int
-  helper()
+fn double(a: Int) -> Int
+  a * 2
+fn main(a: Int) -> Int
+  double(a) + 1
 ",
         )
         .unwrap();
+        crate::sema::check(&module).unwrap();
         let ir = crate::ir::lower(&module);
-        assert!(matches!(compile(&ir), Err(NativeError::Unsupported(_))));
+        let program = compile_program(&ir).unwrap();
+        let result = run_program(&program, "main", &[NativeValue::Int(3)]).unwrap();
+        assert_eq!(result, NativeValue::Int(7));
+    }
+
+    #[test]
+    fn compiles_and_runs_recursive_calls() {
+        let module = crate::parse(
+            "module x
+fn fact(n: Int) -> Int
+  if n == 0
+    return 1
+  else
+    return n * fact(n - 1)
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        let ir = crate::ir::lower(&module);
+        let program = compile_program(&ir).unwrap();
+        let result = run_program(&program, "fact", &[NativeValue::Int(5)]).unwrap();
+        assert_eq!(result, NativeValue::Int(120));
     }
 }
