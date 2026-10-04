@@ -61,7 +61,11 @@ pub fn compile_program(module: &IrModule) -> Result<NativeProgram, NativeError> 
         functions.insert(
             function.name.clone(),
             NativeFunction {
-                params: function.params.iter().map(|(name, _)| name.clone()).collect(),
+                params: function
+                    .params
+                    .iter()
+                    .map(|(name, _)| name.clone())
+                    .collect(),
                 code: compile_function(function)?,
             },
         );
@@ -439,12 +443,7 @@ fn main(a: Int) -> Int
         crate::sema::check(&module).unwrap();
         let ir = crate::ir::lower(&module);
         let program = compile_program(&ir).unwrap();
-        let result = run_program(
-            &program,
-            "main",
-            &[NativeValue::Int(3)],
-        )
-        .unwrap();
+        let result = run_program(&program, "main", &[NativeValue::Int(3)]).unwrap();
         assert_eq!(result, NativeValue::Int(7));
     }
 
@@ -463,12 +462,7 @@ fn fact(n: Int) -> Int
         crate::sema::check(&module).unwrap();
         let ir = crate::ir::lower(&module);
         let program = compile_program(&ir).unwrap();
-        let result = run_program(
-            &program,
-            "fact",
-            &[NativeValue::Int(5)],
-        )
-        .unwrap();
+        let result = run_program(&program, "fact", &[NativeValue::Int(5)]).unwrap();
         assert_eq!(result, NativeValue::Int(120));
     }
 }
