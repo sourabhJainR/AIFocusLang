@@ -143,9 +143,35 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
     let mut programs = BTreeMap::new();
 
     for (name, source) in SELF_HOSTED_SOURCES {
-        let module = parse(source).map_err(|_| "self-hosted source does not parse")?;
-        sema::check(&module).map_err(|_| "self-hosted source fails semantic validation")?;
-        ownership::infer(&module).map_err(|_| "self-hosted source fails ownership validation")?;
+        let module = match parse(source) {
+            Ok(module) => module,
+            Err(_) => {
+                return Err(match *name {
+                    "lexer" => "self-hosted lexer does not parse",
+                    "parser" => "self-hosted parser does not parse",
+                    "ast" => "self-hosted AST source does not parse",
+                    "semantic" => "self-hosted semantic source does not parse",
+                    "ir" => "self-hosted IR source does not parse",
+                    _ => "unknown self-hosted source does not parse",
+                });
+            }
+        };
+        sema::check(&module).map_err(|_| match *name {
+            "lexer" => "self-hosted lexer fails semantic validation",
+            "parser" => "self-hosted parser fails semantic validation",
+            "ast" => "self-hosted AST fails semantic validation",
+            "semantic" => "self-hosted semantic source fails semantic validation",
+            "ir" => "self-hosted IR fails semantic validation",
+            _ => "self-hosted source fails semantic validation",
+        })?;
+        ownership::infer(&module).map_err(|_| match *name {
+            "lexer" => "self-hosted lexer fails ownership validation",
+            "parser" => "self-hosted parser fails ownership validation",
+            "ast" => "self-hosted AST fails ownership validation",
+            "semantic" => "self-hosted semantic source fails ownership validation",
+            "ir" => "self-hosted IR fails ownership validation",
+            _ => "self-hosted source fails ownership validation",
+        })?;
         let lowered = ir::lower(&module);
         let program = native::compile_program(&lowered)
             .map_err(|_| "self-hosted source cannot compile natively")?;
