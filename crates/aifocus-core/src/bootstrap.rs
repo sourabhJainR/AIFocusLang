@@ -289,7 +289,12 @@ fn lexer_output_matches_native(encoded: &str, source: &str) -> bool {
             }
         })
         .collect::<String>();
-    actual == expected
+    if actual != expected {
+        eprintln!("self-hosted lexer actual: {actual:?}");
+        eprintln!("native lexer expected: {expected:?}");
+        return false;
+    }
+    true
 }
 
 fn token_kind_name(kind: &crate::token::TokenKind) -> String {
