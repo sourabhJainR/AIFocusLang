@@ -332,7 +332,9 @@ fn snapshot(
     let effects_ns = effects_start.elapsed().as_nanos() as u64;
 
     let concurrency_diagnostics =
-        concurrency::analyze_with_diagnostics(&module).map_err(ProtocolError::Concurrency)?;
+        concurrency::analyze_with_diagnostics(&module)
+            .map(|_| Vec::new())
+            .map_err(ProtocolError::Concurrency)?;
 
     let ir_start = Instant::now();
     let ir = ir::lower(&module);
