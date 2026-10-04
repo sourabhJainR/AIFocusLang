@@ -433,6 +433,7 @@ impl Parser {
                 TokenKind::Minus => (BinaryOp::Sub, 3, 4),
                 TokenKind::Star => (BinaryOp::Mul, 5, 6),
                 TokenKind::Slash => (BinaryOp::Div, 5, 6),
+                TokenKind::Percent => (BinaryOp::Mod, 5, 6),
                 _ => break,
             };
             if left_bp < min_bp {
