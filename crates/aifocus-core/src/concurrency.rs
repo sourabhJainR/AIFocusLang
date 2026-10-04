@@ -259,7 +259,7 @@ impl Drop for StructuredScope {
                 *state = TaskState::Cancelled;
             }
         }
-        for (_, (handle, _)) in self.tasks.drain() {
+        for (_, (handle, _)) in std::mem::take(&mut self.tasks) {
             let _ = handle.join();
         }
     }
