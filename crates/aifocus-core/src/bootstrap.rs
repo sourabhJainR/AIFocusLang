@@ -277,16 +277,13 @@ fn main(a: Int) -> Int
             native::NativeValue::String(value) => value,
             _ => return Err("self-hosted compiler source parser returned non-string"),
         };
-        let replay_ast = match native::run_program(
-            ast,
-            "build",
-            &[native::NativeValue::String(replay_parsed)],
-        )
-        .map_err(|_| "self-hosted compiler source AST replay failed")?
-        {
-            native::NativeValue::String(value) => value,
-            _ => return Err("self-hosted compiler source AST returned non-string"),
-        };
+        let replay_ast =
+            match native::run_program(ast, "build", &[native::NativeValue::String(replay_parsed)])
+                .map_err(|_| "self-hosted compiler source AST replay failed")?
+            {
+                native::NativeValue::String(value) => value,
+                _ => return Err("self-hosted compiler source AST returned non-string"),
+            };
         let replay_semantic = match native::run_program(
             semantic,
             "check",
