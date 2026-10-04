@@ -4,6 +4,8 @@ pub enum InteropType {
     Bool,
     Unit,
     IntSliceRef,
+    ListIntRef,
+    ResultIntInt,
 }
 
 impl InteropType {
@@ -12,9 +14,47 @@ impl InteropType {
             Self::Int => "i64",
             Self::Bool => "bool",
             Self::Unit => "()",
-            Self::IntSliceRef => "*const i64, usize",
+            Self::IntSliceRef | Self::ListIntRef => "*const i64, usize",
+            Self::ResultIntInt => "ArdisaResultI64",
         }
     }
+
+    fn ownership(&self, is_return: bool) -> OwnershipContract {
+        match self {
+            Self::Int | Self::Bool | Self::Unit | Self::ResultIntInt => {
+                OwnershipContract::Copy
+            }
+            Self::IntSliceRef | Self::ListIntRef => OwnershipContract::SharedBorrow,
+        }
+        .for_position(is_return)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OwnershipContract {
+    Copy,
+    SharedBorrow,
+    Owned,
+}
+
+impl OwnershipContract {
+    fn for_position(self, is_return: bool) -> Self {
+        if is_return {
+            match self {
+                Self::SharedBorrow => Self::Owned,
+                other => other,
+            }
+        } else {
+            self
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbiParameterContract {
+    pub name: String,
+    pub abi_type: InteropType,
+    pub ownership: OwnershipContract,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,6 +72,8 @@ pub const ABI_VERSION: &str = "ardisa-c-abi-v1";
 pub struct InteropContract {
     pub abi_version: &'static str,
     pub function: RustFunction,
+    pub parameters: Vec<AbiParameterContract>,
+    pub return_ownership: OwnershipContract,
     pub unsafe_call_isolated: bool,
     pub unsafe_escape_reason: String,
 }
@@ -54,15 +96,15 @@ impl SafeRustBoundary {
         if function.params.iter().any(|(_, ty)| {
             !matches!(
                 ty,
-                InteropType::Int | InteropType::Bool | InteropType::Unit | InteropType::IntSliceRef
+                InteropType::Int
+                    | InteropType::Bool
+                    | InteropType::Unit
+                    | InteropType::IntSliceRef
+                    | InteropType::ListIntRef
+                    | InteropType::ResultIntInt
             )
-        }) || !matches!(
-            function.return_type,
-            InteropType::Int | InteropType::Bool | InteropType::Unit
-        ) {
-            return Err(
-                "Rust interop exposes only ABI-safe scalars or read-only Int slice borrows".into(),
-            );
+        }) {
+            return Err("Rust interop exposes only explicitly supported ABI types".into());
         }
         Ok(Self { function })
     }
@@ -71,9 +113,20 @@ impl SafeRustBoundary {
         InteropContract {
             abi_version: ABI_VERSION,
             function: self.function.clone(),
+            parameters: self
+                .function
+                .params
+                .iter()
+                .map(|(name, abi_type)| AbiParameterContract {
+                    name: name.clone(),
+                    abi_type: abi_type.clone(),
+                    ownership: abi_type.ownership(false),
+                })
+                .collect(),
+            return_ownership: self.function.return_type.ownership(true),
             unsafe_call_isolated: true,
             unsafe_escape_reason:
-                "generated wrapper contains the only unsafe FFI call; borrowed slices are read-only and scoped to the call"
+                "generated wrapper contains the only unsafe FFI call; borrowed inputs do not escape the call"
                     .into(),
         }
     }
@@ -88,7 +141,7 @@ impl SafeRustBoundary {
             .params
             .iter()
             .map(|(name, ty)| match ty {
-                InteropType::IntSliceRef => {
+                InteropType::IntSliceRef | InteropType::ListIntRef => {
                     format!("{name}_ptr: *const i64, {name}_len: usize")
                 }
                 _ => format!("{name}: {}", ty.rust_name()),
@@ -99,7 +152,9 @@ impl SafeRustBoundary {
             .params
             .iter()
             .map(|(name, ty)| match ty {
-                InteropType::IntSliceRef => format!("{name}: &[i64]"),
+                InteropType::IntSliceRef | InteropType::ListIntRef => {
+                    format!("{name}: &[i64]")
+                }
                 _ => format!("{name}: {}", ty.rust_name()),
             })
             .collect::<Vec<_>>()
@@ -108,7 +163,7 @@ impl SafeRustBoundary {
             .params
             .iter()
             .map(|(name, ty)| match ty {
-                InteropType::IntSliceRef => {
+                InteropType::IntSliceRef | InteropType::ListIntRef => {
                     format!("{name}.as_ptr(), {name}.len()")
                 }
                 _ => name.clone(),
@@ -116,7 +171,15 @@ impl SafeRustBoundary {
             .collect::<Vec<_>>()
             .join(", ");
         format!(
-            r#"unsafe extern "C" {{
+            r#"
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct ArdisaResultI64 {{
+    pub tag: u8,
+    pub value: i64,
+}}
+
+unsafe extern "C" {{
     fn {symbol}({extern_params}) -> {ret};
 }}
 
@@ -127,7 +190,6 @@ fn {name}({safe_params}) -> {ret} {{
             symbol = f.symbol,
             name = f.name,
             extern_params = extern_params,
-            safe_params = safe_params,
             ret = f.return_type.rust_name(),
             args = args,
         )
@@ -162,40 +224,96 @@ fn is_c_identifier(value: &str) -> bool {
 }
 
 fn is_rust_identifier(value: &str) -> bool {
-    is_c_identifier(value) && !matches!(value, "fn" | "struct" | "enum" | "type" | "mod" | "unsafe")
+    is_c_identifier(value)
+        && !matches!(
+            value,
+            "fn" | "struct" | "enum" | "type" | "mod" | "unsafe"
+        )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn function_with(ty: InteropType) -> RustFunction {
+        RustFunction {
+            symbol: "native_value".into(),
+            name: "value".into(),
+            params: vec![("values".into(), ty)],
+            return_type: InteropType::Int,
+        }
+    }
+
     #[test]
     fn accepts_read_only_int_slice_borrow() {
-        let function = RustFunction {
-            symbol: "native_sum".into(),
-            name: "sum".into(),
-            params: vec![("values".into(), InteropType::IntSliceRef)],
-            return_type: InteropType::Int,
-        };
-        let boundary = SafeRustBoundary::new(function).unwrap();
+        let boundary = SafeRustBoundary::new(function_with(InteropType::IntSliceRef)).unwrap();
         let wrapper = boundary.wrapper();
         assert!(wrapper.contains("values_ptr: *const i64, values_len: usize"));
         assert!(wrapper.contains("values: &[i64]"));
-        assert!(wrapper.contains("native_sum(values.as_ptr(), values.len())"));
+        assert!(wrapper.contains("native_value(values.as_ptr(), values.len())"));
+    }
+
+    #[test]
+    fn list_and_result_have_explicit_abi_contracts() {
+        let function = RustFunction {
+            symbol: "native_compute".into(),
+            name: "compute".into(),
+            params: vec![("values".into(), InteropType::ListIntRef)],
+            return_type: InteropType::ResultIntInt,
+        };
+        let contract = SafeRustBoundary::new(function).unwrap().contract();
+        assert_eq!(contract.abi_version, ABI_VERSION);
+        assert_eq!(contract.parameters[0].ownership, OwnershipContract::SharedBorrow);
+        assert_eq!(contract.return_ownership, OwnershipContract::Copy);
+        assert_eq!(contract.function.return_type, InteropType::ResultIntInt);
+    }
+
+    #[test]
+    fn generated_list_result_abi_fixture_is_accepted_by_rustc() {
+        let function = RustFunction {
+            symbol: "native_compute".into(),
+            name: "compute".into(),
+            params: vec![("values".into(), InteropType::ListIntRef)],
+            return_type: InteropType::ResultIntInt,
+        };
+        let wrapper = SafeRustBoundary::new(function).unwrap().wrapper();
+        let base = std::env::temp_dir().join(format!(
+            "ardisa-list-result-abi-{}",
+            std::process::id()
+        ));
+        let source = base.with_extension("rs");
+        std::fs::write(&source, wrapper).unwrap();
+        let status = std::process::Command::new("rustc")
+            .arg("--crate-type=lib")
+            .arg("--emit=metadata")
+            .arg(&source)
+            .status()
+            .expect("rustc must be available for aggregate ABI fixture verification");
+        let _ = std::fs::remove_file(&source);
+        assert!(status.success());
+    }
+
+    #[test]
+    fn result_layout_is_target_explicit() {
+        let wrapper = SafeRustBoundary::new(RustFunction {
+            symbol: "native_result".into(),
+            name: "result".into(),
+            params: vec![],
+            return_type: InteropType::ResultIntInt,
+        })
+        .unwrap()
+        .wrapper();
+        assert!(wrapper.contains("#[repr(C)]"));
+        assert!(wrapper.contains("pub tag: u8"));
+        assert!(wrapper.contains("pub value: i64"));
     }
 
     #[test]
     fn unsafe_escape_requires_a_rationale() {
-        let function = RustFunction {
-            symbol: "native_add".into(),
-            name: "add".into(),
-            params: vec![],
-            return_type: InteropType::Int,
-        };
-        let boundary = SafeRustBoundary::new(function).unwrap();
-        assert!(boundary.unsafe_escape_block("", "native_add()").is_err());
+        let boundary = SafeRustBoundary::new(function_with(InteropType::Int)).unwrap();
+        assert!(boundary.unsafe_escape_block("", "native_value()").is_err());
         let block = boundary
-            .unsafe_escape_block("FFI contract guarantees the symbol and ABI", "native_add()")
+            .unsafe_escape_block("FFI contract guarantees the symbol and ABI", "native_value()")
             .unwrap();
         assert!(block.contains("// SAFETY: FFI contract guarantees"));
     }
@@ -214,28 +332,6 @@ mod tests {
         let boundary = SafeRustBoundary::new(function).unwrap();
         assert!(boundary.wrapper().contains("unsafe extern \"C\""));
         assert!(boundary.wrapper().contains("fn add(a: i64, b: i64) -> i64"));
-    }
-
-    #[test]
-    fn generated_slice_abi_wrapper_is_accepted_by_rustc() {
-        let function = RustFunction {
-            symbol: "native_sum".into(),
-            name: "sum".into(),
-            params: vec![("values".into(), InteropType::IntSliceRef)],
-            return_type: InteropType::Int,
-        };
-        let wrapper = SafeRustBoundary::new(function).unwrap().wrapper();
-        let base = std::env::temp_dir().join(format!("ardisa-slice-abi-{}", std::process::id()));
-        let source = base.with_extension("rs");
-        std::fs::write(&source, wrapper).unwrap();
-        let status = std::process::Command::new("rustc")
-            .arg("--crate-type=lib")
-            .arg("--emit=metadata")
-            .arg(&source)
-            .status()
-            .expect("rustc must be available for slice ABI fixture verification");
-        let _ = std::fs::remove_file(&source);
-        assert!(status.success());
     }
 
     #[test]
