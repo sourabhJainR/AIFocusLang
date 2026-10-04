@@ -7,6 +7,13 @@ pub struct GeneratedCase {
     pub source: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MutationCase {
+    pub seed: u64,
+    pub mutation: &'static str,
+    pub source: String,
+}
+
 pub fn generate(seed: u64) -> GeneratedCase {
     let mut rng = Rng(seed);
     let a = rng.next_i64().rem_euclid(97);
@@ -43,6 +50,30 @@ fn main(a: Int, b: Int) -> Int
         .into(),
     };
     GeneratedCase { seed, kind, source }
+}
+
+pub fn mutate(case: &GeneratedCase, seed: u64) -> MutationCase {
+    let (mutation, source) = match seed % 4 {
+        0 if case.source.contains(" + ") => ("add-to-sub", case.source.replacen(" + ", " - ", 1)),
+        1 if case.source.contains(" == ") => ("eq-to-ne", case.source.replacen(" == ", " != ", 1)),
+        2 if case.source.contains(" * ") => ("mul-to-mod", case.source.replacen(" * ", " % ", 1)),
+        _ => ("whitespace", format!("{}
+", case.source)),
+    };
+    MutationCase {
+        seed,
+        mutation,
+        source,
+    }
+}
+
+pub fn verify_mutation(case: &MutationCase) -> Result<(), String> {
+    let generated = GeneratedCase {
+        seed: case.seed,
+        kind: "mutation",
+        source: case.source.clone(),
+    };
+    verify(&generated)
 }
 
 pub fn verify(case: &GeneratedCase) -> Result<(), String> {
@@ -85,6 +116,15 @@ impl Rng {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deterministic_mutations_survive_the_compiler_pipeline() {
+        for seed in 0..512 {
+            let generated = generate(seed);
+            let mutation = mutate(&generated, seed.wrapping_add(17));
+            verify_mutation(&mutation).unwrap_or_else(|error| panic!("{error}"));
+        }
+    }
 
     #[test]
     fn generated_cases_are_deterministic() {
