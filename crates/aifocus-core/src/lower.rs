@@ -159,6 +159,22 @@ impl Lowerer {
                 self.out.push('"');
             }
             ExprKind::Name(name) => self.out.push_str(name),
+            ExprKind::List(items) => {
+                self.out.push('[');
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 {
+                        self.out.push_str(", ");
+                    }
+                    self.expr(item, indent);
+                }
+                self.out.push(']');
+            }
+            ExprKind::Index { collection, index } => {
+                self.expr(collection, indent);
+                self.out.push('[');
+                self.expr(index, indent);
+                self.out.push(']');
+            }
             ExprKind::Group(inner) => {
                 self.out.push('(');
                 self.expr(inner, indent);
@@ -216,6 +232,11 @@ impl Lowerer {
             TypeKind::String => self.out.push_str("String"),
             TypeKind::Unit => self.out.push_str("()"),
             TypeKind::Named(name) => self.out.push_str(name),
+            TypeKind::List(element) => {
+                self.out.push_str("Vec<");
+                self.ty(element);
+                self.out.push('>');
+            }
             TypeKind::Result(ok, err) => {
                 self.out.push_str("Result<");
                 self.ty(ok);

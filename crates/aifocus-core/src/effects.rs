@@ -134,6 +134,11 @@ fn collect_expr(expr: &Expr, effects: &mut FunctionEffects) {
             }
         }
         ExprKind::Group(inner) => collect_expr(inner, effects),
+        ExprKind::List(items) => items.iter().for_each(|e| collect_expr(e, effects)),
+        ExprKind::Index { collection, index } => {
+            collect_expr(collection, effects);
+            collect_expr(index, effects);
+        }
         ExprKind::If {
             condition,
             then_branch,

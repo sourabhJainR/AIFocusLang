@@ -231,6 +231,26 @@ impl Checker {
                 }
                 Some(ty.clone())
             }
+            ExprKind::List(items) => {
+                let mut element_type = None;
+                for item in items {
+                    if let Some(ty) = self.check_expr(item, locals, AccessMode::Move) {
+                        if element_type.is_none() {
+                            element_type = Some(ty);
+                        }
+                    }
+                }
+                Some(type_node(
+                    TypeKind::List(Box::new(
+                        element_type.unwrap_or_else(|| type_node(TypeKind::Unit, expr)),
+                    )),
+                    expr,
+                ))
+            }
+            ExprKind::Index { collection, index } => {
+                self.check_expr(collection, locals, AccessMode::SharedBorrow);
+                self.check_expr(index, locals, AccessMode::Move)
+            }
             ExprKind::Group(inner) => self.check_expr(inner, locals, mode),
             ExprKind::Binary { op, left, right } => {
                 let operand_mode = if *op == BinaryOp::Equal {
@@ -294,7 +314,9 @@ impl Checker {
 fn ownership_of(ty: &Type) -> OwnershipClass {
     match ty.kind {
         TypeKind::Int | TypeKind::Bool | TypeKind::Unit => OwnershipClass::Copy,
-        TypeKind::String | TypeKind::Named(_) | TypeKind::Result(_, _) => OwnershipClass::Move,
+        TypeKind::String | TypeKind::Named(_) | TypeKind::Result(_, _) | TypeKind::List(_) => {
+            OwnershipClass::Move
+        }
     }
 }
 

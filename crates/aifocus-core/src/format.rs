@@ -111,6 +111,22 @@ fn format_expr(expr: &Expr, indent: usize, out: &mut String) {
             out.push('"');
         }
         ExprKind::Name(name) => out.push_str(name),
+        ExprKind::List(items) => {
+            out.push('[');
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    out.push_str(", ");
+                }
+                format_expr(item, indent, out);
+            }
+            out.push(']');
+        }
+        ExprKind::Index { collection, index } => {
+            format_expr(collection, indent, out);
+            out.push('[');
+            format_expr(index, indent, out);
+            out.push(']');
+        }
         ExprKind::Group(inner) => {
             out.push('(');
             format_expr(inner, indent, out);

@@ -180,6 +180,11 @@ impl Parser {
             "Int" => TypeKind::Int,
             "Bool" => TypeKind::Bool,
             "String" => TypeKind::String,
+            "List" if self.eat(TokenKind::LAngle) => {
+                let element = self.parse_type()?;
+                self.expect(TokenKind::RAngle, "'>' in List type")?;
+                TypeKind::List(Box::new(element))
+            }
             "Result" if self.eat(TokenKind::LAngle) => {
                 let ok = self.parse_type()?;
                 self.expect(TokenKind::Comma, "',' in Result type")?;
@@ -357,6 +362,21 @@ impl Parser {
         let mut left = self.parse_prefix()?;
 
         loop {
+            if self.eat(TokenKind::LBracket) {
+                let index = self.parse_expr(0)?;
+                let close = self.expect(TokenKind::RBracket, "']' after index")?;
+                let start = left.span.start;
+                left = Expr {
+                    id: self.id("index", &format!("{}:{}", start, close.span.end)),
+                    span: source::Span::new(start, close.span.end),
+                    kind: ExprKind::Index {
+                        collection: Box::new(left),
+                        index: Box::new(index),
+                    },
+                };
+                continue;
+            }
+
             if self.eat(TokenKind::LParen) {
                 let start = left.span.start;
                 let mut args = Vec::new();
@@ -431,6 +451,24 @@ impl Parser {
             TokenKind::Ident => {
                 self.bump();
                 Some(self.expr(token.span, "name", ExprKind::Name(token.lexeme)))
+            }
+            TokenKind::LBracket => {
+                let start = self.bump().span.start;
+                let mut elements = Vec::new();
+                if !self.at(TokenKind::RBracket) {
+                    loop {
+                        elements.push(self.parse_expr(0)?);
+                        if !self.eat(TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                }
+                let close = self.expect(TokenKind::RBracket, "']' after list")?;
+                Some(Expr {
+                    id: self.id("list", &start.to_string()),
+                    span: source::Span::new(start, close.span.end),
+                    kind: ExprKind::List(elements),
+                })
             }
             TokenKind::LParen => {
                 let start = self.bump().span.start;

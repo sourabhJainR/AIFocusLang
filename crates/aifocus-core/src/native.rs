@@ -8,6 +8,8 @@ pub enum NativeInstr {
     PushInt(i64),
     PushBool(bool),
     PushString(String),
+    PushList(usize),
+    Index,
     Load(String),
     Store(String),
     Add,
@@ -40,6 +42,7 @@ pub enum NativeValue {
     Int(i64),
     Bool(bool),
     String(String),
+    List(Vec<NativeValue>),
     Unit,
 }
 
@@ -150,6 +153,17 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
     match value {
         IrValue::Int(value) => code.push(NativeInstr::PushInt(*value)),
         IrValue::String(value) => code.push(NativeInstr::PushString(value.clone())),
+        IrValue::List(values) => {
+            for value in values {
+                emit_value(value, code)?;
+            }
+            code.push(NativeInstr::PushList(values.len()));
+        }
+        IrValue::Index { collection, index } => {
+            emit_value(collection, code)?;
+            emit_value(index, code)?;
+            code.push(NativeInstr::Index);
+        }
         IrValue::Bool(value) => code.push(NativeInstr::PushBool(*value)),
         IrValue::Name(name) => code.push(NativeInstr::Load(name.clone())),
         IrValue::Binary { op, left, right } => {
@@ -215,6 +229,32 @@ pub fn run(
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
             NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
+            NativeInstr::PushList(len) => {
+                if stack.len() < len {
+                    return Err(NativeError::InvalidProgram(
+                        "list has insufficient stack values".into(),
+                    ));
+                }
+                let start = stack.len() - len;
+                let values = stack.drain(start..).collect();
+                stack.push(NativeValue::List(values));
+            }
+            NativeInstr::Index => {
+                let index = pop_int(&mut stack)?;
+                let collection = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("index from empty stack".into()))?;
+                let NativeValue::List(values) = collection else {
+                    return Err(NativeError::Type("indexing requires a list".into()));
+                };
+                let index = usize::try_from(index)
+                    .map_err(|_| NativeError::Type("negative list index".into()))?;
+                let value = values
+                    .get(index)
+                    .cloned()
+                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
+                stack.push(value);
+            }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
@@ -331,6 +371,32 @@ fn run_function(
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
             NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
+            NativeInstr::PushList(len) => {
+                if stack.len() < len {
+                    return Err(NativeError::InvalidProgram(
+                        "list has insufficient stack values".into(),
+                    ));
+                }
+                let start = stack.len() - len;
+                let values = stack.drain(start..).collect();
+                stack.push(NativeValue::List(values));
+            }
+            NativeInstr::Index => {
+                let index = pop_int(&mut stack)?;
+                let collection = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("index from empty stack".into()))?;
+                let NativeValue::List(values) = collection else {
+                    return Err(NativeError::Type("indexing requires a list".into()));
+                };
+                let index = usize::try_from(index)
+                    .map_err(|_| NativeError::Type("negative list index".into()))?;
+                let value = values
+                    .get(index)
+                    .cloned()
+                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
+                stack.push(value);
+            }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))

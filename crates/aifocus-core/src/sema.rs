@@ -212,6 +212,44 @@ impl Checker {
             ExprKind::Int(_) => Some(type_node(TypeKind::Int, expr.span)),
             ExprKind::Bool(_) => Some(type_node(TypeKind::Bool, expr.span)),
             ExprKind::String(_) => Some(type_node(TypeKind::String, expr.span)),
+            ExprKind::List(elements) => {
+                let mut element_type: Option<Type> = None;
+                for element in elements {
+                    if let Some(actual) = self.check_expr(element, locals) {
+                        if let Some(expected) = &element_type {
+                            if !same_type(&actual, expected) {
+                                self.error(
+                                    "AIF317",
+                                    "list elements must have the same type",
+                                    element.span,
+                                );
+                            }
+                        } else {
+                            element_type = Some(actual);
+                        }
+                    }
+                }
+                Some(type_node(
+                    TypeKind::List(Box::new(
+                        element_type.unwrap_or_else(|| type_node(TypeKind::Unit, expr.span)),
+                    )),
+                    expr.span,
+                ))
+            }
+            ExprKind::Index { collection, index } => {
+                let collection_type = self.check_expr(collection, locals)?;
+                let index_type = self.check_expr(index, locals)?;
+                if !is_kind(&index_type, &TypeKind::Int) {
+                    self.error("AIF318", "list index must be Int", index.span);
+                }
+                match collection_type.kind {
+                    TypeKind::List(element) => Some((*element).clone()),
+                    _ => {
+                        self.error("AIF319", "indexing requires List<T>", collection.span);
+                        None
+                    }
+                }
+            }
             ExprKind::Name(name) => {
                 if let Some(ty) = locals.get(name) {
                     Some(ty.clone())
