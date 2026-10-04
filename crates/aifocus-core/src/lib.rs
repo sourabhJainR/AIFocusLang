@@ -1,5 +1,6 @@
 //! Core language model, parser, and AI-native structural editing API for Ardisa.
 
+pub mod ai;
 pub mod ast;
 pub mod benchmark;
 pub mod bootstrap;
@@ -23,6 +24,7 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
+pub use ai::{Embedding, Probability, Distribution, Quantization, Tensor, Modality, SemanticValue, TraceLevel, TraceEvent, TraceBuffer, RuntimeError};
 pub use concurrency::{CancellationToken, ScopeReport, TaskHandle, TaskSpec, TaskTerminal};
 pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
