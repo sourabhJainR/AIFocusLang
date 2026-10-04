@@ -111,7 +111,8 @@ enum TaskState {
     Cancelled,
 }
 
-struct CancellationToken {
+#[derive(Debug, Clone)]
+pub struct CancellationToken {
     cancelled: Arc<AtomicBool>,
 }
 
