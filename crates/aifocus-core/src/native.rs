@@ -579,18 +579,26 @@ fn run_function(
                 }
             }
             NativeInstr::MakeOk => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
                 stack.push(NativeValue::ResultOk(Box::new(value)));
             }
             NativeInstr::MakeErr => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
                 stack.push(NativeValue::ResultErr(Box::new(value)));
             }
             NativeInstr::Unwrap => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?;
                 match value {
                     NativeValue::ResultOk(value) => stack.push(*value),
-                    NativeValue::ResultErr(_) => return Err(NativeError::Type("unwrap on Err".into())),
+                    NativeValue::ResultErr(_) => {
+                        return Err(NativeError::Type("unwrap on Err".into()));
+                    }
                     _ => return Err(NativeError::Type("unwrap requires Result".into())),
                 }
             }
