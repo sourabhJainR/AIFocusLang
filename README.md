@@ -50,7 +50,7 @@ The syntax is intentionally easy for both people and coding agents to parse.
 
 ## Status
 
-Bootstrap-to-self-hosting development is in progress. The repository now contains a deterministic parser, semantic and ownership checks, effects, structured-concurrency primitives, Rust lowering, a native execution backend, an AI-facing compiler protocol, differential tests, persistent diagnostic learning, and a reproducible stage2 compiler-pipeline replay. Full compiler self-hosting is not yet claimed.
+Bootstrap-to-self-hosting development is in progress. The repository now has a deterministic parser and formatter, semantic and ownership checks, effect analysis, structured-concurrency static/runtime contracts, a narrow safe Rust ABI boundary, differential and generated-program verification, persistent verified-repair learning, a versioned AI-facing compiler protocol with structural queries and transactions, a native execution backend, benchmark fingerprints, and a reproducible stage2 compiler-pipeline replay. Full compiler self-hosting is not yet claimed.
 
 The repository is intentionally standalone: it has no runtime or build dependency on an external agent framework. Engineering feedback and learning are repository-local compiler facilities.
 
