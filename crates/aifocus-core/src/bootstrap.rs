@@ -167,6 +167,9 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
             _ => "self-hosted source fails semantic validation",
         })?;
         ownership::infer(&module).map_err(|errors| {
+            if *name == "lexer" {
+                panic!("self-hosted lexer ownership errors: {:?}", errors);
+            }
             let code = errors.first().map(|error| error.code).unwrap_or("AIF000");
             match (*name, code) {
                 ("lexer", "AIF400") => "self-hosted lexer has a use-after-move",
