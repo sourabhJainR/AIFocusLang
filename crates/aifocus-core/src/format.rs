@@ -50,6 +50,19 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             format_expr(value, indent, out);
             out.push('\n');
         }
+        StmtKind::SetIndex {
+            collection,
+            index,
+            value,
+        } => {
+            out.push_str("set ");
+            format_expr(collection, indent, out);
+            out.push('[');
+            format_expr(index, indent, out);
+            out.push_str("] = ");
+            format_expr(value, indent, out);
+            out.push('\n');
+        }
         StmtKind::Let { name, value } => {
             out.push_str("let ");
             out.push_str(name);
