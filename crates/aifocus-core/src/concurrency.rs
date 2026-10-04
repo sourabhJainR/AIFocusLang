@@ -141,7 +141,6 @@ impl<T: Send + 'static> TaskHandle<T> {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopeEvent {
     Spawned(String),
@@ -297,7 +296,6 @@ fn main()
         let errors = analyze(&module).unwrap_err();
         assert!(errors.iter().any(|e| e.starts_with("AIF504")));
     }
-
 
     #[test]
     fn structured_scope_cleans_up_unfinished_tasks_on_drop() {
