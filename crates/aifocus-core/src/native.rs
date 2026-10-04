@@ -513,9 +513,15 @@ pub fn run(
                 }
             }
             NativeInstr::Jump(target) => pc = target,
-            NativeInstr::Call { .. } => {
+            NativeInstr::Call { .. }
+            | NativeInstr::ScopeStart
+            | NativeInstr::ScopeEnd
+            | NativeInstr::Spawn { .. }
+            | NativeInstr::Join { .. }
+            | NativeInstr::Cancel { .. } => {
                 return Err(NativeError::Unsupported(
-                    "direct run does not support function calls; use run_program".into(),
+                    "direct run does not support function calls or concurrency; use run_program"
+                        .into(),
                 ));
             }
             NativeInstr::Return => return Ok(stack.pop().unwrap_or(NativeValue::Unit)),
@@ -657,7 +663,7 @@ fn run_function(
                     .join()
                     .map_err(|_| NativeError::Unsupported(format!("task '{name}' panicked")))?;
                 match result {
-                    Ok(value) => stack.push(value),
+                    Ok(_) => stack.push(NativeValue::Unit),
                     Err(error) => {
                         for sibling in scope.values() {
                             sibling.cancel();
