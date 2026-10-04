@@ -304,7 +304,6 @@ fn f() -> Int
     }
 
     #[test]
-    #[test]
     fn transaction_applies_non_overlapping_edits_atomically() {
         let source = "module x
 fn f() -> Int
