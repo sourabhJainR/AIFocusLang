@@ -452,10 +452,10 @@ fn main(a: Int) -> Int
     #[test]
     fn compiles_and_runs_string_concatenation() {
         let module = crate::parse(
-            "module x
+            r#"module x
 fn main() -> String
   "hello " + "ardisa"
-",
+"#,
         )
         .unwrap();
         crate::sema::check(&module).unwrap();
