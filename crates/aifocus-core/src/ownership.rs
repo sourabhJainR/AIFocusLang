@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{BinaryOp, Block, Expr, ExprKind, Function, Item, Module, StmtKind, Type, TypeKind},
-    source::Diagnostic,
+    source::{Diagnostic, Span},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +36,27 @@ pub enum OwnershipTransition {
 pub struct OwnershipModel {
     pub accesses: HashMap<crate::NodeId, AccessKind>,
     pub transitions: Vec<(crate::NodeId, OwnershipTransition)>,
+    pub borrow_regions: Vec<BorrowRegion>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BorrowRegion {
+    pub local: String,
+    pub kind: BorrowKind,
+    pub span: Span,
+    pub scope_depth: usize,
+}
+
+impl BorrowRegion {
+    pub fn contains(&self, position: usize) -> bool {
+        self.span.start <= position && position < self.span.end
+    }
+
+    pub fn overlaps(&self, other: &Self) -> bool {
+        self.local == other.local
+            && self.span.start < other.span.end
+            && other.span.start < self.span.end
+    }
 }
 
 impl OwnershipModel {
@@ -114,6 +135,8 @@ pub fn analyze(module: &Module) -> Result<OwnershipModel, Vec<Diagnostic>> {
         errors: Vec::new(),
         accesses: HashMap::new(),
         transitions: Vec::new(),
+        borrow_regions: Vec::new(),
+        scope_depth: 0,
     };
 
     for item in &module.items {
@@ -124,9 +147,12 @@ pub fn analyze(module: &Module) -> Result<OwnershipModel, Vec<Diagnostic>> {
     if checker.errors.is_empty() {
         OwnershipModel::validate_borrow_transitions(&checker.transitions)
             .map_err(|message| vec![Diagnostic::error("AIF403", message, None)])?;
+        validate_borrow_regions(&checker.borrow_regions)
+            .map_err(|message| vec![Diagnostic::error("AIF404", message, None)])?;
         Ok(OwnershipModel {
             accesses: checker.accesses,
             transitions: checker.transitions,
+            borrow_regions: checker.borrow_regions,
         })
     } else {
         Err(checker.errors)
@@ -138,6 +164,8 @@ struct Checker {
     errors: Vec<Diagnostic>,
     accesses: HashMap<crate::NodeId, AccessKind>,
     transitions: Vec<(crate::NodeId, OwnershipTransition)>,
+    borrow_regions: Vec<BorrowRegion>,
+    scope_depth: usize,
 }
 
 impl Checker {
@@ -181,8 +209,10 @@ impl Checker {
                     self.check_expr(expr, locals, AccessMode::Move);
                 }
                 StmtKind::Scope { body } => {
+                    self.scope_depth += 1;
                     let mut scoped = locals.clone();
                     self.check_block(body, &mut scoped);
+                    self.scope_depth -= 1;
                     merge_states(locals, &scoped, false);
                 }
                 StmtKind::Spawn { call, .. } => {
@@ -190,8 +220,10 @@ impl Checker {
                 }
                 StmtKind::While { condition, body } => {
                     self.check_expr(condition, locals, AccessMode::Move);
+                    self.scope_depth += 1;
                     let mut scoped = locals.clone();
                     self.check_block(body, &mut scoped);
+                    self.scope_depth -= 1;
                     merge_states(locals, &scoped, true);
                 }
                 StmtKind::Join { .. } | StmtKind::Cancel { .. } => {}
@@ -237,6 +269,12 @@ impl Checker {
                         *state = State::Moved;
                     }
                     AccessKind::SharedBorrow => {
+                        self.borrow_regions.push(BorrowRegion {
+                            local: name.clone(),
+                            kind: BorrowKind::Shared,
+                            span: expr.span,
+                            scope_depth: self.scope_depth,
+                        });
                         self.transitions.push((
                             expr.id,
                             OwnershipTransition::BorrowStart(BorrowKind::Shared),
@@ -245,6 +283,12 @@ impl Checker {
                             .push((expr.id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)));
                     }
                     AccessKind::MutableBorrow => {
+                        self.borrow_regions.push(BorrowRegion {
+                            local: name.clone(),
+                            kind: BorrowKind::Mutable,
+                            span: expr.span,
+                            scope_depth: self.scope_depth,
+                        });
                         self.transitions.push((
                             expr.id,
                             OwnershipTransition::BorrowStart(BorrowKind::Mutable),
@@ -371,6 +415,19 @@ impl Checker {
             }
         }
     }
+}
+
+fn validate_borrow_regions(regions: &[BorrowRegion]) -> Result<(), &'static str> {
+    for (index, region) in regions.iter().enumerate() {
+        for other in regions.iter().skip(index + 1) {
+            if region.overlaps(other)
+                && (region.kind == BorrowKind::Mutable || other.kind == BorrowKind::Mutable)
+            {
+                return Err("overlapping borrow regions conflict");
+            }
+        }
+    }
+    Ok(())
 }
 
 fn ownership_of(ty: &Type) -> OwnershipClass {
@@ -504,6 +561,55 @@ fn reuse(source: String) -> String
                 .accesses
                 .values()
                 .any(|access| *access == AccessKind::MutableBorrow)
+        );
+    }
+
+    #[test]
+    fn records_borrow_regions_with_scope_depth() {
+        let module = parse(
+            "module x
+fn f(value: String) -> String
+  let same = value == value
+  value
+",
+        )
+        .unwrap();
+        let model = analyze(&module).unwrap();
+        assert_eq!(model.borrow_regions.len(), 2);
+        assert!(
+            model
+                .borrow_regions
+                .iter()
+                .all(|region| region.scope_depth == 0)
+        );
+        assert!(
+            model
+                .borrow_regions
+                .iter()
+                .all(|region| region.contains(region.span.start))
+        );
+    }
+
+    #[test]
+    fn rejects_overlapping_shared_and_mutable_regions() {
+        let span = Span::new(10, 20);
+        let regions = [
+            BorrowRegion {
+                local: "value".into(),
+                kind: BorrowKind::Shared,
+                span,
+                scope_depth: 0,
+            },
+            BorrowRegion {
+                local: "value".into(),
+                kind: BorrowKind::Mutable,
+                span: Span::new(15, 25),
+                scope_depth: 0,
+            },
+        ];
+        assert_eq!(
+            validate_borrow_regions(&regions),
+            Err("overlapping borrow regions conflict")
         );
     }
 
