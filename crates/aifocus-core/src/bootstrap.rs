@@ -26,6 +26,7 @@ pub struct BootstrapReport {
     pub native_result: Option<native::NativeValue>,
     pub stage0: Option<BootstrapArtifact>,
     pub stage1: Option<BootstrapArtifact>,
+    pub stage2: Option<BootstrapArtifact>,
     pub reproducible: bool,
     pub self_hosting_ready: bool,
     pub blocker: Option<&'static str>,
@@ -89,6 +90,8 @@ pub fn verify() -> BootstrapReport {
         && stage0.instruction_count == stage1.instruction_count
         && stage0.functions == stage1.functions;
 
+    let stage2 = self_hosted_pipeline_artifact().ok();
+
     BootstrapReport {
         parsed: true,
         semantically_valid: true,
@@ -97,12 +100,118 @@ pub fn verify() -> BootstrapReport {
         native_result,
         stage0: Some(stage0),
         stage1: Some(stage1),
-        reproducible,
+        stage2: stage2.clone(),
+        reproducible: reproducible && stage2.is_some(),
         self_hosting_ready: false,
         blocker: Some(
-            "full self-hosting still requires the compiler implementation itself to be expressible in Ardisa, including source processing, collections, control flow, diagnostics, and module/runtime support",
+            "stage2 now executes the Ardisa-authored source pipeline natively; true self-hosting still requires that pipeline to compile and recompile the compiler itself without the Rust host",
         ),
     }
+}
+
+
+
+const SELF_HOSTED_SOURCES: &[(&str, &str)] = &[
+    ("lexer", include_str!("../../../bootstrap/lexer.ardisa")),
+    ("parser", include_str!("../../../bootstrap/parser.ardisa")),
+    ("ast", include_str!("../../../bootstrap/ast.ardisa")),
+    ("semantic", include_str!("../../../bootstrap/semantic.ardisa")),
+    ("ir", include_str!("../../../bootstrap/ir.ardisa")),
+];
+
+fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
+    let mut total_instructions = 0usize;
+    let mut fingerprints = 0u64;
+    let mut programs = BTreeMap::new();
+
+    for (name, source) in SELF_HOSTED_SOURCES {
+        let module = parse(source).map_err(|_| "self-hosted source does not parse")?;
+        sema::check(&module).map_err(|_| "self-hosted source fails semantic validation")?;
+        ownership::infer(&module).map_err(|_| "self-hosted source fails ownership validation")?;
+        let lowered = ir::lower(&module);
+        let program = native::compile_program(&lowered)
+            .map_err(|_| "self-hosted source cannot compile natively")?;
+        total_instructions += program
+            .functions
+            .values()
+            .map(|function| function.code.len())
+            .sum::<usize>();
+        fingerprints ^= fingerprint(&format!("{name}:{source}"));
+        programs.insert((*name).to_string(), program);
+    }
+
+    let source = "module demo
+fn main(a: Int) -> Int
+  a + 1
+";
+    let lexer = programs.get("lexer").ok_or("missing lexer program")?;
+    let parser = programs.get("parser").ok_or("missing parser program")?;
+    let ast = programs.get("ast").ok_or("missing ast program")?;
+    let semantic = programs.get("semantic").ok_or("missing semantic program")?;
+    let ir_program = programs.get("ir").ok_or("missing ir program")?;
+
+    let tokens = native::run_program(
+        lexer,
+        "lex",
+        &[native::NativeValue::String(source.into())],
+    )
+    .map_err(|_| "self-hosted lexer execution failed")?;
+    let tokens = match tokens {
+        native::NativeValue::String(value) => value,
+        _ => return Err("self-hosted lexer returned non-string tokens"),
+    };
+    let parsed = native::run_program(
+        parser,
+        "parse",
+        &[native::NativeValue::String(tokens)],
+    )
+    .map_err(|_| "self-hosted parser execution failed")?;
+    let parsed = match parsed {
+        native::NativeValue::String(value) => value,
+        _ => return Err("self-hosted parser returned non-string AST"),
+    };
+    let ast_value = native::run_program(
+        ast,
+        "build",
+        &[native::NativeValue::String(parsed)],
+    )
+    .map_err(|_| "self-hosted AST construction failed")?;
+    let ast_value = match ast_value {
+        native::NativeValue::String(value) => value,
+        _ => return Err("self-hosted AST returned non-string representation"),
+    };
+    let semantic_value = native::run_program(
+        semantic,
+        "check",
+        &[native::NativeValue::String(ast_value.clone())],
+    )
+    .map_err(|_| "self-hosted semantic analysis failed")?;
+    let semantic_value = match semantic_value {
+        native::NativeValue::String(value) => value,
+        _ => return Err("self-hosted semantic analysis returned non-string result"),
+    };
+    if semantic_value != "Ok" {
+        return Err("self-hosted semantic analysis rejected its own AST");
+    }
+    let lowered_value = native::run_program(
+        ir_program,
+        "lower",
+        &[native::NativeValue::String(ast_value)],
+    )
+    .map_err(|_| "self-hosted IR lowering failed")?;
+    let lowered_value = match lowered_value {
+        native::NativeValue::String(value) => value,
+        _ => return Err("self-hosted IR lowering returned non-string IR"),
+    };
+
+    Ok(BootstrapArtifact {
+        stage: 2,
+        source_fingerprint: fingerprint(&format!(
+            "{fingerprints}:{tokens}:{lowered_value}"
+        )),
+        instruction_count: total_instructions,
+        functions: programs.values().map(|program| program.functions.len()).sum(),
+    })
 }
 
 fn failed(blocker: &'static str) -> BootstrapReport {
@@ -114,6 +223,7 @@ fn failed(blocker: &'static str) -> BootstrapReport {
         native_result: None,
         stage0: None,
         stage1: None,
+        stage2: None,
         reproducible: false,
         self_hosting_ready: false,
         blocker: Some(blocker),
@@ -172,6 +282,7 @@ mod tests {
             report.stage1.as_ref().unwrap().instruction_count
         );
         assert!(!report.self_hosting_ready);
+        assert!(report.stage2.is_some());
     }
 
     #[test]
