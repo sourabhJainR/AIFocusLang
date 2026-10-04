@@ -35,6 +35,7 @@ impl BenchmarkResult {
             self.fingerprint
         )
     }
+}
 
 impl BenchmarkResult {
     pub fn generation_success_rate(&self) -> f64 {
