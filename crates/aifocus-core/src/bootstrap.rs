@@ -64,7 +64,11 @@ pub fn verify() -> BootstrapReport {
         1,
         BOOTSTRAP_SOURCE,
         &lowered,
-        stage1_program.functions.values().map(Vec::len).sum(),
+        stage1_program
+            .functions
+            .values()
+            .map(|function| function.code.len())
+            .sum(),
     );
 
     let main_code = stage1_program
