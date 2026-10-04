@@ -162,7 +162,9 @@ impl Lowerer {
             ExprKind::List(items) => {
                 self.out.push('[');
                 for (index, item) in items.iter().enumerate() {
-                    if index > 0 { self.out.push_str(", "); }
+                    if index > 0 {
+                        self.out.push_str(", ");
+                    }
                     self.expr(item, indent);
                 }
                 self.out.push(']');
