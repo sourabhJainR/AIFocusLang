@@ -230,7 +230,8 @@ fn reference_expr(
                 }
                 "chr" => {
                     let value = expect_int(one_arg(args, module, locals)?)?;
-                    let byte = u8::try_from(value).map_err(|_| "chr byte out of range".to_string())?;
+                    let byte =
+                        u8::try_from(value).map_err(|_| "chr byte out of range".to_string())?;
                     Ok(native::NativeValue::String(char::from(byte).to_string()))
                 }
                 "ok" => Ok(native::NativeValue::ResultOk(Box::new(one_arg(
@@ -248,7 +249,10 @@ fn reference_expr(
                     if args.len() != 2 {
                         return Err("push expects two arguments".into());
                     }
-                    Err("push requires mutable reference semantics not modeled by this pure oracle".into())
+                    Err(
+                        "push requires mutable reference semantics not modeled by this pure oracle"
+                            .into(),
+                    )
                 }
                 _ => {
                     let values = args
