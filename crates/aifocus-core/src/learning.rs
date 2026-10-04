@@ -118,6 +118,99 @@ impl PersistentCompilerLearning {
         entry.message = diagnostic.message.clone();
         entry.occurrences += 1;
         entry.status = LearningStatus::VerifiedRepair;
+        self.record_provenance(
+            format!("repair:{}:{}", diagnostic.code, entry.occurrences),
+            ProvenanceKind::Repair,
+            diagnostic.code,
+            None,
+            vec!["verified-repair".into()],
+        );
+    }
+
+    pub fn record_provenance(
+        &mut self,
+        id: impl Into<String>,
+        kind: ProvenanceKind,
+        diagnostic: impl Into<String>,
+        parent_id: Option<String>,
+        evidence: Vec<String>,
+    ) {
+        let id = id.into();
+        if self.provenance.iter().any(|item| item.id == id) {
+            return;
+        }
+        self.provenance.push(LearningProvenance {
+            id,
+            kind,
+            diagnostic: diagnostic.into(),
+            parent_id,
+            evidence,
+        });
+    }
+
+    pub fn link_replay(
+        &mut self,
+        id: impl Into<String>,
+        parent_id: impl Into<String>,
+        evidence: Vec<String>,
+    ) {
+        self.record_provenance(
+            id,
+            ProvenanceKind::Replay,
+            "replay",
+            Some(parent_id.into()),
+            evidence,
+        );
+    }
+
+    pub fn link_regression(
+        &mut self,
+        id: impl Into<String>,
+        parent_id: impl Into<String>,
+        diagnostic: impl Into<String>,
+        evidence: Vec<String>,
+    ) {
+        self.record_provenance(
+            id,
+            ProvenanceKind::Regression,
+            diagnostic,
+            Some(parent_id.into()),
+            evidence,
+        );
+    }
+
+    pub fn record_promotion(
+        &mut self,
+        id: impl Into<String>,
+        capability: impl Into<String>,
+        evidence: Vec<String>,
+    ) {
+        self.record_provenance(
+            id,
+            ProvenanceKind::Promotion,
+            capability,
+            None,
+            evidence,
+        );
+    }
+
+    pub fn record_rollback(
+        &mut self,
+        id: impl Into<String>,
+        capability: impl Into<String>,
+        evidence: Vec<String>,
+    ) {
+        self.record_provenance(
+            id,
+            ProvenanceKind::Rollback,
+            capability,
+            None,
+            evidence,
+        );
+    }
+
+    pub fn provenance(&self) -> &[LearningProvenance] {
+        &self.provenance
     }
 
     pub fn is_verified(&self, key: &LearningKey) -> bool {
@@ -137,7 +230,7 @@ impl PersistentCompilerLearning {
     }
 
     pub fn save(&self, path: impl AsRef<Path>) -> Result<(), String> {
-        let mut out = String::from("ARDISA-LEARNING-V2\n");
+        let mut out = String::from("ARDISA-LEARNING-V3\n");
         let mut entries = self.entries.values().collect::<Vec<_>>();
         entries.sort_by(|a, b| {
             (&a.key.project, &a.key.task_kind, &a.key.diagnostic).cmp(&(
