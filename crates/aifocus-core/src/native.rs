@@ -1021,7 +1021,7 @@ pub fn decode_program(input: &str) -> Result<NativeProgram, NativeError> {
 }
 
 fn escape_artifact(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('|', "\p").replace(',', "\c").replace('\n', "\n")
+    value.replace('\\', "\\\\").replace('|', r"\p").replace(',', r"\c").replace('\n', r"\n")
 }
 
 fn unescape_artifact(value: &str) -> Result<String, NativeError> {
@@ -1112,7 +1112,10 @@ mod artifact_tests {
     #[test]
     fn executable_artifact_round_trips_deterministically() {
         let module = crate::parse(
-            "module artifact\nfn main(a: String) -> String\n  a + "!"\n",
+            r#"module artifact
+fn main(a: String) -> String
+  a + "!"
+"#,
         ).unwrap();
         crate::sema::check(&module).unwrap();
         crate::ownership::infer(&module).unwrap();
