@@ -17,7 +17,6 @@ pub struct CompilerTrace {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerificationRequirement {
     pub name: &'static str,
     pub required: bool,
