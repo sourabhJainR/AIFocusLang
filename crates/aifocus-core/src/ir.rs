@@ -40,6 +40,11 @@ pub enum IrValue {
         callee: String,
         args: Vec<IrValue>,
     },
+    If {
+        condition: Box<IrValue>,
+        then_ops: Vec<IrOp>,
+        else_ops: Vec<IrOp>,
+    },
 }
 
 pub fn lower(module: &Module) -> IrModule {
@@ -133,7 +138,15 @@ fn value_to_ir(expr: &Expr) -> IrValue {
                 args: args.iter().map(value_to_ir).collect(),
             }
         }
-        ExprKind::If { .. } => IrValue::Name("<if>".into()),
+        ExprKind::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => IrValue::If {
+            condition: Box::new(value_to_ir(condition)),
+            then_ops: block_to_ops(then_branch),
+            else_ops: else_branch.as_ref().map(block_to_ops).unwrap_or_default(),
+        },
     }
 }
 
@@ -151,6 +164,19 @@ mod tests {
         assert!(matches!(
             ir.functions[0].ops[0],
             IrOp::Expr(IrValue::Binary { .. })
+        ));
+    }
+
+    #[test]
+    fn represents_conditionals_without_backend_placeholders() {
+        let module = parse(
+            "module x\nfn choose(a: Int) -> Int\n  if a == 0\n    return 1\n  else\n    return 2\n",
+        )
+        .unwrap();
+        let ir = lower(&module);
+        assert!(matches!(
+            ir.functions[0].ops[0],
+            IrOp::Expr(IrValue::If { .. })
         ));
     }
 }
