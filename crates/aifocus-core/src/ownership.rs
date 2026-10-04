@@ -112,6 +112,7 @@ pub fn analyze(module: &Module) -> Result<OwnershipModel, Vec<Diagnostic>> {
             .collect(),
         errors: Vec::new(),
         accesses: HashMap::new(),
+        transitions: Vec::new(),
     };
 
     for item in &module.items {
