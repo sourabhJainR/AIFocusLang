@@ -1,12 +1,24 @@
+use std::time::Instant;
+
 use crate::{
     EffectModel, IrModule, Module, NodeId, OwnershipModel, edit, edit::StructuralEdit, effects, ir,
     learning::PersistentCompilerLearning, ownership, sema, source::Diagnostic,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerTrace {
+    pub parse_ns: u64,
+    pub semantic_ns: u64,
+    pub effects_ns: u64,
+    pub ir_ns: u64,
+    pub diagnostics: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompilerSnapshot {
     pub source: String,
     pub module: Module,
+    pub trace: CompilerTrace,
     pub ir: IrModule,
     pub effects: EffectModel,
     pub ownership: OwnershipModel,
@@ -47,9 +59,11 @@ impl std::fmt::Display for ProtocolError {
 impl std::error::Error for ProtocolError {}
 
 pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerResponse, ProtocolError> {
+    let parse_start = Instant::now();
     let module = crate::parse(source).map_err(ProtocolError::InvalidSource)?;
+    let parse_ns = parse_start.elapsed().as_nanos() as u64;
     match request {
-        CompilerRequest::Inspect => snapshot(source, module).map(|snapshot| CompilerResponse {
+        CompilerRequest::Inspect => snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
             snapshot,
             changed_node: None,
         }),
@@ -57,7 +71,7 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
             let result = edit::apply(source, &module, edit_request)
                 .map_err(|error| ProtocolError::Edit(error.to_string()))?;
             let changed_node = Some(result.replaced_node);
-            snapshot(&result.source, result.module).map(|snapshot| CompilerResponse {
+            snapshot(&result.source, result.module, parse_ns).map(|snapshot| CompilerResponse {
                 snapshot,
                 changed_node,
             })
@@ -102,14 +116,35 @@ impl CompilerSession {
     }
 }
 
-fn snapshot(source: &str, module: Module) -> Result<CompilerSnapshot, ProtocolError> {
+fn snapshot(
+    source: &str,
+    module: Module,
+    parse_ns: u64,
+) -> Result<CompilerSnapshot, ProtocolError> {
+    let semantic_start = Instant::now();
     sema::check(&module).map_err(ProtocolError::Semantic)?;
+    let semantic_ns = semantic_start.elapsed().as_nanos() as u64;
+
     let ownership = ownership::analyze(&module).map_err(ProtocolError::Ownership)?;
+
+    let effects_start = Instant::now();
     let effects = effects::analyze(&module);
+    let effects_ns = effects_start.elapsed().as_nanos() as u64;
+
+    let ir_start = Instant::now();
     let ir = ir::lower(&module);
+    let ir_ns = ir_start.elapsed().as_nanos() as u64;
+
     Ok(CompilerSnapshot {
         source: source.into(),
         module,
+        trace: CompilerTrace {
+            parse_ns,
+            semantic_ns,
+            effects_ns,
+            ir_ns,
+            diagnostics: 0,
+        },
         ir,
         effects,
         ownership,
@@ -131,6 +166,7 @@ mod tests {
         assert!(response.snapshot.effects.functions.contains_key("main"));
         assert!(!response.snapshot.ownership.accesses.is_empty());
         assert!(response.snapshot.diagnostics.is_empty());
+        assert!(response.snapshot.trace.parse_ns > 0 || response.snapshot.trace.semantic_ns > 0);
     }
 
     #[test]
