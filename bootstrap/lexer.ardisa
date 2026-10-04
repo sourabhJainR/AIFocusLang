@@ -84,13 +84,17 @@ fn lex(source: String) -> String
     if line_start
       let spaces = 0
       let scanning_spaces = true
+      let pending_index = index
       while index < len(source)
         if scanning_spaces == true
           if source[index] == 32
             set spaces = spaces + 1
             set index = index + 1
           else
+            set pending_index = index
             set scanning_spaces = false
+            set index = len(source)
+      set index = pending_index
       if spaces > indent
         set indent = spaces
         set output = output + token("Indent", chr(spaces))
@@ -125,6 +129,7 @@ fn lex(source: String) -> String
             if is_letter(c)
               let word = ""
               let scanning_word = true
+              let pending_index = index
               while index < len(source)
                 if scanning_word == true
                   if is_letter(source[index])
@@ -135,32 +140,43 @@ fn lex(source: String) -> String
                       set word = word + chr(source[index])
                       set index = index + 1
                     else
+                      set pending_index = index
                       set scanning_word = false
+                      set index = len(source)
+              set index = pending_index
               set output = output + token(keyword(word), word)
             else
               if is_digit(c)
                 let number = ""
                 let scanning_number = true
+                let pending_index = index
                 while index < len(source)
                   if scanning_number == true
                     if is_digit(source[index])
                       set number = number + chr(source[index])
                       set index = index + 1
                     else
+                      set pending_index = index
                       set scanning_number = false
+                      set index = len(source)
+                set index = pending_index
                 set output = output + token("Int", number)
               else
                 if c == 34
                   let value = ""
                   set index = index + 1
                   let closed = false
+                  let pending_index = index
                   while index < len(source)
                     if closed == false
                       if source[index] == 34
                         set closed = true
+                        set pending_index = index + 1
+                        set index = len(source)
                       else
                         set value = value + chr(source[index])
-                    set index = index + 1
+                        set index = index + 1
+                  set index = pending_index
                   set output = output + token("String", value)
                 else
                   if c == 45
