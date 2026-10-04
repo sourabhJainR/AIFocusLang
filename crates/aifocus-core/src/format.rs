@@ -1,5 +1,6 @@
 use crate::ast::*;
 
+/// Canonical formatter for the growing control-flow surface.
 pub fn format_module(module: &Module) -> String {
     let mut out = format!("module {}\n", module.name);
     for item in &module.items {
