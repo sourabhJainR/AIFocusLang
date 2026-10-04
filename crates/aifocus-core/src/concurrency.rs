@@ -191,7 +191,9 @@ impl StructuredScope {
             Err(_) => {
                 self.events.push(ScopeEvent::Failed(name.into()));
                 self.cancel_running_siblings();
-                Err(format!("AIF505: task '{name}' panicked; siblings cancelled"))
+                Err(format!(
+                    "AIF505: task '{name}' panicked; siblings cancelled"
+                ))
             }
         }
     }
