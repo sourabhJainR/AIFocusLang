@@ -328,7 +328,7 @@ pub fn run(
                 locals.insert(name, NativeValue::List(items));
             }
 
-            NativeInstr::Add | NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div => {
+            NativeInstr::Add | NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div | NativeInstr::Mod => {
                 let right = pop_int(&mut stack)?;
                 let left = pop_int(&mut stack)?;
                 let value = match code[pc - 1] {
