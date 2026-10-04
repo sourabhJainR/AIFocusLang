@@ -44,7 +44,10 @@ pub use interop::{
     AbiParameterContract, InteropType, OwnershipContract, RustFunction, SafeRustBoundary,
 };
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
-pub use learning::{LearningEntry, LearningKey, LearningStatus, PersistentCompilerLearning};
+pub use learning::{
+    LearningEntry, LearningKey, LearningProvenance, LearningStatus, PersistentCompilerLearning,
+    ProvenanceKind,
+};
 pub use module_graph::{ModuleGraph, ModuleGraphError, ModuleNode};
 pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
