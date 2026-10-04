@@ -1,5 +1,7 @@
 use std::time::Instant;
 
+pub const PROTOCOL_VERSION: &str = "ardisa-compiler-protocol-v1";
+
 use crate::{
     EffectModel, IrModule, Module, NodeId, OwnershipModel, edit, edit::StructuralEdit, effects, ir,
     learning::PersistentCompilerLearning, ownership, sema, source::Diagnostic,
@@ -15,7 +17,15 @@ pub struct CompilerTrace {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerificationRequirement {
+    pub name: &'static str,
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompilerSnapshot {
+    pub protocol_version: &'static str,
     pub source: String,
     pub module: Module,
     pub trace: CompilerTrace,
@@ -23,6 +33,7 @@ pub struct CompilerSnapshot {
     pub effects: EffectModel,
     pub ownership: OwnershipModel,
     pub diagnostics: Vec<Diagnostic>,
+    pub verification: Vec<VerificationRequirement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,6 +149,7 @@ fn snapshot(
     let ir_ns = ir_start.elapsed().as_nanos() as u64;
 
     Ok(CompilerSnapshot {
+        protocol_version: PROTOCOL_VERSION,
         source: source.into(),
         module,
         trace: CompilerTrace {
@@ -151,7 +163,18 @@ fn snapshot(
         effects,
         ownership,
         diagnostics: Vec::new(),
+        verification: verification_requirements(),
     })
+}
+
+fn verification_requirements() -> Vec<VerificationRequirement> {
+    vec![
+        VerificationRequirement { name: "parse", required: true },
+        VerificationRequirement { name: "semantic", required: true },
+        VerificationRequirement { name: "ownership", required: true },
+        VerificationRequirement { name: "effects", required: true },
+        VerificationRequirement { name: "ir-lowering", required: true },
+    ]
 }
 
 #[cfg(test)]
@@ -163,11 +186,17 @@ mod tests {
     fn inspect_exposes_ir_effects_and_ownership() {
         let source = "module x\nfn main(a: Int) -> Int\n  a + 1\n";
         let response = execute(source, CompilerRequest::Inspect).unwrap();
+        assert_eq!(response.snapshot.protocol_version, PROTOCOL_VERSION);
         assert_eq!(response.snapshot.module.name, "x");
         assert_eq!(response.snapshot.ir.functions.len(), 1);
         assert!(response.snapshot.effects.functions.contains_key("main"));
         assert!(!response.snapshot.ownership.accesses.is_empty());
         assert!(response.snapshot.diagnostics.is_empty());
+        assert!(response
+            .snapshot
+            .verification
+            .iter()
+            .all(|requirement| requirement.required));
         assert!(response.snapshot.trace.parse_ns > 0 || response.snapshot.trace.semantic_ns > 0);
     }
 
