@@ -93,6 +93,11 @@ pub struct Stmt {
 pub enum StmtKind {
     Let { name: String, value: Expr },
     Set { name: String, value: Expr },
+    SetIndex {
+        collection: Expr,
+        index: Expr,
+        value: Expr,
+    },
     Return(Option<Expr>),
     Expr(Expr),
     Scope { body: Block },
