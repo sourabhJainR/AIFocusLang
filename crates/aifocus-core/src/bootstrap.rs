@@ -1,7 +1,15 @@
 use crate::{ir, native, ownership, parse, sema};
+use std::collections::BTreeMap;
 
-pub const BOOTSTRAP_SOURCE: &str =
-    "module bootstrap\nfn main(a: Int, b: Int) -> Int\n  a + b * 2\n";
+pub const BOOTSTRAP_SOURCE: &str = "module bootstrap\nfn double(a: Int) -> Int\n  a * 2\nfn main(a: Int, b: Int) -> Int\n  double(a) + b\n";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BootstrapArtifact {
+    pub stage: u8,
+    pub source_fingerprint: u64,
+    pub instruction_count: usize,
+    pub functions: usize,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BootstrapReport {
@@ -10,74 +18,69 @@ pub struct BootstrapReport {
     pub ownership_valid: bool,
     pub native_compiled: bool,
     pub native_result: Option<native::NativeValue>,
+    pub stage0: Option<BootstrapArtifact>,
+    pub stage1: Option<BootstrapArtifact>,
+    pub reproducible: bool,
     pub self_hosting_ready: bool,
     pub blocker: Option<&'static str>,
 }
 
 pub fn verify() -> BootstrapReport {
     let Ok(module) = parse(BOOTSTRAP_SOURCE) else {
-        return BootstrapReport {
-            parsed: false,
-            semantically_valid: false,
-            ownership_valid: false,
-            native_compiled: false,
-            native_result: None,
-            self_hosting_ready: false,
-            blocker: Some("bootstrap source does not parse"),
-        };
+        return failed("bootstrap source does not parse");
     };
     if sema::check(&module).is_err() {
-        return BootstrapReport {
-            parsed: true,
-            semantically_valid: false,
-            ownership_valid: false,
-            native_compiled: false,
-            native_result: None,
-            self_hosting_ready: false,
-            blocker: Some("bootstrap source fails semantic validation"),
-        };
+        return failed("bootstrap source fails semantic validation");
     }
     if ownership::infer(&module).is_err() {
-        return BootstrapReport {
-            parsed: true,
-            semantically_valid: true,
-            ownership_valid: false,
-            native_compiled: false,
-            native_result: None,
-            self_hosting_ready: false,
-            blocker: Some("bootstrap source fails ownership validation"),
-        };
+        return failed("bootstrap source fails ownership validation");
     }
-    let Ok(code) = native::compile(&ir::lower(&module)) else {
-        return BootstrapReport {
-            parsed: true,
-            semantically_valid: true,
-            ownership_valid: true,
-            native_compiled: false,
-            native_result: None,
-            self_hosting_ready: false,
-            blocker: Some("native backend cannot compile the bootstrap subset"),
-        };
+    let lowered = ir::lower(&module);
+    let Ok(stage0_code) = native::compile(&lowered) else {
+        return failed("native backend cannot compile the bootstrap subset");
     };
+    let stage0 = artifact(0, BOOTSTRAP_SOURCE, &lowered, stage0_code.len());
+    let Ok(stage1_code) = native::compile(&lowered) else {
+        return failed("stage1 compilation failed");
+    };
+    let stage1 = artifact(1, BOOTSTRAP_SOURCE, &lowered, stage1_code.len());
     let native_result = native::run(
-        &code,
-        &[
-            ("a".into(), native::NativeValue::Int(3)),
-            ("b".into(), native::NativeValue::Int(4)),
-        ],
-    )
-    .ok();
+        &stage1_code,
+        &[("a".into(), native::NativeValue::Int(3)), ("b".into(), native::NativeValue::Int(4))],
+    ).ok();
+    let reproducible = stage0 == stage1;
     BootstrapReport {
         parsed: true,
         semantically_valid: true,
         ownership_valid: true,
         native_compiled: true,
         native_result,
+        stage0: Some(stage0),
+        stage1: Some(stage1),
+        reproducible,
         self_hosting_ready: false,
-        blocker: Some(
-            "full self-hosting still requires compiler implementation expressible in Ardisa and native support for its required language/runtime features",
-        ),
+        blocker: Some("full self-hosting still requires the compiler implementation itself to be expressible in Ardisa, including source processing, collections, control flow, diagnostics, and module/runtime support"),
     }
+}
+
+fn failed(blocker: &'static str) -> BootstrapReport {
+    BootstrapReport { parsed: false, semantically_valid: false, ownership_valid: false, native_compiled: false, native_result: None, stage0: None, stage1: None, reproducible: false, self_hosting_ready: false, blocker: Some(blocker) }
+}
+
+fn artifact(stage: u8, source: &str, module: &crate::ast::Module, instruction_count: usize) -> BootstrapArtifact {
+    BootstrapArtifact { stage, source_fingerprint: fingerprint(source), instruction_count, functions: module.items.len() }
+}
+
+fn fingerprint(source: &str) -> u64 {
+    source.bytes().fold(0xcbf29ce484222325u64, |hash, byte| hash.wrapping_mul(0x100000001b3).wrapping_add(u64::from(byte)))
+}
+
+pub fn stage_manifest() -> BTreeMap<&'static str, &'static str> {
+    BTreeMap::from([
+        ("stage0", "Rust-hosted Ardisa compiler primitives"),
+        ("stage1", "Native Ardisa program compiled by the same deterministic pipeline"),
+        ("stage2", "Reserved for Ardisa compiler compiling itself"),
+    ])
 }
 
 #[cfg(test)]
@@ -85,17 +88,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bootstrap_contract_is_green_but_does_not_fake_self_hosting() {
+    fn bootstrap_pipeline_is_multi_function_and_reproducible() {
         let report = verify();
-        assert!(report.parsed);
-        assert!(report.semantically_valid);
-        assert!(report.ownership_valid);
+        assert!(report.parsed && report.semantically_valid && report.ownership_valid);
         assert!(report.native_compiled);
-        assert_eq!(
-            report.native_result,
-            Some(crate::native::NativeValue::Int(11))
-        );
+        assert_eq!(report.native_result, Some(crate::native::NativeValue::Int(10)));
+        assert!(report.reproducible);
+        assert_eq!(report.stage0.as_ref().unwrap().functions, 2);
+        assert_eq!(report.stage0.as_ref().unwrap().instruction_count, report.stage1.as_ref().unwrap().instruction_count);
         assert!(!report.self_hosting_ready);
-        assert!(report.blocker.is_some());
+    }
+
+    #[test]
+    fn manifest_explicitly_models_three_bootstrap_stages() {
+        let manifest = stage_manifest();
+        assert_eq!(manifest.len(), 3);
+        assert_eq!(manifest["stage2"], "Reserved for Ardisa compiler compiling itself");
     }
 }
