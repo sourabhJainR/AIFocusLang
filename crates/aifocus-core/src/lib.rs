@@ -43,7 +43,7 @@ pub use learning::{LearningEntry, LearningKey, PersistentCompilerLearning};
 pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
 pub use protocol::{
-    CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, ProtocolError,
+    CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, CompilerTrace, ProtocolError,
 };
 
 pub use ast::{
