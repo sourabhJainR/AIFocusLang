@@ -270,16 +270,26 @@ pub fn run(
                 let collection = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("index from empty stack".into()))?;
-                let NativeValue::List(values) = collection else {
-                    return Err(NativeError::Type("indexing requires a list".into()));
-                };
                 let index = usize::try_from(index)
-                    .map_err(|_| NativeError::Type("negative list index".into()))?;
-                let value = values
-                    .get(index)
-                    .cloned()
-                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
-                stack.push(value);
+                    .map_err(|_| NativeError::Type("negative index".into()))?;
+                match collection {
+                    NativeValue::List(values) => {
+                        let value = values
+                            .get(index)
+                            .cloned()
+                            .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
+                        stack.push(value);
+                    }
+                    NativeValue::String(value) => {
+                        let byte = value
+                            .as_bytes()
+                            .get(index)
+                            .copied()
+                            .ok_or_else(|| NativeError::Type("string index out of bounds".into()))?;
+                        stack.push(NativeValue::Int(i64::from(byte)));
+                    }
+                    _ => return Err(NativeError::Type("indexing requires a list or String".into())),
+                }
             }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
