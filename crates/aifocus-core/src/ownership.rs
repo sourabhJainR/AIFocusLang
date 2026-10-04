@@ -340,7 +340,7 @@ impl Checker {
 
 fn ownership_of(ty: &Type) -> OwnershipClass {
     match ty.kind {
-        TypeKind::Int | TypeKind::Bool | TypeKind::Unit => OwnershipClass::Copy,
+        TypeKind::Int | TypeKind::Bool | TypeKind::Unit | TypeKind::String => OwnershipClass::Copy,
         TypeKind::String | TypeKind::Named(_) | TypeKind::Result(_, _) | TypeKind::List(_) => {
             OwnershipClass::Move
         }
@@ -359,6 +359,18 @@ fn type_node(kind: TypeKind, expr: &Expr) -> Type {
 mod tests {
     use super::*;
     use crate::parse;
+
+    #[test]
+    fn treats_strings_as_copy_for_text_processing() {
+        let source = "module text
+fn repeat(source: String) -> String
+  let a = source + source
+  let b = source + a
+  b
+";
+        let module = crate::parse(source).unwrap();
+        assert!(infer(&module).is_ok());
+    }
 
     #[test]
     fn validates_borrow_conflicts_and_lifetimes() {
