@@ -982,6 +982,54 @@ fn main(a: Int) -> Int
     }
 
     #[test]
+    fn executes_structured_scope_with_joined_child() {
+        let module = crate::parse(
+            "module x
+fn worker(a: Int) -> Int
+  a + 1
+fn main() -> Int
+  scope
+    spawn worker_task = worker(4)
+    join worker_task
+  7
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        crate::concurrency::analyze(&module).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        assert_eq!(
+            run_program(&program, "main", &[]).unwrap(),
+            NativeValue::Int(7)
+        );
+    }
+
+    #[test]
+    fn executes_structured_scope_with_cancelled_child() {
+        let module = crate::parse(
+            "module x
+fn worker(a: Int) -> Int
+  a + 1
+fn main() -> Int
+  scope
+    spawn worker_task = worker(4)
+    cancel worker_task
+    join worker_task
+  9
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        crate::concurrency::analyze(&module).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        assert_eq!(
+            run_program(&program, "main", &[]).unwrap(),
+            NativeValue::Int(9)
+        );
+    }
+
+
+    #[test]
     fn compiles_and_runs_recursive_calls() {
         let module = crate::parse(
             "module x
