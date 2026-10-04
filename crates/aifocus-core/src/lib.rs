@@ -48,7 +48,7 @@ pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, Native
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
 pub use protocol::{
     CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, CompilerTrace,
-    ProtocolError,
+    ProtocolError, VerificationRequirement, PROTOCOL_VERSION,
 };
 
 pub use ast::{
