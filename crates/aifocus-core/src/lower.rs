@@ -88,7 +88,7 @@ impl Lowerer {
                 }
                 StmtKind::Let { name, value } => {
                     self.record(stmt.id, stmt.span);
-                    self.out.push_str("let ");
+                    self.out.push_str("let mut ");
                     self.out.push_str(name);
                     self.out.push_str(" = ");
                     self.expr(value, indent);
@@ -303,6 +303,16 @@ mod tests {
         let module = parse("module x\nfn calc(a: Int, b: Int) -> Int\n  (a + b) * 2\n").unwrap();
         let lowered = lower(&module);
         assert!(lowered.rust.contains("(a + b) * 2"));
+    }
+
+    #[test]
+    fn generated_rust_supports_mutable_bindings() {
+        let module = parse(
+            "module x\nfn update(a: Int) -> Int\n  let value = a\n  set value = value + 1\n  value\n",
+        )
+        .unwrap();
+        let lowered = lower(&module);
+        assert!(lowered.rust.contains("let mut value = a;"));
     }
 
     #[test]
