@@ -343,6 +343,30 @@ pub fn run(
                 items.push(value);
                 stack.push(NativeValue::Unit);
             }
+            NativeInstr::MakeOk => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
+                stack.push(NativeValue::ResultOk(Box::new(value)));
+            }
+            NativeInstr::MakeErr => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
+                stack.push(NativeValue::ResultErr(Box::new(value)));
+            }
+            NativeInstr::Unwrap => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?;
+                match value {
+                    NativeValue::ResultOk(value) => stack.push(*value),
+                    NativeValue::ResultErr(_) => {
+                        return Err(NativeError::Type("unwrap on Err".into()));
+                    }
+                    _ => return Err(NativeError::Type("unwrap requires Result".into())),
+                }
+            }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
@@ -553,30 +577,6 @@ fn run_function(
                 };
                 items.push(value);
                 stack.push(NativeValue::Unit);
-            }
-            NativeInstr::MakeOk => {
-                let value = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
-                stack.push(NativeValue::ResultOk(Box::new(value)));
-            }
-            NativeInstr::MakeErr => {
-                let value = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
-                stack.push(NativeValue::ResultErr(Box::new(value)));
-            }
-            NativeInstr::Unwrap => {
-                let value = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?;
-                match value {
-                    NativeValue::ResultOk(value) => stack.push(*value),
-                    NativeValue::ResultErr(_) => {
-                        return Err(NativeError::Type("unwrap on Err".into()));
-                    }
-                    _ => return Err(NativeError::Type("unwrap requires Result".into())),
-                }
             }
             NativeInstr::MakeOk => {
                 let value = stack
