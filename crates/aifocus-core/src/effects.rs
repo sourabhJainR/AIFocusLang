@@ -89,7 +89,11 @@ fn collect_block(block: &Block, effects: &mut FunctionEffects) {
                 effects.effects.insert(EffectKind::Write);
                 collect_expr(value, effects);
             }
-            StmtKind::SetIndex { collection, index, value } => {
+            StmtKind::SetIndex {
+                collection,
+                index,
+                value,
+            } => {
                 collect_expr(collection, effects);
                 collect_expr(index, effects);
                 collect_expr(value, effects);
