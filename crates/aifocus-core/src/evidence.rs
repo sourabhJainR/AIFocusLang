@@ -21,6 +21,33 @@ pub struct CapabilityEvaluation {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct EvidenceGraph {
+    pub envelopes: Vec<EvidenceEnvelope>,
+    pub edges: Vec<(String, String)>,
+}
+
+impl EvidenceGraph {
+    pub fn add(&mut self, envelope: EvidenceEnvelope) {
+        self.envelopes.push(envelope);
+    }
+
+    pub fn link(&mut self, from_episode: impl Into<String>, to_episode: impl Into<String>) {
+        self.edges.push((from_episode.into(), to_episode.into()));
+    }
+
+    pub fn can_promote(&self, capability: &str, canary_passed: bool, holdout_pass_rate: u8) -> CapabilityEvaluation {
+        let evidence_count = self.envelopes.iter().filter(|e| e.capability == capability).count();
+        if evidence_count == 0 {
+            return CapabilityEvaluation {
+                decision: CapabilityDecision::Hold,
+                reason: "no evidence envelope exists for capability".into(),
+            };
+        }
+        evaluate(canary_passed, holdout_pass_rate, false)
+    }
+}
+
 pub fn evaluate(
     canary_passed: bool,
     holdout_pass_rate: u8,
@@ -79,6 +106,24 @@ mod tests {
     fn holds_when_holdout_gate_is_not_met() {
         let result = evaluate(true, 94, false);
         assert_eq!(result.decision, CapabilityDecision::Hold);
+    }
+
+    #[test]
+    fn evidence_graph_requires_evidence_before_promotion() {
+        let graph = EvidenceGraph::default();
+        assert_eq!(
+            graph.can_promote("ownership-analysis", true, 100).decision,
+            CapabilityDecision::Hold
+        );
+        let mut graph = graph;
+        graph.add(EvidenceEnvelope::new(
+            "episode-1", "ownership-analysis", "compiler-change",
+            "passed", "deep", vec!["ci:green".into()]
+        ));
+        assert_eq!(
+            graph.can_promote("ownership-analysis", true, 100).decision,
+            CapabilityDecision::Promote
+        );
     }
 
     #[test]
