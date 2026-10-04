@@ -115,7 +115,10 @@ const SELF_HOSTED_SOURCES: &[(&str, &str)] = &[
     ("lexer", include_str!("../../../bootstrap/lexer.ardisa")),
     ("parser", include_str!("../../../bootstrap/parser.ardisa")),
     ("ast", include_str!("../../../bootstrap/ast.ardisa")),
-    ("semantic", include_str!("../../../bootstrap/semantic.ardisa")),
+    (
+        "semantic",
+        include_str!("../../../bootstrap/semantic.ardisa"),
+    ),
     ("ir", include_str!("../../../bootstrap/ir.ardisa")),
 ];
 
@@ -206,11 +209,12 @@ fn main(a: Int) -> Int
 
     Ok(BootstrapArtifact {
         stage: 2,
-        source_fingerprint: fingerprint(&format!(
-            "{fingerprints}:{tokens}:{lowered_value}"
-        )),
+        source_fingerprint: fingerprint(&format!("{fingerprints}:{tokens}:{lowered_value}")),
         instruction_count: total_instructions,
-        functions: programs.values().map(|program| program.functions.len()).sum(),
+        functions: programs
+            .values()
+            .map(|program| program.functions.len())
+            .sum(),
     })
 }
 
