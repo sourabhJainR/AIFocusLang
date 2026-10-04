@@ -138,7 +138,7 @@ fn collect_expr(expr: &Expr, effects: &mut FunctionEffects) {
         ExprKind::Index { collection, index } => {
             collect_expr(collection, effects);
             collect_expr(index, effects);
-        },
+        }
         ExprKind::If {
             condition,
             then_branch,
