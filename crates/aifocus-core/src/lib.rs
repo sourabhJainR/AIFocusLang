@@ -40,7 +40,9 @@ pub use effects::{EffectKind, EffectModel, FunctionEffects};
 pub use engineering_feedback::{CapabilityFeedback, EpisodeOutcome, VerificationDepth};
 pub use evidence::{CapabilityDecision, CapabilityEvaluation, EvidenceEnvelope, EvidenceGraph};
 pub use fuzz::{GeneratedCase, generate as generate_fuzz_case};
-pub use interop::{AbiParameterContract, InteropType, OwnershipContract, RustFunction, SafeRustBoundary};
+pub use interop::{
+    AbiParameterContract, InteropType, OwnershipContract, RustFunction, SafeRustBoundary,
+};
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
 pub use learning::{LearningEntry, LearningKey, LearningStatus, PersistentCompilerLearning};
 pub use module_graph::{ModuleGraph, ModuleGraphError, ModuleNode};
