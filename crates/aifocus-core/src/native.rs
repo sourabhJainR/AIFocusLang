@@ -503,6 +503,21 @@ fn run_function(
                     .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
                 stack.push(value);
             }
+            NativeInstr::Len => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("len from empty stack".into()))?;
+                let length = match value {
+                    NativeValue::String(value) => value.len(),
+                    NativeValue::List(values) => values.len(),
+                    _ => {
+                        return Err(NativeError::Type(
+                            "len requires String or List".into(),
+                        ));
+                    }
+                };
+                stack.push(NativeValue::Int(length as i64));
+            }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
