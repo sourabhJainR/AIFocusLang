@@ -316,7 +316,11 @@ impl Checker {
                 let left_type = self.check_expr(left, locals)?;
                 let right_type = self.check_expr(right, locals)?;
                 match op {
-                    BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+                    BinaryOp::Add
+                    | BinaryOp::Sub
+                    | BinaryOp::Mul
+                    | BinaryOp::Div
+                    | BinaryOp::Mod => {
                         let int_operands = is_kind(&left_type, &TypeKind::Int)
                             && is_kind(&right_type, &TypeKind::Int);
                         let string_add = matches!(op, BinaryOp::Add)

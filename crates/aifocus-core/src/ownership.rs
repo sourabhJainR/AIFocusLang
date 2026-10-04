@@ -278,9 +278,11 @@ impl Checker {
                 let left_type = self.check_expr(left, locals, operand_mode);
                 let right_type = self.check_expr(right, locals, operand_mode);
                 match op {
-                    BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-                        left_type.or(right_type)
-                    }
+                    BinaryOp::Add
+                    | BinaryOp::Sub
+                    | BinaryOp::Mul
+                    | BinaryOp::Div
+                    | BinaryOp::Mod => left_type.or(right_type),
                     BinaryOp::Equal
                     | BinaryOp::NotEqual
                     | BinaryOp::Less
