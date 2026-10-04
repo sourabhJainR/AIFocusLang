@@ -26,13 +26,18 @@ fn parse(stream: String) -> String
   let current = ""
   while cursor < len(stream)
     let end = cursor
+    let delimiter = cursor
+    let scanning = true
     while end < len(stream)
-      if stream[end] == 124
-        set end = len(stream)
-      else
-        set end = end + 1
+      if scanning == true
+        if stream[end] == 124
+          set delimiter = end
+          set scanning = false
+          set end = len(stream)
+        else
+          set end = end + 1
     set current = token_at(stream, cursor)
     if len(current) > 0
       set ast = ast + current + " "
-    set cursor = end + 1
+    set cursor = delimiter + 1
   ast + ")"
