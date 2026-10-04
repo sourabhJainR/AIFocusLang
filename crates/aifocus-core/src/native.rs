@@ -35,6 +35,7 @@ pub struct NativeFunction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Native values are intentionally dependency-free so the native compiler can bootstrap incrementally.
 pub enum NativeValue {
     Int(i64),
     Bool(bool),
