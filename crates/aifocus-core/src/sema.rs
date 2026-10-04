@@ -17,6 +17,7 @@ pub struct SemanticModel {
     pub function_returns: HashMap<String, Type>,
 }
 
+/// Validate semantic types including String concatenation.
 pub fn check(module: &Module) -> Result<(), Vec<Diagnostic>> {
     analyze(module).map(|_| ())
 }
