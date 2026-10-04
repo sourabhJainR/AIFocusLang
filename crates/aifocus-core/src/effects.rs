@@ -84,6 +84,10 @@ impl EffectModel {
 fn collect_block(block: &Block, effects: &mut FunctionEffects) {
     for stmt in &block.stmts {
         match &stmt.kind {
+            StmtKind::Set { value, .. } => {
+                effects.effects.insert(EffectKind::Write);
+                collect_expr(value, effects);
+            }
             StmtKind::Let { value, .. } => {
                 effects.effects.insert(EffectKind::Write);
                 collect_expr(value, effects);
