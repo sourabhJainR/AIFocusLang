@@ -1,60 +1,55 @@
 # Ardisa roadmap
 
-Status at the current bootstrap checkpoint: the core compiler pipeline is executable and stage2 replay is reproducible; full self-hosting remains open. Each phase below is gated by behavior-level evidence, not file presence alone.
+The implementation is evidence-gated. A phase is complete only after its executable acceptance checks pass in CI and the status is reflected here.
 
-The canonical source extension is `.ardisa`; all examples, fixtures, tooling, and editor integrations should use `*.ardisa`.
+## Completed foundations
+- Tiny .ardisa language surface, lexer, parser, AST, spans, formatter and deterministic diagnostics.
+- Ownership analysis with move/use-after-move and borrow transition checks.
+- Read/write/call effect analysis and call dependency propagation.
+- Static structured-concurrency scope checking and runtime cancellation/join cleanup.
+- Narrow safe Rust scalar ABI contract with isolated unsafe wrapper generation.
+- Differential tests, deterministic generated cases and benchmark fingerprints.
+- Versioned compiler protocol with verification requirements, node queries and atomic multi-edit transactions.
+- Persistent compiler learning with observed and verified-repair states.
+- Reproducible stage2 Ardisa-authored compiler-pipeline replay.
 
-## Phase 0: bootstrap
+## Remaining phases
+### A. Semantic completeness
+- flow-sensitive borrow regions across branches, loops and nested scopes;
+- explicit mutable borrow semantics;
+- broader type inference, patterns, traits/interfaces and Result/error semantics;
+- field/resource-level effect dependencies and incremental invalidation.
 
-- Tiny readable syntax.
-- Stable AST and source spans.
-- Deterministic diagnostics.
-- Dependency-light compiler.
-- CI and regression fixtures.
+### B. Runtime semantics
+- task failure propagation and sibling cancellation;
+- deterministic runtime task traces;
+- stronger structured-concurrency integration with compiler diagnostics.
 
-## Phase 1: real parser
+### C. Interoperability
+- compile-time ABI fixtures;
+- safe aggregate/reference types with explicit ownership and ABI rules;
+- explicit unsafe escape-block contract.
 
-- Lexer with byte-accurate spans.
-- Recursive-descent parser.
-- Error recovery with multiple diagnostics.
-- Canonical formatter.
-- Snapshot and conformance tests.
+### D. Verification and benchmarks
+- mutation-based fuzzing;
+- independent native/reference result oracle across the supported subset;
+- compile-time and generated-code-size metrics;
+- reproducible benchmark reports.
 
-## Phase 2: Rust semantic core
+### E. Compiler protocol
+- stable machine-readable wire encoding;
+- richer AST/symbol/type/effect query operations;
+- transaction diagnostics with source/evidence mapping.
 
-- Rust-compatible ownership and borrowing.
-- Type inference for common application code.
-- Pattern matching.
-- Traits/interfaces.
-- Async and structured concurrency.
-- Explicit unsafe boundary.
+### F. Learning and engineering evidence
+- verified repair provenance;
+- replay/regression linkage;
+- release-level work/evidence manifests.
 
-## Phase 3: AI compiler contract
+### G. Native compiler and bootstrap
+- complete IR coverage for the supported language subset;
+- backend differential corpus;
+- true compiler self-compilation;
+- deterministic self-rebuild and independent bootstrap verification.
 
-Expose stable AST IDs, spans, symbols, inferred types, effects, ownership transitions, diagnostics, structural edits, and verification requirements.
-
-AI tools should edit structure rather than blindly rewriting text whenever possible.
-
-## Phase 4: Rust lowering
-
-- Lower the safe Ardisa subset to readable Rust.
-- Preserve source maps.
-- Support direct Rust escape blocks.
-- Verify generated Rust with rustc.
-- Differential-test reference programs.
-
-## Phase 5: reduce Rust friction
-
-Candidate changes include inferred lifetimes where provably safe, simpler ownership transfer syntax, safer shared-state patterns, structured errors, explicit effects, and simpler async composition.
-
-No feature should weaken memory safety merely to make AI generation easier.
-
-## Phase 6: native compiler
-
-Only after semantics and lowering are stable: incremental compilation, parallel compilation, deterministic builds, and Rust crate interoperability.
-
-## Phase 7: engineering loop
-
-source -> AST -> plan -> edit -> compile -> test -> diagnose -> repair -> verify -> evidence
-
-The language remains fully usable without an AI system.
+True self-hosting remains intentionally unclaimed until the Rust host is no longer required to compile the compiler itself.
