@@ -14,6 +14,7 @@ pub struct MutationCase {
     pub seed: u64,
     pub mutation: &'static str,
     pub source: String,
+    pub expected_valid: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -141,10 +142,14 @@ pub fn verify_mutation(case: &MutationCase) -> Result<MutationVerification, Stri
 }
 
 pub fn verify_malformed(source: &str) -> Result<(), String> {
-    if catch_unwind(AssertUnwindSafe(|| parse(source))).is_err() {
-        return Err("compiler panicked on malformed input".into());
+    let result = catch_unwind(AssertUnwindSafe(|| parse(source)));
+    match result {
+        Err(_) => Err("compiler panicked on malformed input".into()),
+        Ok(Ok(module)) if sema::check(&module).is_ok() => {
+            Err("malformed corpus input was accepted".into())
+        }
+        Ok(_) => Ok(()),
     }
-    Ok(())
 }
 
 pub fn verify(case: &GeneratedCase) -> Result<(), String> {
