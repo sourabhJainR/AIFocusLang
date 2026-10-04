@@ -966,11 +966,13 @@ mod tests {
     #[test]
     fn native_type_coverage_includes_aggregate_parameters() {
         assert!(is_native_type(&TypeKind::Int));
-        assert!(is_native_type(&TypeKind::List(Box::new(crate::ast::Type {
-            id: crate::NodeId(1),
-            span: crate::source::Span::new(0, 0),
-            kind: TypeKind::Int,
-        }))));
+        assert!(is_native_type(&TypeKind::List(Box::new(
+            crate::ast::Type {
+                id: crate::NodeId(1),
+                span: crate::source::Span::new(0, 0),
+                kind: TypeKind::Int,
+            }
+        ))));
         assert!(is_native_type(&TypeKind::Result(
             Box::new(crate::ast::Type {
                 id: crate::NodeId(2),
@@ -988,17 +990,18 @@ mod tests {
 
     #[test]
     fn compiles_and_runs_aggregate_values_without_rust() {
-        let module = crate::parse(
-            "module x\nfn main(values: List<Int>) -> Int\n  len(values)\n",
-        )
-        .unwrap();
+        let module =
+            crate::parse("module x\nfn main(values: List<Int>) -> Int\n  len(values)\n").unwrap();
         crate::sema::check(&module).unwrap();
         let ir = crate::ir::lower(&module);
         let program = compile_program(&ir).unwrap();
         let result = run_program(
             &program,
             "main",
-            &[NativeValue::List(vec![NativeValue::Int(1), NativeValue::Int(2)])],
+            &[NativeValue::List(vec![
+                NativeValue::Int(1),
+                NativeValue::Int(2),
+            ])],
         )
         .unwrap();
         assert_eq!(result, NativeValue::Int(2));
@@ -1006,10 +1009,9 @@ mod tests {
 
     #[test]
     fn compiles_and_runs_result_values_without_rust() {
-        let module = crate::parse(
-            "module x\nfn main(value: Result<Int, String>) -> Int\n  unwrap(value)\n",
-        )
-        .unwrap();
+        let module =
+            crate::parse("module x\nfn main(value: Result<Int, String>) -> Int\n  unwrap(value)\n")
+                .unwrap();
         crate::sema::check(&module).unwrap();
         let ir = crate::ir::lower(&module);
         let program = compile_program(&ir).unwrap();
