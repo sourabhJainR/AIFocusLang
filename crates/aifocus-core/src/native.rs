@@ -509,9 +509,7 @@ fn run_function(
                     NativeValue::String(value) => value.len(),
                     NativeValue::List(values) => values.len(),
                     _ => {
-                        return Err(NativeError::Type(
-                            "len requires String or List".into(),
-                        ));
+                        return Err(NativeError::Type("len requires String or List".into()));
                     }
                 };
                 stack.push(NativeValue::Int(length as i64));
