@@ -564,14 +564,16 @@ fn run_function(
                         stack.push(value);
                     }
                     NativeValue::String(value) => {
-                        let byte = value
-                            .as_bytes()
-                            .get(index)
-                            .copied()
-                            .ok_or_else(|| NativeError::Type("string index out of bounds".into()))?;
+                        let byte = value.as_bytes().get(index).copied().ok_or_else(|| {
+                            NativeError::Type("string index out of bounds".into())
+                        })?;
                         stack.push(NativeValue::Int(i64::from(byte)));
                     }
-                    _ => return Err(NativeError::Type("indexing requires a list or String".into())),
+                    _ => {
+                        return Err(NativeError::Type(
+                            "indexing requires a list or String".into(),
+                        ));
+                    }
                 }
             }
             NativeInstr::Len => {
