@@ -34,7 +34,10 @@ pub enum IrValue {
     Bool(bool),
     String(String),
     List(Vec<IrValue>),
-    Index { collection: Box<IrValue>, index: Box<IrValue> },
+    Index {
+        collection: Box<IrValue>,
+        index: Box<IrValue>,
+    },
     Name(String),
     Binary {
         op: BinaryOp,
