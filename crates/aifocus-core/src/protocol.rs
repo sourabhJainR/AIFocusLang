@@ -168,11 +168,26 @@ fn snapshot(
 
 fn verification_requirements() -> Vec<VerificationRequirement> {
     vec![
-        VerificationRequirement { name: "parse", required: true },
-        VerificationRequirement { name: "semantic", required: true },
-        VerificationRequirement { name: "ownership", required: true },
-        VerificationRequirement { name: "effects", required: true },
-        VerificationRequirement { name: "ir-lowering", required: true },
+        VerificationRequirement {
+            name: "parse",
+            required: true,
+        },
+        VerificationRequirement {
+            name: "semantic",
+            required: true,
+        },
+        VerificationRequirement {
+            name: "ownership",
+            required: true,
+        },
+        VerificationRequirement {
+            name: "effects",
+            required: true,
+        },
+        VerificationRequirement {
+            name: "ir-lowering",
+            required: true,
+        },
     ]
 }
 
@@ -191,11 +206,13 @@ mod tests {
         assert!(response.snapshot.effects.functions.contains_key("main"));
         assert!(!response.snapshot.ownership.accesses.is_empty());
         assert!(response.snapshot.diagnostics.is_empty());
-        assert!(response
-            .snapshot
-            .verification
-            .iter()
-            .all(|requirement| requirement.required));
+        assert!(
+            response
+                .snapshot
+                .verification
+                .iter()
+                .all(|requirement| requirement.required)
+        );
         assert!(response.snapshot.trace.parse_ns > 0 || response.snapshot.trace.semantic_ns > 0);
     }
 
