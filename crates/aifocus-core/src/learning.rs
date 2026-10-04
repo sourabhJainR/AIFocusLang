@@ -185,13 +185,7 @@ impl PersistentCompilerLearning {
         capability: impl Into<String>,
         evidence: Vec<String>,
     ) {
-        self.record_provenance(
-            id,
-            ProvenanceKind::Promotion,
-            capability,
-            None,
-            evidence,
-        );
+        self.record_provenance(id, ProvenanceKind::Promotion, capability, None, evidence);
     }
 
     pub fn record_rollback(
@@ -200,13 +194,7 @@ impl PersistentCompilerLearning {
         capability: impl Into<String>,
         evidence: Vec<String>,
     ) {
-        self.record_provenance(
-            id,
-            ProvenanceKind::Rollback,
-            capability,
-            None,
-            evidence,
-        );
+        self.record_provenance(id, ProvenanceKind::Rollback, capability, None, evidence);
     }
 
     pub fn provenance(&self) -> &[LearningProvenance] {
