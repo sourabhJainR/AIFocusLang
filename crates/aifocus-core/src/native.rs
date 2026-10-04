@@ -125,6 +125,18 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
             emit_value(value, code)?;
             code.push(NativeInstr::Pop);
         }
+        IrOp::While { condition, ops } => {
+            let loop_start = code.len();
+            emit_value(condition, code)?;
+            let jump_if = code.len();
+            code.push(NativeInstr::JumpIfFalse(usize::MAX));
+            for op in ops {
+                emit_op(op, code)?;
+            }
+            code.push(NativeInstr::Jump(loop_start));
+            let end = code.len();
+            code[jump_if] = NativeInstr::JumpIfFalse(end);
+        }
         IrOp::Scope { .. } | IrOp::Spawn { .. } | IrOp::Join { .. } | IrOp::Cancel { .. } => {
             return Err(NativeError::Unsupported(
                 "native backend does not yet execute concurrency operations".into(),
@@ -448,6 +460,24 @@ fn main(a: Int) -> Int
         let code = compile(&ir).unwrap();
         let result = run(&code, &[(String::from("a"), NativeValue::Int(0))]).unwrap();
         assert_eq!(result, NativeValue::Int(1));
+    }
+
+    #[test]
+    fn compiles_and_runs_while_loops() {
+        let module = crate::parse(
+            "module x
+fn main(a: Int) -> Int
+  while a == 0
+    return 7
+  return 9
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        let ir = crate::ir::lower(&module);
+        let program = compile_program(&ir).unwrap();
+        let result = run_program(&program, "main", &[NativeValue::Int(0)]).unwrap();
+        assert_eq!(result, NativeValue::Int(7));
     }
 
     #[test]
