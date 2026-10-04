@@ -269,7 +269,7 @@ mod tests {
             report.native_result,
             Some(crate::native::NativeValue::Int(10))
         );
-        assert!(report.reproducible);
+        assert!(report.reproducible, "stage2 bootstrap failure: {:?}", report.blocker);
         assert_eq!(report.stage0.as_ref().unwrap().functions, 2);
         assert_eq!(
             report.stage0.as_ref().unwrap().instruction_count,
