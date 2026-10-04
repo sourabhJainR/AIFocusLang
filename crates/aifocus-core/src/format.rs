@@ -84,6 +84,12 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             out.push_str(name);
             out.push('\n');
         }
+        StmtKind::While { condition, body } => {
+            out.push_str("while ");
+            format_expr(condition, indent, out);
+            out.push('\n');
+            format_block(body, indent + 2, out);
+        }
     }
 }
 
