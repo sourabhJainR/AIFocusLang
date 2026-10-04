@@ -37,11 +37,17 @@ fn build(token_stream: String) -> String
   let current = ""
   while cursor < len(token_stream)
     let end = cursor
+    let delimiter = cursor
+    let scanning = true
     while end < len(token_stream)
-      if token_stream[end] == 124
-        set end = len(token_stream)
-      else
-        set end = end + 1
+      if scanning == true
+        if token_stream[end] == 124
+          set delimiter = end
+          set scanning = false
+          set end = len(token_stream)
+        else
+          set end = end + 1
+    set end = delimiter
     set token = ""
     let copy = cursor
     while copy < end
@@ -65,5 +71,5 @@ fn build(token_stream: String) -> String
                 set tree = tree + " " + node("String", token_value(token))
               else
                 set tree = tree + " " + node(current, token_value(token))
-    set cursor = end + 1
+    set cursor = delimiter + 1
   tree + ")"
