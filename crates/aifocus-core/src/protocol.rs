@@ -63,10 +63,12 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
     let module = crate::parse(source).map_err(ProtocolError::InvalidSource)?;
     let parse_ns = parse_start.elapsed().as_nanos() as u64;
     match request {
-        CompilerRequest::Inspect => snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
-            snapshot,
-            changed_node: None,
-        }),
+        CompilerRequest::Inspect => {
+            snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
+                snapshot,
+                changed_node: None,
+            })
+        },
         CompilerRequest::ApplyEdit(edit_request) => {
             let result = edit::apply(source, &module, edit_request)
                 .map_err(|error| ProtocolError::Edit(error.to_string()))?;
