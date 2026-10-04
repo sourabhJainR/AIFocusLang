@@ -69,6 +69,7 @@ impl TypeKind {
             Self::Result(ok, err) => {
                 format!("Result<{}, {}>", ok.display_name(), err.display_name())
             }
+            Self::List(element) => format!("List<{}>", element.display_name()),
         }
     }
 }
