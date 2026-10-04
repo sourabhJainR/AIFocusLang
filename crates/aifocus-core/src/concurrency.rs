@@ -25,7 +25,8 @@ pub struct ScopeReport {
 }
 
 pub fn analyze(module: &Module) -> Result<Vec<ScopeReport>, Vec<String>> {
-    analyze_with_diagnostics(module).map_err(|errors| errors.into_iter().map(|error| error.message).collect())
+    analyze_with_diagnostics(module)
+        .map_err(|errors| errors.into_iter().map(|error| error.message).collect())
 }
 
 pub fn analyze_with_diagnostics(module: &Module) -> Result<Vec<ScopeReport>, Vec<Diagnostic>> {
@@ -59,7 +60,10 @@ fn analyze_block_with_diagnostics(
             for child in &body.stmts {
                 match &child.kind {
                     StmtKind::Spawn { name, call } => {
-                        if tasks.insert(name.clone(), (TaskState::Running, child.span)).is_some() {
+                        if tasks
+                            .insert(name.clone(), (TaskState::Running, child.span))
+                            .is_some()
+                        {
                             errors.push(Diagnostic::error(
                                 "AIF501",
                                 format!("duplicate task '{name}' in scope"),
