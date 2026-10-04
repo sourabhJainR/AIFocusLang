@@ -1,6 +1,7 @@
 use crate::{ir, native, ownership, parse, sema};
 use std::collections::BTreeMap;
 
+/// Minimal native bootstrap fixture used for staged verification.
 pub const BOOTSTRAP_SOURCE: &str = "module bootstrap
 fn double(a: Int) -> Int
   a * 2
