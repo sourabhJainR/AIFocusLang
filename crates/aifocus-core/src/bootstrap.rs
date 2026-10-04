@@ -157,8 +157,12 @@ fn main(a: Int) -> Int
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted lexer returned non-string tokens"),
     };
-    let parsed = native::run_program(parser, "parse", &[native::NativeValue::String(tokens.clone())])
-        .map_err(|_| "self-hosted parser execution failed")?;
+    let parsed = native::run_program(
+        parser,
+        "parse",
+        &[native::NativeValue::String(tokens.clone())],
+    )
+    .map_err(|_| "self-hosted parser execution failed")?;
     let parsed = match parsed {
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted parser returned non-string AST"),
