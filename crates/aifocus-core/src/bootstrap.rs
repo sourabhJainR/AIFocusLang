@@ -295,6 +295,8 @@ fn main(a: Int) -> Int
             _ => return Err("self-hosted compiler source semantic result was non-string"),
         };
         if replay_semantic != "Ok" {
+            eprintln!("semantic replay failed for {name}: {replay_semantic:?}");
+            eprintln!("replayed AST: {replay_ast:?}");
             return Err("self-hosted compiler source failed semantic replay");
         }
         let replay_ir = match native::run_program(
