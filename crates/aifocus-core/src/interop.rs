@@ -51,15 +51,15 @@ impl SafeRustBoundary {
         if function.params.iter().any(|(name, _)| name.is_empty()) {
             return Err("Rust interop parameter names must be non-empty".into());
         }
-        if function
-            .params
-            .iter()
-            .any(|(_, ty)| !matches!(ty, InteropType::Int | InteropType::Bool | InteropType::Unit | InteropType::IntSliceRef))
-            || !matches!(
-                function.return_type,
-                InteropType::Int | InteropType::Bool | InteropType::Unit
+        if function.params.iter().any(|(_, ty)| {
+            !matches!(
+                ty,
+                InteropType::Int | InteropType::Bool | InteropType::Unit | InteropType::IntSliceRef
             )
-        {
+        }) || !matches!(
+            function.return_type,
+            InteropType::Int | InteropType::Bool | InteropType::Unit
+        ) {
             return Err(
                 "Rust interop exposes only ABI-safe scalars or read-only Int slice borrows".into(),
             );
