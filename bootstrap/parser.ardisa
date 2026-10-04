@@ -48,12 +48,17 @@ fn token_at(stream: String, start: Int) -> String
 
 fn next_cursor(stream: String, start: Int) -> Int
   let index = start
+  let delimiter = start
+  let scanning = true
   while index < len(stream)
-    if stream[index] == 124
-      set index = len(stream)
-    else
-      set index = index + 1
-  index
+    if scanning == true
+      if stream[index] == 124
+        set delimiter = index
+        set scanning = false
+        set index = len(stream)
+      else
+        set index = index + 1
+  delimiter
 
 fn node(kind: String, value: String) -> String
   if len(value) > 0
