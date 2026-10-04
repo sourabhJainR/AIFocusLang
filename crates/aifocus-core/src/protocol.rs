@@ -3,7 +3,7 @@ use std::time::Instant;
 pub const PROTOCOL_VERSION: &str = "ardisa-compiler-protocol-v1";
 
 use crate::{
-    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit,
+    EffectModel, IrModule, Module, NodeId, OwnershipModel, concurrency, edit,
     edit::{NodeQuery, StructuralEdit},
     effects, ir,
     learning::PersistentCompilerLearning,
