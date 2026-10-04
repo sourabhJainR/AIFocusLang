@@ -332,16 +332,6 @@ pub fn run(
                 items.push(value);
                 stack.push(NativeValue::Unit);
             }
-            NativeInstr::Append(name) => {
-                let value = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("push value missing".into()))?;
-                let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
-                    return Err(NativeError::Type("push requires a List binding".into()));
-                };
-                items.push(value);
-                stack.push(NativeValue::Unit);
-            }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
@@ -542,6 +532,16 @@ fn run_function(
                     }
                 };
                 stack.push(NativeValue::Int(length as i64));
+            }
+            NativeInstr::Append(name) => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("push value missing".into()))?;
+                let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
+                    return Err(NativeError::Type("push requires a List binding".into()));
+                };
+                items.push(value);
+                stack.push(NativeValue::Unit);
             }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
