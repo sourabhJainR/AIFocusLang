@@ -303,27 +303,7 @@ pub fn run(
                 *slot = value;
                 locals.insert(name, NativeValue::List(items));
             }
-            NativeInstr::StoreIndex(name) => {
-                let value = stack.pop().ok_or_else(|| {
-                    NativeError::InvalidProgram("indexed store value missing".into())
-                })?;
-                let index = pop_int(&mut stack)?;
-                let collection = stack.pop().ok_or_else(|| {
-                    NativeError::InvalidProgram("indexed store collection missing".into())
-                })?;
-                let NativeValue::List(mut items) = collection else {
-                    return Err(NativeError::Type(
-                        "indexed assignment requires a list".into(),
-                    ));
-                };
-                let index = usize::try_from(index)
-                    .map_err(|_| NativeError::Type("negative list index".into()))?;
-                let slot = items
-                    .get_mut(index)
-                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
-                *slot = value;
-                locals.insert(name, NativeValue::List(items));
-            }
+
             NativeInstr::Add | NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div => {
                 let right = pop_int(&mut stack)?;
                 let left = pop_int(&mut stack)?;
@@ -459,6 +439,27 @@ fn run_function(
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
                 })?)
+            }
+            NativeInstr::StoreIndex(name) => {
+                let value = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("indexed store value missing".into())
+                })?;
+                let index = pop_int(&mut stack)?;
+                let collection = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("indexed store collection missing".into())
+                })?;
+                let NativeValue::List(mut items) = collection else {
+                    return Err(NativeError::Type(
+                        "indexed assignment requires a list".into(),
+                    ));
+                };
+                let index = usize::try_from(index)
+                    .map_err(|_| NativeError::Type("negative list index".into()))?;
+                let slot = items
+                    .get_mut(index)
+                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
+                *slot = value;
+                locals.insert(name, NativeValue::List(items));
             }
             NativeInstr::Store(name) => {
                 let value = stack
