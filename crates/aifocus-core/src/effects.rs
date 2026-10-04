@@ -13,6 +13,8 @@ pub enum EffectKind {
 pub struct FunctionEffects {
     pub effects: HashSet<EffectKind>,
     pub calls: HashSet<String>,
+    pub reads: HashSet<String>,
+    pub writes: HashSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -42,6 +44,8 @@ pub fn analyze(module: &Module) -> EffectModel {
                     effects
                         .effects
                         .extend(callee_effects.effects.iter().copied());
+                    effects.reads.extend(callee_effects.reads.iter().cloned());
+                    effects.writes.extend(callee_effects.writes.iter().cloned());
                 }
             }
         }
@@ -61,6 +65,31 @@ pub fn analyze(module: &Module) -> EffectModel {
 }
 
 impl EffectModel {
+    /// Return functions whose observed reads or writes touch a changed resource,
+    /// including transitive callers. This is the basis for precise incremental
+    /// invalidation without treating every source edit as a full rebuild.
+    pub fn invalidated_by_resource(&self, resource: &str) -> HashSet<String> {
+        let directly_affected = self
+            .functions
+            .iter()
+            .filter_map(|(name, effects)| {
+                (effects.reads.contains(resource) || effects.writes.contains(resource))
+                    .then_some(name.clone())
+            })
+            .collect::<HashSet<_>>();
+        let mut affected = directly_affected.clone();
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for (caller, dependencies) in &self.dependencies {
+                if !affected.is_disjoint(dependencies) && affected.insert(caller.clone()) {
+                    changed = true;
+                }
+            }
+        }
+        affected
+    }
+
     pub fn depends_on(&self, caller: &str, callee: &str) -> bool {
         if caller == callee {
             return true;
@@ -85,8 +114,9 @@ impl EffectModel {
 fn collect_block(block: &Block, effects: &mut FunctionEffects) {
     for stmt in &block.stmts {
         match &stmt.kind {
-            StmtKind::Set { value, .. } => {
+            StmtKind::Set { name, value } => {
                 effects.effects.insert(EffectKind::Write);
+                effects.writes.insert(name.clone());
                 collect_expr(value, effects);
             }
             StmtKind::SetIndex {
@@ -94,12 +124,17 @@ fn collect_block(block: &Block, effects: &mut FunctionEffects) {
                 index,
                 value,
             } => {
+                effects.effects.insert(EffectKind::Write);
+                if let ExprKind::Name(name) = &collection.kind {
+                    effects.writes.insert(name.clone());
+                }
                 collect_expr(collection, effects);
                 collect_expr(index, effects);
                 collect_expr(value, effects);
             }
-            StmtKind::Let { value, .. } => {
+            StmtKind::Let { name, value } => {
                 effects.effects.insert(EffectKind::Write);
+                effects.writes.insert(name.clone());
                 collect_expr(value, effects);
             }
             StmtKind::Return(value) => {
@@ -124,8 +159,9 @@ fn collect_block(block: &Block, effects: &mut FunctionEffects) {
 
 fn collect_expr(expr: &Expr, effects: &mut FunctionEffects) {
     match &expr.kind {
-        ExprKind::Name(_) => {
+        ExprKind::Name(name) => {
             effects.effects.insert(EffectKind::Read);
+            effects.reads.insert(name.clone());
         }
         ExprKind::Binary { left, right, .. } => {
             collect_expr(left, effects);
@@ -179,6 +215,30 @@ mod tests {
         assert!(main.calls.contains("leaf"));
         assert!(model.dependencies["main"].contains("leaf"));
         assert!(model.depends_on("main", "leaf"));
+    }
+
+    #[test]
+    fn tracks_resource_reads_and_writes_and_invalidates_callers() {
+        let module = parse(
+            "module x\nfn leaf() -> Int\n  let value = 1\n  value\nfn main() -> Int\n  leaf()\n",
+        )
+        .unwrap();
+        let model = analyze(&module);
+        assert!(model.functions["leaf"].writes.contains("value"));
+        assert!(model.functions["leaf"].reads.contains("value"));
+        assert!(model.invalidated_by_resource("value").contains("leaf"));
+        assert!(model.invalidated_by_resource("value").contains("main"));
+    }
+
+    #[test]
+    fn indexed_assignment_is_a_write_effect() {
+        let module = parse(
+            "module x\nfn main() -> Int\n  let items = [1]\n  set items[0] = 2\n  items[0]\n",
+        )
+        .unwrap();
+        let model = analyze(&module);
+        assert!(model.functions["main"].effects.contains(&EffectKind::Write));
+        assert!(model.functions["main"].writes.contains("items"));
     }
 
     #[test]
