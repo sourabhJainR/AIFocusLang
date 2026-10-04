@@ -154,6 +154,11 @@ impl Checker {
                 StmtKind::Set { value, .. } => {
                     self.check_expr(value, locals, AccessMode::Move);
                 }
+                StmtKind::SetIndex { collection, index, value } => {
+                    self.check_expr(collection, locals, AccessMode::SharedBorrow);
+                    self.check_expr(index, locals, AccessMode::Move);
+                    self.check_expr(value, locals, AccessMode::Move);
+                }
                 StmtKind::Let { name, value } => {
                     if let Some(ty) = self.check_expr(value, locals, AccessMode::Move) {
                         locals.insert(name.clone(), (ty, State::Available));
