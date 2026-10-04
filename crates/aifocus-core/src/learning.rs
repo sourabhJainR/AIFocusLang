@@ -107,12 +107,15 @@ impl PersistentCompilerLearning {
             diagnostic: diagnostic.code.into(),
         };
         let occurrences = {
-            let entry = self.entries.entry(key.clone()).or_insert_with(|| LearningEntry {
-                key,
-                message: diagnostic.message.clone(),
-                occurrences: 0,
-                status: LearningStatus::Observed,
-            });
+            let entry = self
+                .entries
+                .entry(key.clone())
+                .or_insert_with(|| LearningEntry {
+                    key,
+                    message: diagnostic.message.clone(),
+                    occurrences: 0,
+                    status: LearningStatus::Observed,
+                });
             entry.message = diagnostic.message.clone();
             entry.occurrences += 1;
             entry.status = LearningStatus::VerifiedRepair;
