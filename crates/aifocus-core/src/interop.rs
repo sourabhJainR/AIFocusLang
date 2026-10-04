@@ -64,7 +64,13 @@ pub struct RustFunction {
 }
 
 #[allow(dead_code)]
-pub const ABI_VERSION: &str = "ardisa-c-abi-v1";
+pub const ABI_VERSION: &str = "ardisa-c-abi-v2";
+
+/// Stable ABI metadata used by generated wrappers and CI validation.
+pub const ABI_LAYOUT_VERSION: u32 = 1;
+
+/// Pointer-bearing ABI values are never permitted as returned borrowed references.
+/// Ardisa requires returned data to be owned or represented by an explicit scalar/result layout.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InteropContract {
@@ -72,6 +78,7 @@ pub struct InteropContract {
     pub function: RustFunction,
     pub parameters: Vec<AbiParameterContract>,
     pub return_ownership: OwnershipContract,
+    pub abi_layout_version: u32,
     pub unsafe_call_isolated: bool,
     pub unsafe_escape_reason: String,
 }
@@ -104,7 +111,9 @@ impl SafeRustBoundary {
         }) {
             return Err("Rust interop exposes only explicitly supported ABI types".into());
         }
-        Ok(Self { function })
+        let boundary = Self { function };
+        boundary.validate_contract()?;
+        Ok(boundary)
     }
 
     pub fn contract(&self) -> InteropContract {
@@ -122,11 +131,22 @@ impl SafeRustBoundary {
                 })
                 .collect(),
             return_ownership: self.function.return_type.ownership(true),
+            abi_layout_version: ABI_LAYOUT_VERSION,
             unsafe_call_isolated: true,
             unsafe_escape_reason:
                 "generated wrapper contains the only unsafe FFI call; borrowed inputs do not escape the call"
                     .into(),
         }
+    }
+
+    pub fn validate_contract(&self) -> Result<(), String> {
+        if matches!(self.function.return_type, InteropType::IntSliceRef | InteropType::ListIntRef) {
+            return Err("borrowed pointer ABI types cannot cross the return boundary".into());
+        }
+        if self.function.params.iter().any(|(_, ty)| matches!(ty, InteropType::IntSliceRef | InteropType::ListIntRef)) && !self.contract().unsafe_call_isolated {
+            return Err("pointer-bearing FFI parameters require an isolated unsafe wrapper".into());
+        }
+        Ok(())
     }
 
     pub fn function(&self) -> &RustFunction {
@@ -258,6 +278,7 @@ mod tests {
         };
         let contract = SafeRustBoundary::new(function).unwrap().contract();
         assert_eq!(contract.abi_version, ABI_VERSION);
+        assert_eq!(contract.abi_layout_version, ABI_LAYOUT_VERSION);
         assert_eq!(
             contract.parameters[0].ownership,
             OwnershipContract::SharedBorrow
