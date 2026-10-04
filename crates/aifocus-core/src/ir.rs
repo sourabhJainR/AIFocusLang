@@ -17,15 +17,38 @@ pub struct IrFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Backend-independent operations include mutable assignment for compiler state.
 pub enum IrOp {
-    Let { name: String, value: IrValue },
-    Set { name: String, value: IrValue },
+    Let {
+        name: String,
+        value: IrValue,
+    },
+    Set {
+        name: String,
+        value: IrValue,
+    },
+    SetIndex {
+        collection: IrValue,
+        index: IrValue,
+        value: IrValue,
+    },
     Return(Option<IrValue>),
     Expr(IrValue),
-    Scope { ops: Vec<IrOp> },
-    Spawn { name: String, call: IrValue },
-    Join { name: String },
-    Cancel { name: String },
-    While { condition: IrValue, ops: Vec<IrOp> },
+    Scope {
+        ops: Vec<IrOp>,
+    },
+    Spawn {
+        name: String,
+        call: IrValue,
+    },
+    Join {
+        name: String,
+    },
+    Cancel {
+        name: String,
+    },
+    While {
+        condition: IrValue,
+        ops: Vec<IrOp>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +91,15 @@ pub fn lower(module: &Module) -> IrModule {
                     match &stmt.kind {
                         StmtKind::Set { name, value } => ops.push(IrOp::Set {
                             name: name.clone(),
+                            value: value_to_ir(value),
+                        }),
+                        StmtKind::SetIndex {
+                            collection,
+                            index,
+                            value,
+                        } => ops.push(IrOp::SetIndex {
+                            collection: value_to_ir(collection),
+                            index: value_to_ir(index),
                             value: value_to_ir(value),
                         }),
                         StmtKind::Let { name, value } => ops.push(IrOp::Let {
@@ -115,6 +147,15 @@ fn block_to_ops(block: &crate::Block) -> Vec<IrOp> {
         .map(|stmt| match &stmt.kind {
             StmtKind::Set { name, value } => IrOp::Set {
                 name: name.clone(),
+                value: value_to_ir(value),
+            },
+            StmtKind::SetIndex {
+                collection,
+                index,
+                value,
+            } => IrOp::SetIndex {
+                collection: value_to_ir(collection),
+                index: value_to_ir(index),
                 value: value_to_ir(value),
             },
             StmtKind::Let { name, value } => IrOp::Let {

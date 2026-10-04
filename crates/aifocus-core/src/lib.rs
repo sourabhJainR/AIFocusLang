@@ -253,6 +253,28 @@ impl Parser {
 
         if self.eat(TokenKind::Set) {
             let name = self.expect(TokenKind::Ident, "binding name")?;
+            if self.eat(TokenKind::LBracket) {
+                let index = self.parse_expr(0)?;
+                self.expect(TokenKind::RBracket, "']' after assignment index")?;
+                self.expect(TokenKind::Equal, "'=' in indexed set statement")?;
+                let value = self.parse_expr(0)?;
+                let end = value.span.end;
+                self.expect(TokenKind::Newline, "end of set statement")?;
+                let collection = Expr {
+                    id: self.id("name", &name.lexeme),
+                    span: name.span,
+                    kind: ExprKind::Name(name.lexeme.clone()),
+                };
+                return Some(Stmt {
+                    id: self.id("set-index", &name.lexeme),
+                    span: source::Span::new(start, end),
+                    kind: StmtKind::SetIndex {
+                        collection,
+                        index,
+                        value,
+                    },
+                });
+            }
             self.expect(TokenKind::Equal, "'=' in set statement")?;
             let value = self.parse_expr(0)?;
             let end = value.span.end;

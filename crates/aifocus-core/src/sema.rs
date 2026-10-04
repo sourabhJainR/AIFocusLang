@@ -161,6 +161,49 @@ impl Checker {
                     }
                     last = None;
                 }
+                StmtKind::SetIndex {
+                    collection,
+                    index,
+                    value,
+                } => {
+                    let Some(collection_type) = self.check_expr(collection, locals) else {
+                        last = None;
+                        continue;
+                    };
+                    let Some(index_type) = self.check_expr(index, locals) else {
+                        last = None;
+                        continue;
+                    };
+                    if !is_kind(&index_type, &TypeKind::Int) {
+                        self.error("AIF318", "list index must be Int", index.span);
+                    }
+                    let Some(element_type) = (match &collection_type.kind {
+                        TypeKind::List(element) => Some((**element).clone()),
+                        _ => None,
+                    }) else {
+                        self.error(
+                            "AIF319",
+                            "indexed assignment requires List<T>",
+                            collection.span,
+                        );
+                        last = None;
+                        continue;
+                    };
+                    if let Some(actual) = self.check_expr(value, locals) {
+                        if !same_type(&actual, &element_type) {
+                            self.error(
+                                "AIF320",
+                                format!(
+                                    "list element has type {}, assigned {}",
+                                    element_type.display_name(),
+                                    actual.display_name()
+                                ),
+                                value.span,
+                            );
+                        }
+                    }
+                    last = None;
+                }
                 StmtKind::Let { name, value } => {
                     if locals.contains_key(name) {
                         self.error(
