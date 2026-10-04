@@ -728,7 +728,8 @@ fn run_function(
                     ));
                 }
                 let start = stack.len() - len;
-                stack.push(NativeValue::List(stack.drain(start..).collect()));
+                let values = stack.drain(start..).collect();
+                stack.push(NativeValue::List(values));
             }
             NativeInstr::Index => {
                 let index = pop_int(&mut stack)?;
