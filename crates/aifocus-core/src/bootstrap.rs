@@ -113,14 +113,14 @@ fn failed(blocker: &'static str) -> BootstrapReport {
 fn artifact(
     stage: u8,
     source: &str,
-    module: &crate::ast::Module,
+    module: &ir::IrModule,
     instruction_count: usize,
 ) -> BootstrapArtifact {
     BootstrapArtifact {
         stage,
         source_fingerprint: fingerprint(source),
         instruction_count,
-        functions: module.items.len(),
+        functions: module.functions.len(),
     }
 }
 
