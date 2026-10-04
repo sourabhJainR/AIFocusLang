@@ -1,6 +1,8 @@
 //! Core language model, parser, and AI-native structural editing API for Ardisa.
 
 pub mod ast;
+pub mod benchmark;
+pub mod bootstrap;
 pub mod concurrency;
 pub mod diagnostic_memory;
 pub mod differential;
