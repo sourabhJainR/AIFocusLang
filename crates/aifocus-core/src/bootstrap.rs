@@ -529,6 +529,10 @@ mod tests {
         );
         assert!(!report.self_hosting_ready);
         assert!(report.stage2.is_some());
+        assert!(report.evidence.stage2_native_replay_verified);
+        assert!(report.evidence.stage2_deterministic);
+        assert!(report.evidence.rust_host_required);
+        assert!(report.evidence.independently_verified);
     }
 
     #[test]
