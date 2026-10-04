@@ -576,8 +576,18 @@ fn f(value: String) -> String
         .unwrap();
         let model = analyze(&module).unwrap();
         assert_eq!(model.borrow_regions.len(), 2);
-        assert!(model.borrow_regions.iter().all(|region| region.scope_depth == 0));
-        assert!(model.borrow_regions.iter().all(|region| region.contains(region.span.start)));
+        assert!(
+            model
+                .borrow_regions
+                .iter()
+                .all(|region| region.scope_depth == 0)
+        );
+        assert!(
+            model
+                .borrow_regions
+                .iter()
+                .all(|region| region.contains(region.span.start))
+        );
     }
 
     #[test]
