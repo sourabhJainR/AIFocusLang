@@ -379,6 +379,18 @@ impl Checker {
                     );
                     return None;
                 };
+                if name == "chr" {
+                    if args.len() != 1 {
+                        self.error("AIF330", "chr expects one argument", expr.span);
+                        return None;
+                    }
+                    let argument_type = self.check_expr(&args[0], locals)?;
+                    if !is_kind(&argument_type, &TypeKind::Int) {
+                        self.error("AIF331", "chr requires an Int byte value", args[0].span);
+                        return None;
+                    }
+                    return Some(type_node(TypeKind::String, expr.span));
+                }
                 if name == "ok" || name == "err" {
                     if args.len() != 1 {
                         self.error("AIF327", format!("{name} expects one argument"), expr.span);
