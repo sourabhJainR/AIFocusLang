@@ -387,11 +387,19 @@ impl Checker {
                     let list_type = self.check_expr(&args[0], locals)?;
                     let value_type = self.check_expr(&args[1], locals)?;
                     let TypeKind::List(element) = &list_type.kind else {
-                        self.error("AIF325", "push requires List<T> as its first argument", args[0].span);
+                        self.error(
+                            "AIF325",
+                            "push requires List<T> as its first argument",
+                            args[0].span,
+                        );
                         return None;
                     };
                     if !same_type(element, &value_type) {
-                        self.error("AIF326", "push value must match the list element type", args[1].span);
+                        self.error(
+                            "AIF326",
+                            "push value must match the list element type",
+                            args[1].span,
+                        );
                         return None;
                     }
                     return Some(type_node(TypeKind::Unit, expr.span));
