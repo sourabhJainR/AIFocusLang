@@ -1,20 +1,78 @@
 module ir
 
+fn classify(atom: String) -> String
+  if atom == "Module"
+    "MODULE"
+  else
+    if atom == "ModuleDecl"
+      "MODULE_DECL"
+    else
+      if atom == "Function"
+        "FUNCTION"
+      else
+        if atom == "Body"
+          "BLOCK"
+        else
+          if atom == "Let"
+            "LET"
+          else
+            if atom == "Set"
+              "SET"
+            else
+              if atom == "Return"
+                "RETURN"
+              else
+                if atom == "If"
+                  "IF"
+                else
+                  if atom == "While"
+                    "WHILE"
+                  else
+                    if atom == "Call"
+                      "CALL"
+                    else
+                      "ATOM"
+
 fn op(kind: String, value: String) -> String
   kind + "(" + value + ")"
 
 fn lower(ast: String) -> String
   let result = "IR["
   let index = 0
-  let token = ""
   while index < len(ast)
     if ast[index] == 40
       set result = result + "BEGIN,"
+      set index = index + 1
     else
       if ast[index] == 41
         set result = result + "END,"
+        set index = index + 1
       else
-        set token = chr(ast[index])
-        set result = result + op("ATOM", token) + ","
-    set index = index + 1
+        if ast[index] == 32
+          set index = index + 1
+        else
+          let atom = ""
+          let pending_index = index
+          let scanning = true
+          while index < len(ast)
+            if scanning == true
+              if ast[index] == 32
+                set pending_index = index
+                set scanning = false
+                set index = len(ast)
+              else
+                if ast[index] == 40
+                  set pending_index = index
+                  set scanning = false
+                  set index = len(ast)
+                else
+                  if ast[index] == 41
+                    set pending_index = index
+                    set scanning = false
+                    set index = len(ast)
+                  else
+                    set atom = atom + chr(ast[index])
+                    set index = index + 1
+          set index = pending_index
+          set result = result + op(classify(atom), atom) + ","
   result + "]"
