@@ -10,10 +10,18 @@ pub struct LearningKey {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LearningStatus {
+    Observed,
+    VerifiedRepair,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LearningEntry {
     pub key: LearningKey,
     pub message: String,
     pub occurrences: usize,
+    pub status: LearningStatus,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -40,9 +48,41 @@ impl PersistentCompilerLearning {
                 key,
                 message: diagnostic.message.clone(),
                 occurrences: 0,
+                status: LearningStatus::Observed,
             });
         entry.message = diagnostic.message.clone();
         entry.occurrences += 1;
+    }
+
+    pub fn record_verified_repair(
+        &mut self,
+        project: impl Into<String>,
+        task_kind: impl Into<String>,
+        diagnostic: &crate::source::Diagnostic,
+    ) {
+        let key = LearningKey {
+            project: project.into(),
+            task_kind: task_kind.into(),
+            diagnostic: diagnostic.code.into(),
+        };
+        let entry = self
+            .entries
+            .entry(key.clone())
+            .or_insert_with(|| LearningEntry {
+                key,
+                message: diagnostic.message.clone(),
+                occurrences: 0,
+                status: LearningStatus::Observed,
+            });
+        entry.message = diagnostic.message.clone();
+        entry.occurrences += 1;
+        entry.status = LearningStatus::VerifiedRepair;
+    }
+
+    pub fn is_verified(&self, key: &LearningKey) -> bool {
+        self.entries
+            .get(key)
+            .is_some_and(|entry| entry.status == LearningStatus::VerifiedRepair)
     }
 
     pub fn recurring(&self, key: &LearningKey, threshold: usize) -> bool {
@@ -56,7 +96,7 @@ impl PersistentCompilerLearning {
     }
 
     pub fn save(&self, path: impl AsRef<Path>) -> Result<(), String> {
-        let mut out = String::from("ARDISA-LEARNING-V1\n");
+        let mut out = String::from("ARDISA-LEARNING-V2\n");
         let mut entries = self.entries.values().collect::<Vec<_>>();
         entries.sort_by(|a, b| {
             (&a.key.project, &a.key.task_kind, &a.key.diagnostic).cmp(&(
@@ -75,6 +115,11 @@ impl PersistentCompilerLearning {
             out.push_str(&entry.occurrences.to_string());
             out.push('\t');
             out.push_str(&escape(&entry.message));
+            out.push('\t');
+            out.push_str(match entry.status {
+                LearningStatus::Observed => "observed",
+                LearningStatus::VerifiedRepair => "verified-repair",
+            });
             out.push('\n');
         }
         fs::write(path, out).map_err(|error| error.to_string())
@@ -83,16 +128,18 @@ impl PersistentCompilerLearning {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         let text = fs::read_to_string(path).map_err(|error| error.to_string())?;
         let mut lines = text.lines();
-        if lines.next() != Some("ARDISA-LEARNING-V1") {
+        let version = lines.next();
+        if !matches!(version, Some("ARDISA-LEARNING-V1") | Some("ARDISA-LEARNING-V2")) {
             return Err("unsupported Ardisa learning format".into());
         }
+        let v2 = version == Some("ARDISA-LEARNING-V2");
         let mut memory = Self::default();
         for line in lines {
             let fields = line
                 .split('\t')
                 .map(unescape)
                 .collect::<Result<Vec<_>, _>>()?;
-            if fields.len() != 5 {
+            if (v2 && fields.len() != 6) || (!v2 && fields.len() != 5) {
                 return Err("invalid Ardisa learning record".into());
             }
             let occurrences = fields[3]
@@ -103,12 +150,22 @@ impl PersistentCompilerLearning {
                 task_kind: fields[1].clone(),
                 diagnostic: fields[2].clone(),
             };
+            let status = if v2 {
+                match fields[5].as_str() {
+                    "observed" => LearningStatus::Observed,
+                    "verified-repair" => LearningStatus::VerifiedRepair,
+                    _ => return Err("invalid Ardisa learning status".into()),
+                }
+            } else {
+                LearningStatus::Observed
+            };
             memory.entries.insert(
                 key.clone(),
                 LearningEntry {
                     key,
                     message: fields[4].clone(),
                     occurrences,
+                    status,
                 },
             );
         }
@@ -167,6 +224,10 @@ mod tests {
             diagnostic: "AIF304".into(),
         };
         assert!(restored.recurring(&key, 1));
+        assert!(!restored.is_verified(&key));
+        let mut verified = memory.clone();
+        verified.record_verified_repair("project-a", "compiler-edit", &diagnostic);
+        assert!(verified.is_verified(&key));
         let _ = fs::remove_file(path);
     }
 }
