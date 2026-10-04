@@ -91,8 +91,14 @@ pub struct Stmt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Statement forms include explicit mutable assignment via `set`.
 pub enum StmtKind {
-    Let { name: String, value: Expr },
-    Set { name: String, value: Expr },
+    Let {
+        name: String,
+        value: Expr,
+    },
+    Set {
+        name: String,
+        value: Expr,
+    },
     SetIndex {
         collection: Expr,
         index: Expr,
@@ -100,11 +106,23 @@ pub enum StmtKind {
     },
     Return(Option<Expr>),
     Expr(Expr),
-    Scope { body: Block },
-    Spawn { name: String, call: Expr },
-    Join { name: String },
-    Cancel { name: String },
-    While { condition: Expr, body: Block },
+    Scope {
+        body: Block,
+    },
+    Spawn {
+        name: String,
+        call: Expr,
+    },
+    Join {
+        name: String,
+    },
+    Cancel {
+        name: String,
+    },
+    While {
+        condition: Expr,
+        body: Block,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
