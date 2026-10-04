@@ -126,7 +126,10 @@ pub enum ExprKind {
     },
     Group(Box<Expr>),
     List(Vec<Expr>),
-    Index { collection: Box<Expr>, index: Box<Expr> },
+    Index {
+        collection: Box<Expr>,
+        index: Box<Expr>,
+    },
     If {
         condition: Box<Expr>,
         then_branch: Block,
