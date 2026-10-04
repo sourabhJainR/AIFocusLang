@@ -66,6 +66,13 @@ impl Lowerer {
             let last = index + 1 == block.stmts.len();
             self.indent(indent);
             match &stmt.kind {
+                StmtKind::Set { name, value } => {
+                    self.record(stmt.id, stmt.span);
+                    self.out.push_str(name);
+                    self.out.push_str(" = ");
+                    self.expr(value, indent);
+                    self.out.push_str(";\n");
+                }
                 StmtKind::Let { name, value } => {
                     self.record(stmt.id, stmt.span);
                     self.out.push_str("let ");
