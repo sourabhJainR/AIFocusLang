@@ -246,6 +246,22 @@ impl Parser {
             });
         }
 
+        if self.eat(TokenKind::Set) {
+            let name = self.expect(TokenKind::Ident, "binding name")?;
+            self.expect(TokenKind::Equal, "'=' in set statement")?;
+            let value = self.parse_expr(0)?;
+            let end = value.span.end;
+            self.expect(TokenKind::Newline, "end of set statement")?;
+            return Some(Stmt {
+                id: self.id("set", &name.lexeme),
+                span: source::Span::new(start, end),
+                kind: StmtKind::Set {
+                    name: name.lexeme,
+                    value,
+                },
+            });
+        }
+
         if self.eat(TokenKind::Return) {
             let value = if self.at(TokenKind::Newline) {
                 None

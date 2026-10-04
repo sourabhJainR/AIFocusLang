@@ -87,8 +87,10 @@ pub struct Stmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Statement forms include explicit mutable assignment via `set`.
 pub enum StmtKind {
     Let { name: String, value: Expr },
+    Set { name: String, value: Expr },
     Return(Option<Expr>),
     Expr(Expr),
     Scope { body: Block },

@@ -43,6 +43,13 @@ fn format_block(block: &Block, indent: usize, out: &mut String) {
 
 fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
     match &stmt.kind {
+        StmtKind::Set { name, value } => {
+            out.push_str("set ");
+            out.push_str(name);
+            out.push_str(" = ");
+            format_expr(value, indent, out);
+            out.push('\n');
+        }
         StmtKind::Let { name, value } => {
             out.push_str("let ");
             out.push_str(name);

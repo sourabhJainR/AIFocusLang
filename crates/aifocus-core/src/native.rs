@@ -109,7 +109,7 @@ pub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, Nativ
 
 fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
     match op {
-        IrOp::Let { name, value } => {
+        IrOp::Let { name, value } | IrOp::Set { name, value } => {
             emit_value(value, code)?;
             code.push(NativeInstr::Store(name.clone()));
         }
@@ -460,6 +460,24 @@ fn main(a: Int) -> Int
         let code = compile(&ir).unwrap();
         let result = run(&code, &[(String::from("a"), NativeValue::Int(0))]).unwrap();
         assert_eq!(result, NativeValue::Int(1));
+    }
+
+    #[test]
+    fn compiles_and_runs_mutable_assignments() {
+        let module = crate::parse(
+            "module x
+fn main(a: Int) -> Int
+  let value = a
+  set value = value + 2
+  value
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        let ir = crate::ir::lower(&module);
+        let program = compile_program(&ir).unwrap();
+        let result = run_program(&program, "main", &[NativeValue::Int(5)]).unwrap();
+        assert_eq!(result, NativeValue::Int(7));
     }
 
     #[test]

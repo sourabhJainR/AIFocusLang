@@ -21,6 +21,7 @@ pub struct EffectModel {
     pub dependencies: HashMap<String, HashSet<String>>,
 }
 
+/// Assignment statements contribute explicit write effects.
 pub fn analyze(module: &Module) -> EffectModel {
     let mut functions = HashMap::new();
     for item in &module.items {
@@ -84,6 +85,10 @@ impl EffectModel {
 fn collect_block(block: &Block, effects: &mut FunctionEffects) {
     for stmt in &block.stmts {
         match &stmt.kind {
+            StmtKind::Set { value, .. } => {
+                effects.effects.insert(EffectKind::Write);
+                collect_expr(value, effects);
+            }
             StmtKind::Let { value, .. } => {
                 effects.effects.insert(EffectKind::Write);
                 collect_expr(value, effects);
