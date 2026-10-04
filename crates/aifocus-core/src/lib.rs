@@ -18,6 +18,7 @@ pub mod interop;
 pub mod ir;
 pub mod learning;
 pub mod lower;
+pub mod module_graph;
 pub mod native;
 pub mod ownership;
 pub mod protocol;
@@ -40,6 +41,7 @@ pub use hws_feedback::{CapabilityFeedback, EpisodeOutcome, VerificationDepth};
 pub use interop::{InteropType, RustFunction, SafeRustBoundary};
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
 pub use learning::{LearningEntry, LearningKey, PersistentCompilerLearning};
+pub use module_graph::{ModuleGraph, ModuleGraphError, ModuleNode};
 pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
 pub use protocol::{
