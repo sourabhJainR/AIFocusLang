@@ -63,15 +63,15 @@ fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec
                         });
                     }
                     StmtKind::Join { name } => {
-                        match tasks.get_mut(name) {
-                            Some(TaskState::Running) => *tasks.get_mut(name).unwrap() = TaskState::Joined,
+                        match tasks.get(name).copied() {
+                            Some(TaskState::Running) => { tasks.insert(name.clone(), TaskState::Joined); }
                             Some(_) => errors.push(format!("AIF504: task '{name}' is already terminal")),
                             None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
                         }
                     }
                     StmtKind::Cancel { name } => {
-                        match tasks.get_mut(name) {
-                            Some(TaskState::Running) => *tasks.get_mut(name).unwrap() = TaskState::Cancelled,
+                        match tasks.get(name).copied() {
+                            Some(TaskState::Running) => { tasks.insert(name.clone(), TaskState::Cancelled); }
                             Some(_) => errors.push(format!("AIF504: task '{name}' is already terminal")),
                             None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
                         }
