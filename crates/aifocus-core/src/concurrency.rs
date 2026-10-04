@@ -100,8 +100,7 @@ fn child_block(stmt: &crate::Stmt) -> &Block {
     }
 }
 
-#[derive(Debug, Clone)]
-pub #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TaskState {
     Running,
     Joined,
