@@ -68,33 +68,40 @@ fn main(a: Int, b: Int) -> Int
 "#
         .into(),
     };
-    GeneratedCase { seed, kind, source, expected_valid: true }
+    GeneratedCase {
+        seed,
+        kind,
+        source,
+        expected_valid: true,
+    }
 }
 
 pub fn mutate(case: &GeneratedCase, seed: u64) -> MutationCase {
     let (mutation, source, expected_valid) = match seed % 8 {
-        0 if case.source.contains(" + ") => (
-            "add-to-sub",
-            case.source.replacen(" + ", " - ", 1),
-            true,
-        ),
-        1 if case.source.contains(" == ") => (
-            "eq-to-ne",
-            case.source.replacen(" == ", " != ", 1),
-            true,
-        ),
-        2 if case.source.contains(" * ") => (
-            "mul-to-mod",
-            case.source.replacen(" * ", " % ", 1),
-            true,
-        ),
+        0 if case.source.contains(" + ") => {
+            ("add-to-sub", case.source.replacen(" + ", " - ", 1), true)
+        }
+        1 if case.source.contains(" == ") => {
+            ("eq-to-ne", case.source.replacen(" == ", " != ", 1), true)
+        }
+        2 if case.source.contains(" * ") => {
+            ("mul-to-mod", case.source.replacen(" * ", " % ", 1), true)
+        }
         3 => (
             "remove-module",
             case.source.replacen("module generated\n", "", 1),
             false,
         ),
-        4 => ("corrupt-indent", format!("{}  broken\n", case.source), false),
-        5 => ("truncate", case.source[..case.source.len() / 2].to_string(), false),
+        4 => (
+            "corrupt-indent",
+            format!("{}  broken\n", case.source),
+            false,
+        ),
+        5 => (
+            "truncate",
+            case.source[..case.source.len() / 2].to_string(),
+            false,
+        ),
         6 => ("invalid-token", format!("{}\n@\n", case.source), false),
         _ => ("whitespace", format!("{}\n", case.source), true),
     };
@@ -195,8 +202,7 @@ mod tests {
         for seed in 0..1024 {
             let generated = generate(seed);
             let mutation = mutate(&generated, seed.wrapping_add(17));
-            let verification =
-                verify_mutation(&mutation).unwrap_or_else(|error| panic!("{error}"));
+            let verification = verify_mutation(&mutation).unwrap_or_else(|error| panic!("{error}"));
             if verification.accepted {
                 accepted += 1;
             } else {
