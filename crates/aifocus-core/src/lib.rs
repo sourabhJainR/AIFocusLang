@@ -424,6 +424,11 @@ impl Parser {
 
             let (op, left_bp, right_bp) = match self.current().kind {
                 TokenKind::EqualEqual => (BinaryOp::Equal, 1, 2),
+                TokenKind::NotEqual => (BinaryOp::NotEqual, 1, 2),
+                TokenKind::LAngle => (BinaryOp::Less, 1, 2),
+                TokenKind::LessEqual => (BinaryOp::LessEqual, 1, 2),
+                TokenKind::RAngle => (BinaryOp::Greater, 1, 2),
+                TokenKind::GreaterEqual => (BinaryOp::GreaterEqual, 1, 2),
                 TokenKind::Plus => (BinaryOp::Add, 3, 4),
                 TokenKind::Minus => (BinaryOp::Sub, 3, 4),
                 TokenKind::Star => (BinaryOp::Mul, 5, 6),
