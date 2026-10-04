@@ -21,23 +21,12 @@ fn token_at(stream: String, start: Int) -> String
   result
 
 fn parse(stream: String) -> String
-  let ast = "(module "
-  let cursor = 0
-  let current = ""
-  while cursor < len(stream)
-    let end = cursor
-    let delimiter = cursor
-    let scanning = true
-    while end < len(stream)
-      if scanning == true
-        if stream[end] == 124
-          set delimiter = end
-          set scanning = false
-          set end = len(stream)
-        else
-          set end = end + 1
-    set current = token_at(stream, cursor)
-    if len(current) > 0
-      set ast = ast + current + " "
-    set cursor = delimiter + 1
-  ast + ")"
+  let first = token_at(stream, 0)
+  if len(first) > 0
+    if first[0] == 77
+      stream
+    else
+      ""
+  else
+    ""
+
