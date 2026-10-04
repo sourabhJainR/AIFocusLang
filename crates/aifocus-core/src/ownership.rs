@@ -308,8 +308,19 @@ impl Checker {
                     }
                     return None;
                 };
-                for arg in args {
-                    self.check_expr(arg, locals, AccessMode::Move);
+                for (index, arg) in args.iter().enumerate() {
+                    let mode = function
+                        .params
+                        .get(index)
+                        .map(|param| {
+                            if matches!(param.ty.kind, TypeKind::String) {
+                                AccessMode::SharedBorrow
+                            } else {
+                                AccessMode::Move
+                            }
+                        })
+                        .unwrap_or(AccessMode::Move);
+                    self.check_expr(arg, locals, mode);
                 }
                 function.return_type
             }
@@ -340,7 +351,7 @@ impl Checker {
 
 fn ownership_of(ty: &Type) -> OwnershipClass {
     match ty.kind {
-        TypeKind::Int | TypeKind::Bool | TypeKind::Unit | TypeKind::String => OwnershipClass::Copy,
+        TypeKind::Int | TypeKind::Bool | TypeKind::Unit => OwnershipClass::Copy,
         TypeKind::String | TypeKind::Named(_) | TypeKind::Result(_, _) | TypeKind::List(_) => {
             OwnershipClass::Move
         }
@@ -361,12 +372,14 @@ mod tests {
     use crate::parse;
 
     #[test]
-    fn treats_strings_as_copy_for_text_processing() {
+    fn string_parameters_are_shared_borrows() {
         let source = "module text
-fn repeat(source: String) -> String
-  let a = source + source
-  let b = source + a
-  b
+fn consume(value: String) -> String
+  value
+fn reuse(source: String) -> String
+  let first = consume(source)
+  let second = consume(source)
+  first + second
 ";
         let module = crate::parse(source).unwrap();
         assert!(infer(&module).is_ok());
