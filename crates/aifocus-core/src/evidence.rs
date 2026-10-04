@@ -36,8 +36,17 @@ impl EvidenceGraph {
         self.edges.push((from_episode.into(), to_episode.into()));
     }
 
-    pub fn can_promote(&self, capability: &str, canary_passed: bool, holdout_pass_rate: u8) -> CapabilityEvaluation {
-        let evidence_count = self.envelopes.iter().filter(|e| e.capability == capability).count();
+    pub fn can_promote(
+        &self,
+        capability: &str,
+        canary_passed: bool,
+        holdout_pass_rate: u8,
+    ) -> CapabilityEvaluation {
+        let evidence_count = self
+            .envelopes
+            .iter()
+            .filter(|e| e.capability == capability)
+            .count();
         if evidence_count == 0 {
             return CapabilityEvaluation {
                 decision: CapabilityDecision::Hold,
@@ -117,8 +126,12 @@ mod tests {
         );
         let mut graph = graph;
         graph.add(EvidenceEnvelope::new(
-            "episode-1", "ownership-analysis", "compiler-change",
-            "passed", "deep", vec!["ci:green".into()]
+            "episode-1",
+            "ownership-analysis",
+            "compiler-change",
+            "passed",
+            "deep",
+            vec!["ci:green".into()]
         ));
         assert_eq!(
             graph.can_promote("ownership-analysis", true, 100).decision,
