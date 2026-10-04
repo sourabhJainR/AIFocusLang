@@ -379,6 +379,18 @@ impl Checker {
                     );
                     return None;
                 };
+                if name == "len" {
+                    if args.len() != 1 {
+                        self.error("AIF322", "len expects exactly one argument", expr.span);
+                        return None;
+                    }
+                    let argument_type = self.check_expr(&args[0], locals)?;
+                    if !matches!(argument_type.kind, TypeKind::String | TypeKind::List(_)) {
+                        self.error("AIF323", "len requires String or List<T>", args[0].span);
+                        return None;
+                    }
+                    return Some(type_node(TypeKind::Int, expr.span));
+                }
                 let Some(signature) = self.functions.get(name).cloned() else {
                     self.error("AIF308", format!("unknown function '{name}'"), callee.span);
                     return None;
