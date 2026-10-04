@@ -1,4 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+use std::thread::{self, JoinHandle};
 
 use crate::TypeKind;
 use crate::ir::{IrFunction, IrModule, IrOp, IrValue};
@@ -35,7 +40,23 @@ pub enum NativeInstr {
     Jump(usize),
     Return,
     Pop,
-    Call { callee: String, argc: usize },
+    Call {
+        callee: String,
+        argc: usize,
+    },
+    ScopeStart,
+    ScopeEnd,
+    Spawn {
+        name: String,
+        callee: String,
+        argc: usize,
+    },
+    Join {
+        name: String,
+    },
+    Cancel {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +86,7 @@ pub enum NativeValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeError {
     Unsupported(String),
+    Cancelled(String),
     InvalidProgram(String),
     Type(String),
 }
@@ -171,11 +193,30 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
             let end = code.len();
             code[jump_if] = NativeInstr::JumpIfFalse(end);
         }
-        IrOp::Scope { .. } | IrOp::Spawn { .. } | IrOp::Join { .. } | IrOp::Cancel { .. } => {
-            return Err(NativeError::Unsupported(
-                "native backend does not yet execute concurrency operations".into(),
-            ));
+        IrOp::Scope { ops } => {
+            code.push(NativeInstr::ScopeStart);
+            for op in ops {
+                emit_op(op, code)?;
+            }
+            code.push(NativeInstr::ScopeEnd);
         }
+        IrOp::Spawn { name, call } => {
+            let IrValue::Call { callee, args } = call else {
+                return Err(NativeError::Unsupported(
+                    "spawn requires a function call".into(),
+                ));
+            };
+            for arg in args {
+                emit_value(arg, code)?;
+            }
+            code.push(NativeInstr::Spawn {
+                name: name.clone(),
+                callee: callee.clone(),
+                argc: args.len(),
+            });
+        }
+        IrOp::Join { name } => code.push(NativeInstr::Join { name: name.clone() }),
+        IrOp::Cancel { name } => code.push(NativeInstr::Cancel { name: name.clone() }),
     }
     Ok(())
 }
@@ -489,9 +530,15 @@ pub fn run(
                 }
             }
             NativeInstr::Jump(target) => pc = target,
-            NativeInstr::Call { .. } => {
+            NativeInstr::Call { .. }
+            | NativeInstr::ScopeStart
+            | NativeInstr::ScopeEnd
+            | NativeInstr::Spawn { .. }
+            | NativeInstr::Join { .. }
+            | NativeInstr::Cancel { .. } => {
                 return Err(NativeError::Unsupported(
-                    "direct run does not support function calls; use run_program".into(),
+                    "direct run does not support function calls or concurrency; use run_program"
+                        .into(),
                 ));
             }
             NativeInstr::Return => return Ok(stack.pop().unwrap_or(NativeValue::Unit)),
@@ -507,6 +554,26 @@ pub fn run(
     ))
 }
 
+struct NativeTask {
+    cancel: Arc<AtomicBool>,
+    join: Option<JoinHandle<Result<NativeValue, NativeError>>>,
+}
+
+impl NativeTask {
+    fn cancel(&self) {
+        self.cancel.store(true, Ordering::Release);
+    }
+}
+
+impl Drop for NativeTask {
+    fn drop(&mut self) {
+        self.cancel();
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
+    }
+}
+
 pub fn run_program(
     program: &NativeProgram,
     entry: &str,
@@ -516,13 +583,14 @@ pub fn run_program(
         .functions
         .get(entry)
         .ok_or_else(|| NativeError::InvalidProgram(format!("unknown function '{entry}'")))?;
-    run_function(program, function, args)
+    run_function(program, function, args, None)
 }
 
 fn run_function(
     program: &NativeProgram,
     function: &NativeFunction,
     args: &[NativeValue],
+    cancellation: Option<Arc<AtomicBool>>,
 ) -> Result<NativeValue, NativeError> {
     if args.len() != function.params.len() {
         return Err(NativeError::InvalidProgram(format!(
@@ -534,14 +602,112 @@ fn run_function(
     let mut pc = 0usize;
     let mut stack = Vec::new();
     let mut locals = HashMap::new();
+    let mut scopes: Vec<BTreeMap<String, NativeTask>> = Vec::new();
     for (name, value) in function.params.iter().zip(args.iter()) {
         locals.insert(name.clone(), value.clone());
     }
 
     while pc < function.code.len() {
+        if cancellation
+            .as_ref()
+            .is_some_and(|token| token.load(Ordering::Acquire))
+        {
+            return Err(NativeError::Cancelled("task cancelled".into()));
+        }
         let instr = function.code[pc].clone();
         pc += 1;
         match instr {
+            NativeInstr::ScopeStart => scopes.push(BTreeMap::new()),
+            NativeInstr::ScopeEnd => {
+                let mut tasks = scopes.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("scope end without scope start".into())
+                })?;
+                let names = tasks.keys().cloned().collect::<Vec<_>>();
+                for name in names {
+                    let mut task = tasks.remove(&name).expect("task disappeared");
+                    let result = task
+                        .join
+                        .take()
+                        .expect("task already joined")
+                        .join()
+                        .map_err(|_| NativeError::Unsupported(format!("task '{name}' panicked")))?;
+                    if let Err(error) = result {
+                        if matches!(error, NativeError::Cancelled(_)) {
+                            continue;
+                        }
+                        for sibling in tasks.values() {
+                            sibling.cancel();
+                        }
+                        return Err(error);
+                    }
+                }
+            }
+            NativeInstr::Spawn { name, callee, argc } => {
+                let scope = scopes.last_mut().ok_or_else(|| {
+                    NativeError::InvalidProgram("spawn must occur inside a scope".into())
+                })?;
+                if scope.contains_key(&name) {
+                    return Err(NativeError::InvalidProgram(format!(
+                        "duplicate task '{name}'"
+                    )));
+                }
+                if stack.len() < argc {
+                    return Err(NativeError::InvalidProgram(
+                        "spawn has fewer stack arguments than declared".into(),
+                    ));
+                }
+                let start = stack.len() - argc;
+                let call_args = stack.split_off(start);
+                let child_program = program.clone();
+                let token = Arc::new(AtomicBool::new(false));
+                let child_token = token.clone();
+                let join = thread::spawn(move || {
+                    let function = child_program.functions.get(&callee).ok_or_else(|| {
+                        NativeError::InvalidProgram(format!("unknown function '{callee}'"))
+                    })?;
+                    run_function(&child_program, function, &call_args, Some(child_token))
+                });
+                scope.insert(
+                    name,
+                    NativeTask {
+                        cancel: token,
+                        join: Some(join),
+                    },
+                );
+            }
+            NativeInstr::Join { name } => {
+                let scope = scopes.last_mut().ok_or_else(|| {
+                    NativeError::InvalidProgram("join must occur inside a scope".into())
+                })?;
+                let mut task = scope
+                    .remove(&name)
+                    .ok_or_else(|| NativeError::InvalidProgram(format!("unknown task '{name}'")))?;
+                let result = task
+                    .join
+                    .take()
+                    .expect("task already joined")
+                    .join()
+                    .map_err(|_| NativeError::Unsupported(format!("task '{name}' panicked")))?;
+                match result {
+                    Ok(_) => stack.push(NativeValue::Unit),
+                    Err(NativeError::Cancelled(_)) => stack.push(NativeValue::Unit),
+                    Err(error) => {
+                        for sibling in scope.values() {
+                            sibling.cancel();
+                        }
+                        return Err(error);
+                    }
+                }
+            }
+            NativeInstr::Cancel { name } => {
+                let scope = scopes.last_mut().ok_or_else(|| {
+                    NativeError::InvalidProgram("cancel must occur inside a scope".into())
+                })?;
+                let task = scope
+                    .get(&name)
+                    .ok_or_else(|| NativeError::InvalidProgram(format!("unknown task '{name}'")))?;
+                task.cancel();
+            }
             NativeInstr::Call { callee, argc } => {
                 if stack.len() < argc {
                     return Err(NativeError::InvalidProgram(
@@ -550,10 +716,10 @@ fn run_function(
                 }
                 let start = stack.len() - argc;
                 let call_args = stack.split_off(start);
-                let callee = program.functions.get(&callee).ok_or_else(|| {
+                let callee_fn = program.functions.get(&callee).ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                 })?;
-                let value = run_function(program, callee, &call_args)?;
+                let value = run_function(program, callee_fn, &call_args, cancellation.clone())?;
                 stack.push(value);
             }
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
@@ -578,19 +744,17 @@ fn run_function(
                 let index = usize::try_from(index)
                     .map_err(|_| NativeError::Type("negative index".into()))?;
                 match collection {
-                    NativeValue::List(values) => {
-                        let value = values
+                    NativeValue::List(values) => stack.push(
+                        values
                             .get(index)
                             .cloned()
-                            .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
-                        stack.push(value);
-                    }
-                    NativeValue::String(value) => {
-                        let byte = value.as_bytes().get(index).copied().ok_or_else(|| {
+                            .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?,
+                    ),
+                    NativeValue::String(value) => stack.push(NativeValue::Int(i64::from(
+                        value.as_bytes().get(index).copied().ok_or_else(|| {
                             NativeError::Type("string index out of bounds".into())
-                        })?;
-                        stack.push(NativeValue::Int(i64::from(byte)));
-                    }
+                        })?,
+                    ))),
                     _ => {
                         return Err(NativeError::Type(
                             "indexing requires a list or String".into(),
@@ -605,9 +769,7 @@ fn run_function(
                 let length = match value {
                     NativeValue::String(value) => value.len(),
                     NativeValue::List(values) => values.len(),
-                    _ => {
-                        return Err(NativeError::Type("len requires String or List".into()));
-                    }
+                    _ => return Err(NativeError::Type("len requires String or List".into())),
                 };
                 stack.push(NativeValue::Int(length as i64));
             }
@@ -640,10 +802,10 @@ fn run_function(
                 stack.push(NativeValue::ResultErr(Box::new(value)));
             }
             NativeInstr::Unwrap => {
-                let value = stack
+                match stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?;
-                match value {
+                    .ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?
+                {
                     NativeValue::ResultOk(value) => stack.push(*value),
                     NativeValue::ResultErr(_) => {
                         return Err(NativeError::Type("unwrap on Err".into()));
@@ -654,7 +816,13 @@ fn run_function(
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
-                })?)
+                })?);
+            }
+            NativeInstr::Store(name) => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
+                locals.insert(name, value);
             }
             NativeInstr::StoreIndex(name) => {
                 let value = stack.pop().ok_or_else(|| {
@@ -671,17 +839,10 @@ fn run_function(
                 };
                 let index = usize::try_from(index)
                     .map_err(|_| NativeError::Type("negative list index".into()))?;
-                let slot = items
+                *items
                     .get_mut(index)
-                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
-                *slot = value;
+                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))? = value;
                 locals.insert(name, NativeValue::List(items));
-            }
-            NativeInstr::Store(name) => {
-                let value = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
-                locals.insert(name, value);
             }
             NativeInstr::Add => {
                 let right = stack
@@ -701,8 +862,16 @@ fn run_function(
                     NativeInstr::Div => {
                         if right == 0 {
                             return Err(NativeError::Type("division by zero".into()));
+                        } else {
+                            left / right
                         }
-                        left / right
+                    }
+                    NativeInstr::Mod => {
+                        if right == 0 {
+                            return Err(NativeError::Type("modulo by zero".into()));
+                        } else {
+                            left % right
+                        }
                     }
                     _ => unreachable!(),
                 };
@@ -918,6 +1087,79 @@ fn main(a: Int) -> Int
         let program = compile_program(&ir).unwrap();
         let result = run_program(&program, "main", &[NativeValue::Int(3)]).unwrap();
         assert_eq!(result, NativeValue::Int(7));
+    }
+
+    #[test]
+    fn executes_structured_scope_with_joined_child() {
+        let module = crate::parse(
+            "module x
+fn worker(a: Int) -> Int
+  a + 1
+fn main() -> Int
+  scope
+    spawn worker_task = worker(4)
+    join worker_task
+  7
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        crate::concurrency::analyze(&module).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        assert_eq!(
+            run_program(&program, "main", &[]).unwrap(),
+            NativeValue::Int(7)
+        );
+    }
+
+    #[test]
+    fn executes_structured_scope_with_cancelled_child() {
+        let module = crate::parse(
+            "module x
+fn worker() -> Int
+  while true
+    1
+  return 0
+fn main() -> Int
+  scope
+    spawn worker_task = worker()
+    cancel worker_task
+  9
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        crate::concurrency::analyze(&module).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        assert_eq!(
+            run_program(&program, "main", &[]).unwrap(),
+            NativeValue::Int(9)
+        );
+    }
+
+    #[test]
+    fn cancellation_is_a_normal_scope_terminal_state() {
+        let module = crate::parse(
+            "module x
+fn worker() -> Int
+  while true
+    1
+  return 0
+fn main() -> Int
+  scope
+    spawn worker_task = worker()
+    cancel worker_task
+  9
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        crate::concurrency::analyze(&module).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        assert_eq!(
+            run_program(&program, "main", &[]).unwrap(),
+            NativeValue::Int(9)
+        );
     }
 
     #[test]
