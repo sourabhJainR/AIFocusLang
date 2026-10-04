@@ -54,6 +54,7 @@ impl Probability {
             .is_finite()
             .then_some(value)
             .filter(|v| (0.0..=1.0).contains(v))
+            .map(Self)
     }
 
     pub fn value(self) -> f32 {
