@@ -208,7 +208,9 @@ fn main(a: Int) -> Int
         .map_err(|error| match error {
             native::NativeError::Type(_) => "self-hosted lexer runtime type error",
             native::NativeError::InvalidProgram(_) => "self-hosted lexer invalid native program",
-            native::NativeError::Unsupported(_) => "self-hosted lexer uses unsupported native operation",
+            native::NativeError::Unsupported(_) => {
+                "self-hosted lexer uses unsupported native operation"
+            }
         })?;
     let tokens = match tokens {
         native::NativeValue::String(value) => value,
