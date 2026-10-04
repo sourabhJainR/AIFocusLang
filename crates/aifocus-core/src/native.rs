@@ -328,11 +328,19 @@ fn run_function(
                     .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
                 locals.insert(name, value);
             }
-            NativeInstr::Add | NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div => {
+            NativeInstr::Add => {
+                let right = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let left = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                stack.push(add_values(left, right)?);
+            }
+            NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div => {
                 let right = pop_int(&mut stack)?;
                 let left = pop_int(&mut stack)?;
                 let value = match instr {
-                    NativeInstr::Add => left + right,
                     NativeInstr::Sub => left - right,
                     NativeInstr::Mul => left * right,
                     NativeInstr::Div => {
@@ -374,6 +382,18 @@ fn run_function(
     Err(NativeError::InvalidProgram(
         "program terminated without return".into(),
     ))
+}
+
+fn add_values(left: NativeValue, right: NativeValue) -> Result<NativeValue, NativeError> {
+    match (left, right) {
+        (NativeValue::Int(left), NativeValue::Int(right)) => Ok(NativeValue::Int(left + right)),
+        (NativeValue::String(left), NativeValue::String(right)) => {
+            Ok(NativeValue::String(format!("{left}{right}")))
+        }
+        _ => Err(NativeError::Type(
+            "String + String or Int + Int required".into(),
+        )),
+    }
 }
 
 fn pop_int(stack: &mut Vec<NativeValue>) -> Result<i64, NativeError> {
@@ -426,6 +446,22 @@ fn main(a: Int) -> Int
         let code = compile(&ir).unwrap();
         let result = run(&code, &[(String::from("a"), NativeValue::Int(0))]).unwrap();
         assert_eq!(result, NativeValue::Int(1));
+    }
+
+    #[test]
+    fn compiles_and_runs_string_concatenation() {
+        let module = crate::parse(
+            "module x
+fn main() -> String
+  "hello " + "ardisa"
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        let ir = crate::ir::lower(&module);
+        let program = compile_program(&ir).unwrap();
+        let result = run_program(&program, "main", &[]).unwrap();
+        assert_eq!(result, NativeValue::String("hello ardisa".into()));
     }
 
     #[test]
