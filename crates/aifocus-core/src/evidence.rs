@@ -131,7 +131,7 @@ mod tests {
             "compiler-change",
             "passed",
             "deep",
-            vec!["ci:green".into()]
+            vec!["ci:green".into()],
         ));
         assert_eq!(
             graph.can_promote("ownership-analysis", true, 100).decision,
