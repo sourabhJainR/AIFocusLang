@@ -135,6 +135,28 @@ impl Checker {
         let mut last = None;
         for stmt in &block.stmts {
             match &stmt.kind {
+                StmtKind::Set { name, value } => {
+                    let Some(expected) = locals.get(name).cloned() else {
+                        self.error("AIF314", format!("unknown mutable binding '{name}'"), stmt.span);
+                        last = None;
+                        continue;
+                    };
+                    if let Some(actual) = self.check_expr(value, locals) {
+                        if !same_type(&actual, &expected) {
+                            self.error(
+                                "AIF315",
+                                format!(
+                                    "binding '{}' has type {}, assigned {}",
+                                    name,
+                                    expected.display_name(),
+                                    actual.display_name()
+                                ),
+                                stmt.span,
+                            );
+                        }
+                    }
+                    last = None;
+                }
                 StmtKind::Let { name, value } => {
                     if locals.contains_key(name) {
                         self.error(
