@@ -15,6 +15,7 @@ pub struct IrFunction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Backend-independent operations include mutable assignment for compiler state.
 pub enum IrOp {
     Let { name: String, value: IrValue },
     Set { name: String, value: IrValue },
