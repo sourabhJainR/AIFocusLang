@@ -62,20 +62,24 @@ fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec
                             callee,
                         });
                     }
-                    StmtKind::Join { name } => {
-                        match tasks.get(name).copied() {
-                            Some(TaskState::Running) => { tasks.insert(name.clone(), TaskState::Joined); }
-                            Some(_) => errors.push(format!("AIF504: task '{name}' is already terminal")),
-                            None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
+                    StmtKind::Join { name } => match tasks.get(name).copied() {
+                        Some(TaskState::Running) => {
+                            tasks.insert(name.clone(), TaskState::Joined);
                         }
-                    }
-                    StmtKind::Cancel { name } => {
-                        match tasks.get(name).copied() {
-                            Some(TaskState::Running) => { tasks.insert(name.clone(), TaskState::Cancelled); }
-                            Some(_) => errors.push(format!("AIF504: task '{name}' is already terminal")),
-                            None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
+                        Some(_) => {
+                            errors.push(format!("AIF504: task '{name}' is already terminal"))
                         }
-                    }
+                        None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
+                    },
+                    StmtKind::Cancel { name } => match tasks.get(name).copied() {
+                        Some(TaskState::Running) => {
+                            tasks.insert(name.clone(), TaskState::Cancelled);
+                        }
+                        Some(_) => {
+                            errors.push(format!("AIF504: task '{name}' is already terminal"))
+                        }
+                        None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
+                    },
                     StmtKind::Scope { .. } => analyze_block(child_block(child), reports, errors),
                     _ => {}
                 }
@@ -184,7 +188,8 @@ fn main()
     join worker
     cancel worker
 ",
-        ).unwrap();
+        )
+        .unwrap();
         let errors = analyze(&module).unwrap_err();
         assert!(errors.iter().any(|e| e.starts_with("AIF504")));
     }
