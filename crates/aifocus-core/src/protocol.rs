@@ -3,7 +3,7 @@ use std::time::Instant;
 pub const PROTOCOL_VERSION: &str = "ardisa-compiler-protocol-v1";
 
 use crate::{
-    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit, edit::StructuralEdit, effects, ir,
+    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit, edit::{NodeQuery, StructuralEdit}, effects, ir,
     learning::PersistentCompilerLearning, ownership, sema, source::Diagnostic,
 };
 
@@ -38,13 +38,17 @@ pub struct CompilerSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompilerRequest {
     Inspect,
+    QueryNode(NodeId),
     ApplyEdit(StructuralEdit),
+    ApplyEdits(Vec<StructuralEdit>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompilerResponse {
     pub snapshot: CompilerSnapshot,
     pub changed_node: Option<NodeId>,
+    pub changed_nodes: Vec<NodeId>,
+    pub queried_node: Option<NodeQuery>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,6 +81,17 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
             snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
                 snapshot,
                 changed_node: None,
+                changed_nodes: Vec::new(),
+                queried_node: None,
+            })
+        }
+        CompilerRequest::QueryNode(node) => {
+            let queried_node = edit::query(&module, node).map_err(|error| ProtocolError::Edit(error.to_string()))?;
+            snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
+                snapshot,
+                changed_node: None,
+                changed_nodes: Vec::new(),
+                queried_node: Some(queried_node),
             })
         }
         CompilerRequest::ApplyEdit(edit_request) => {
@@ -86,6 +101,18 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
             snapshot(&result.source, result.module, parse_ns).map(|snapshot| CompilerResponse {
                 snapshot,
                 changed_node,
+                changed_nodes: vec![changed_node.unwrap()],
+                queried_node: None,
+            })
+        }
+        CompilerRequest::ApplyEdits(edits) => {
+            let result = edit::apply_transaction(source, &module, &edits)
+                .map_err(|error| ProtocolError::Edit(error.to_string()))?;
+            snapshot(&result.source, result.module, parse_ns).map(|snapshot| CompilerResponse {
+                snapshot,
+                changed_node: result.changed_nodes.first().copied(),
+                changed_nodes: result.changed_nodes,
+                queried_node: None,
             })
         }
     }
