@@ -68,7 +68,7 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 snapshot,
                 changed_node: None,
             })
-        },
+        }
         CompilerRequest::ApplyEdit(edit_request) => {
             let result = edit::apply(source, &module, edit_request)
                 .map_err(|error| ProtocolError::Edit(error.to_string()))?;
