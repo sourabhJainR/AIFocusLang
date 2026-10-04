@@ -123,6 +123,158 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
     }
 }
 
+pub const WIRE_PROTOCOL_VERSION: &str = "ardisa-wire-v1";
+
+/// Encode compiler requests into a dependency-free, deterministic wire format.
+/// Source payloads are UTF-8 hex so framing is unambiguous even when source contains newlines.
+pub fn encode_request(request: &CompilerRequest) -> String {
+    let mut out = format!("{WIRE_PROTOCOL_VERSION}\n");
+    match request {
+        CompilerRequest::Inspect => out.push_str("INSPECT\n"),
+        CompilerRequest::QueryNode(node) => {
+            out.push_str(&format!("QUERY\n{}\n", node.0));
+        }
+        CompilerRequest::ApplyEdit(edit) => {
+            out.push_str("EDIT\n");
+            encode_edit(edit, &mut out);
+        }
+        CompilerRequest::ApplyEdits(edits) => {
+            out.push_str(&format!("TRANSACTION\n{}\n", edits.len()));
+            for edit in edits {
+                encode_edit(edit, &mut out);
+            }
+        }
+    }
+    out
+}
+
+pub fn decode_request(wire: &str) -> Result<CompilerRequest, ProtocolError> {
+    let mut lines = wire.split('\n');
+    if lines.next() != Some(WIRE_PROTOCOL_VERSION) {
+        return Err(ProtocolError::Edit(
+            "unsupported wire protocol version".into(),
+        ));
+    }
+    match lines.next() {
+        Some("INSPECT") => Ok(CompilerRequest::Inspect),
+        Some("QUERY") => {
+            let node = lines
+                .next()
+                .ok_or_else(|| ProtocolError::Edit("query is missing a node id".into()))?
+                .parse::<u64>()
+                .map_err(|_| ProtocolError::Edit("query node id is not an integer".into()))?;
+            Ok(CompilerRequest::QueryNode(NodeId(node)))
+        }
+        Some("EDIT") => decode_edit(&mut lines).map(CompilerRequest::ApplyEdit),
+        Some("TRANSACTION") => {
+            let count = lines
+                .next()
+                .ok_or_else(|| ProtocolError::Edit("transaction is missing its edit count".into()))?
+                .parse::<usize>()
+                .map_err(|_| {
+                    ProtocolError::Edit("transaction edit count is not an integer".into())
+                })?;
+            let mut edits = Vec::with_capacity(count);
+            for _ in 0..count {
+                edits.push(decode_edit(&mut lines)?);
+            }
+            Ok(CompilerRequest::ApplyEdits(edits))
+        }
+        _ => Err(ProtocolError::Edit("unknown wire request".into())),
+    }
+}
+
+fn encode_edit(edit: &StructuralEdit, out: &mut String) {
+    match edit {
+        StructuralEdit::Replace { node, source } => {
+            out.push_str(&format!(
+                "REPLACE\n{}\n{}\n",
+                node.0,
+                hex(source.as_bytes())
+            ));
+        }
+        StructuralEdit::InsertBefore { node, source } => {
+            out.push_str(&format!(
+                "INSERT_BEFORE\n{}\n{}\n",
+                node.0,
+                hex(source.as_bytes())
+            ));
+        }
+        StructuralEdit::Delete { node } => {
+            out.push_str(&format!("DELETE\n{}\n", node.0));
+        }
+    }
+}
+
+fn decode_edit<'a>(lines: &mut std::str::Split<'a, char>) -> Result<StructuralEdit, ProtocolError> {
+    let kind = lines
+        .next()
+        .ok_or_else(|| ProtocolError::Edit("edit kind is missing".into()))?;
+    let node = lines
+        .next()
+        .ok_or_else(|| ProtocolError::Edit("edit node id is missing".into()))?
+        .parse::<u64>()
+        .map_err(|_| ProtocolError::Edit("edit node id is not an integer".into()))?;
+    match kind {
+        "DELETE" => Ok(StructuralEdit::Delete { node: NodeId(node) }),
+        "REPLACE" | "INSERT_BEFORE" => {
+            let encoded = lines
+                .next()
+                .ok_or_else(|| ProtocolError::Edit("edit source payload is missing".into()))?;
+            let bytes = decode_hex(encoded)?;
+            let source = String::from_utf8(bytes)
+                .map_err(|_| ProtocolError::Edit("edit source is not valid UTF-8".into()))?;
+            if kind == "REPLACE" {
+                Ok(StructuralEdit::Replace {
+                    node: NodeId(node),
+                    source,
+                })
+            } else {
+                Ok(StructuralEdit::InsertBefore {
+                    node: NodeId(node),
+                    source,
+                })
+            }
+        }
+        _ => Err(ProtocolError::Edit("unknown structural edit kind".into())),
+    }
+}
+
+fn hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(DIGITS[(byte >> 4) as usize] as char);
+        out.push(DIGITS[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
+fn decode_hex(value: &str) -> Result<Vec<u8>, ProtocolError> {
+    if value.len() % 2 != 0 {
+        return Err(ProtocolError::Edit("hex payload has odd length".into()));
+    }
+    let mut bytes = Vec::with_capacity(value.len() / 2);
+    let chars = value.as_bytes();
+    for pair in chars.chunks_exact(2) {
+        let high = hex_digit(pair[0])
+            .ok_or_else(|| ProtocolError::Edit("hex payload contains an invalid digit".into()))?;
+        let low = hex_digit(pair[1])
+            .ok_or_else(|| ProtocolError::Edit("hex payload contains an invalid digit".into()))?;
+        bytes.push((high << 4) | low);
+    }
+    Ok(bytes)
+}
+
+fn hex_digit(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
+}
+
 pub struct CompilerSession {
     pub project: String,
     pub task_kind: String,
@@ -227,6 +379,20 @@ fn verification_requirements() -> Vec<VerificationRequirement> {
 mod tests {
     use super::*;
     use crate::ast::{Item, StmtKind};
+
+    #[test]
+    fn wire_requests_round_trip_without_ambiguous_source_framing() {
+        let request = CompilerRequest::ApplyEdits(vec![
+            StructuralEdit::Replace {
+                node: NodeId(7),
+                source: "a + b\nif a\n  b\n".into(),
+            },
+            StructuralEdit::Delete { node: NodeId(8) },
+        ]);
+        let wire = encode_request(&request);
+        assert_eq!(decode_request(&wire).unwrap(), request);
+        assert!(wire.starts_with("ardisa-wire-v1\nTRANSACTION\n2\n"));
+    }
 
     #[test]
     fn inspect_exposes_ir_effects_and_ownership() {
