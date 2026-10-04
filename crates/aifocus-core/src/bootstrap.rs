@@ -50,7 +50,11 @@ pub fn verify() -> BootstrapReport {
         0,
         BOOTSTRAP_SOURCE,
         &lowered,
-        stage0_program.functions.values().map(|function| function.code.len()).sum(),
+        stage0_program
+            .functions
+            .values()
+            .map(|function| function.code.len())
+            .sum(),
     );
 
     let Ok(stage1_program) = native::compile_program(&lowered) else {
