@@ -1,5 +1,32 @@
 module parser
 
+fn token_kind(token: String) -> String
+  let index = 0
+  let result = ""
+  while index < len(token)
+    if token[index] == 61
+      set index = len(token)
+    else
+      set result = result + chr(token[index])
+      set index = index + 1
+  result
+
+fn token_value(token: String) -> String
+  let index = 0
+  let result = ""
+  let seen = false
+  while index < len(token)
+    if seen == false
+      if token[index] == 61
+        set seen = true
+    else
+      if token[index] == 124
+        set index = len(token)
+      else
+        set result = result + chr(token[index])
+    set index = index + 1
+  result
+
 fn token_at(stream: String, start: Int) -> String
   let end = start
   let delimiter = start
@@ -12,21 +39,75 @@ fn token_at(stream: String, start: Int) -> String
         set end = len(stream)
       else
         set end = end + 1
-  set end = delimiter
   let result = ""
   let index = start
-  while index < end
+  while index < delimiter
     set result = result + chr(stream[index])
     set index = index + 1
   result
 
-fn parse(stream: String) -> String
-  let first = token_at(stream, 0)
-  if len(first) > 0
-    if first[0] == 77
-      stream
+fn next_cursor(stream: String, start: Int) -> Int
+  let index = start
+  while index < len(stream)
+    if stream[index] == 124
+      set index = len(stream)
     else
-      ""
-  else
-    ""
+      set index = index + 1
+  index
 
+fn node(kind: String, value: String) -> String
+  if len(value) > 0
+    "(" + kind + " " + value + ")"
+  else
+    "(" + kind + ")"
+
+fn parse(stream: String) -> String
+  let result = "(Module"
+  let cursor = 0
+  let seen_module = false
+  let in_function = false
+  let in_body = false
+  while cursor < len(stream)
+    let token = token_at(stream, cursor)
+    let kind = token_kind(token)
+    let value = token_value(token)
+    if kind == "Module"
+      set seen_module = true
+      set result = result + " " + node("ModuleDecl", value)
+    else
+      if kind == "Fn"
+        if in_function == true
+          if in_body == true
+            set result = result + ")"
+            set in_body = false
+          set result = result + ")"
+        set result = result + " (Function"
+        set in_function = true
+      else
+        if kind == "Indent"
+          if in_function == true
+            set result = result + " (Body"
+            set in_body = true
+        else
+          if kind == "Dedent"
+            if in_body == true
+              set result = result + ")"
+              set in_body = false
+            if in_function == true
+              set result = result + ")"
+              set in_function = false
+          else
+            if kind == "Newline"
+              set result = result
+            else
+              if in_function == true
+                set result = result + " " + node(kind, value)
+              else
+                if seen_module == false
+                  set result = result
+    set cursor = next_cursor(stream, cursor) + 1
+  if in_body == true
+    set result = result + ")"
+  if in_function == true
+    set result = result + ")"
+  result + ")"
