@@ -212,8 +212,12 @@ impl Checker {
                         *state = State::Moved;
                     }
                     AccessKind::SharedBorrow => {
-                        self.transitions.push((expr.id, OwnershipTransition::BorrowStart(BorrowKind::Shared)));
-                        self.transitions.push((expr.id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)));
+                        self.transitions.push((
+                            expr.id,
+                            OwnershipTransition::BorrowStart(BorrowKind::Shared),
+                        ));
+                        self.transitions
+                            .push((expr.id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)));
                     }
                     _ => {}
                 }
@@ -302,12 +306,15 @@ mod tests {
     #[test]
     fn validates_borrow_conflicts_and_lifetimes() {
         let id = crate::NodeId(1);
-        assert!(OwnershipModel::validate_borrow_transitions(&[
-            (id, OwnershipTransition::BorrowStart(BorrowKind::Shared)),
-            (id, OwnershipTransition::BorrowStart(BorrowKind::Shared)),
-            (id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)),
-            (id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)),
-        ]).is_ok());
+        assert!(
+            OwnershipModel::validate_borrow_transitions(&[
+                (id, OwnershipTransition::BorrowStart(BorrowKind::Shared)),
+                (id, OwnershipTransition::BorrowStart(BorrowKind::Shared)),
+                (id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)),
+                (id, OwnershipTransition::BorrowEnd(BorrowKind::Shared)),
+            ])
+            .is_ok()
+        );
         assert_eq!(
             OwnershipModel::validate_borrow_transitions(&[
                 (id, OwnershipTransition::BorrowStart(BorrowKind::Mutable)),
