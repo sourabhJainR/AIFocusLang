@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 
-use crate::{Block, ExprKind, Item, Module, StmtKind};
+use crate::{Block, ExprKind, Item, Module, StmtKind, source::Diagnostic};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskTerminal {
@@ -25,11 +25,20 @@ pub struct ScopeReport {
 }
 
 pub fn analyze(module: &Module) -> Result<Vec<ScopeReport>, Vec<String>> {
+    analyze_with_diagnostics(module).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| format!("{}: {}", error.code, error.message))
+            .collect()
+    })
+}
+
+pub fn analyze_with_diagnostics(module: &Module) -> Result<Vec<ScopeReport>, Vec<Diagnostic>> {
     let mut reports = Vec::new();
     let mut errors = Vec::new();
     for item in &module.items {
         let Item::Function(function) = item;
-        analyze_block(&function.body, &mut reports, &mut errors);
+        analyze_block_with_diagnostics(&function.body, &mut reports, &mut errors);
     }
     if errors.is_empty() {
         Ok(reports)
@@ -39,15 +48,32 @@ pub fn analyze(module: &Module) -> Result<Vec<ScopeReport>, Vec<String>> {
 }
 
 fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec<String>) {
+    let mut diagnostics = Vec::new();
+    analyze_block_with_diagnostics(block, reports, &mut diagnostics);
+    errors.extend(diagnostics.into_iter().map(|error| error.message));
+}
+
+fn analyze_block_with_diagnostics(
+    block: &Block,
+    reports: &mut Vec<ScopeReport>,
+    errors: &mut Vec<Diagnostic>,
+) {
     for stmt in &block.stmts {
         if let StmtKind::Scope { body } = &stmt.kind {
-            let mut tasks = HashMap::<String, TaskState>::new();
+            let mut tasks = HashMap::<String, (TaskState, crate::source::Span)>::new();
             let mut report = ScopeReport { tasks: Vec::new() };
             for child in &body.stmts {
                 match &child.kind {
                     StmtKind::Spawn { name, call } => {
-                        if tasks.insert(name.clone(), TaskState::Running).is_some() {
-                            errors.push(format!("AIF501: duplicate task '{name}' in scope"));
+                        if tasks
+                            .insert(name.clone(), (TaskState::Running, child.span))
+                            .is_some()
+                        {
+                            errors.push(Diagnostic::error(
+                                "AIF501",
+                                format!("duplicate task '{name}' in scope"),
+                                Some(child.span),
+                            ));
                             continue;
                         }
                         let callee = match &call.kind {
@@ -62,37 +88,45 @@ fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec
                             callee,
                         });
                     }
-                    StmtKind::Join { name } => match tasks.get(name).copied() {
-                        Some(TaskState::Running) => {
-                            tasks.insert(name.clone(), TaskState::Joined);
+                    StmtKind::Join { name } | StmtKind::Cancel { name } => {
+                        match tasks.get(name).copied() {
+                            Some((TaskState::Running, _)) => {
+                                let next = if matches!(child.kind, StmtKind::Join { .. }) {
+                                    TaskState::Joined
+                                } else {
+                                    TaskState::Cancelled
+                                };
+                                tasks.insert(name.clone(), (next, child.span));
+                            }
+                            Some(_) => errors.push(Diagnostic::error(
+                                "AIF504",
+                                format!("task '{name}' is already terminal"),
+                                Some(child.span),
+                            )),
+                            None => errors.push(Diagnostic::error(
+                                "AIF502",
+                                format!("unknown task '{name}' in scope"),
+                                Some(child.span),
+                            )),
                         }
-                        Some(_) => {
-                            errors.push(format!("AIF504: task '{name}' is already terminal"))
-                        }
-                        None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
-                    },
-                    StmtKind::Cancel { name } => match tasks.get(name).copied() {
-                        Some(TaskState::Running) => {
-                            tasks.insert(name.clone(), TaskState::Cancelled);
-                        }
-                        Some(_) => {
-                            errors.push(format!("AIF504: task '{name}' is already terminal"))
-                        }
-                        None => errors.push(format!("AIF502: unknown task '{name}' in scope")),
-                    },
-                    StmtKind::Scope { .. } => analyze_block(child_block(child), reports, errors),
+                    }
+                    StmtKind::Scope { .. } => {
+                        analyze_block_with_diagnostics(child_block(child), reports, errors)
+                    }
                     _ => {}
                 }
             }
-            for (name, done) in tasks {
-                if done == TaskState::Running {
-                    errors.push(format!(
-                        "AIF503: task '{name}' must be joined or cancelled before scope exit"
+            for (name, (state, span)) in tasks {
+                if state == TaskState::Running {
+                    errors.push(Diagnostic::error(
+                        "AIF503",
+                        format!("task '{name}' must be joined or cancelled before scope exit"),
+                        Some(span),
                     ));
                 }
             }
             reports.push(report);
-            analyze_block(body, reports, errors);
+            analyze_block_with_diagnostics(body, reports, errors);
         }
     }
 }

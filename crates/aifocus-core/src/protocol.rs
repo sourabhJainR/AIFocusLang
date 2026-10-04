@@ -3,7 +3,7 @@ use std::time::Instant;
 pub const PROTOCOL_VERSION: &str = "ardisa-compiler-protocol-v1";
 
 use crate::{
-    EffectModel, IrModule, Module, NodeId, OwnershipModel, edit,
+    EffectModel, IrModule, Module, NodeId, OwnershipModel, concurrency, edit,
     edit::{NodeQuery, StructuralEdit},
     effects, ir,
     learning::PersistentCompilerLearning,
@@ -35,6 +35,7 @@ pub struct CompilerSnapshot {
     pub ir: IrModule,
     pub effects: EffectModel,
     pub ownership: OwnershipModel,
+    pub concurrency_diagnostics: Vec<Diagnostic>,
     pub diagnostics: Vec<Diagnostic>,
     pub verification: Vec<VerificationRequirement>,
 }
@@ -60,6 +61,7 @@ pub enum ProtocolError {
     InvalidSource(Vec<Diagnostic>),
     Semantic(Vec<Diagnostic>),
     Ownership(Vec<Diagnostic>),
+    Concurrency(Vec<Diagnostic>),
     Edit(String),
 }
 
@@ -69,6 +71,7 @@ impl std::fmt::Display for ProtocolError {
             Self::InvalidSource(errors) => write!(f, "source parse failed: {errors:?}"),
             Self::Semantic(errors) => write!(f, "semantic validation failed: {errors:?}"),
             Self::Ownership(errors) => write!(f, "ownership validation failed: {errors:?}"),
+            Self::Concurrency(errors) => write!(f, "concurrency validation failed: {errors:?}"),
             Self::Edit(message) => f.write_str(message),
         }
     }
@@ -300,7 +303,8 @@ impl CompilerSession {
             let diagnostics: &[Diagnostic] = match error {
                 ProtocolError::InvalidSource(items)
                 | ProtocolError::Semantic(items)
-                | ProtocolError::Ownership(items) => items.as_slice(),
+                | ProtocolError::Ownership(items)
+                | ProtocolError::Concurrency(items) => items.as_slice(),
                 ProtocolError::Edit(_) => &[],
             };
             for diagnostic in diagnostics {
@@ -327,6 +331,10 @@ fn snapshot(
     let effects = effects::analyze(&module);
     let effects_ns = effects_start.elapsed().as_nanos() as u64;
 
+    let concurrency_diagnostics = concurrency::analyze_with_diagnostics(&module)
+        .map(|_| Vec::new())
+        .map_err(ProtocolError::Concurrency)?;
+
     let ir_start = Instant::now();
     let ir = ir::lower(&module);
     let ir_ns = ir_start.elapsed().as_nanos() as u64;
@@ -345,6 +353,7 @@ fn snapshot(
         ir,
         effects,
         ownership,
+        concurrency_diagnostics,
         diagnostics: Vec::new(),
         verification: verification_requirements(),
     })
@@ -404,6 +413,7 @@ mod tests {
         assert!(response.snapshot.effects.functions.contains_key("main"));
         assert!(!response.snapshot.ownership.accesses.is_empty());
         assert!(response.snapshot.diagnostics.is_empty());
+        assert!(response.snapshot.concurrency_diagnostics.is_empty());
         assert!(
             response
                 .snapshot
