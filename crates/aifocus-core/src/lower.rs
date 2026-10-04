@@ -88,7 +88,7 @@ impl Lowerer {
                 }
                 StmtKind::Let { name, value } => {
                     self.record(stmt.id, stmt.span);
-                    self.out.push_str("let ");
+                    self.out.push_str("let mut ");
                     self.out.push_str(name);
                     self.out.push_str(" = ");
                     self.expr(value, indent);
