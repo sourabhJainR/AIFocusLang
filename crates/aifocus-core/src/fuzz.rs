@@ -1,3 +1,5 @@
+use std::panic::{AssertUnwindSafe, catch_unwind};
+
 use crate::{Item, format, lower, ownership, parse, sema};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,7 +14,25 @@ pub struct MutationCase {
     pub seed: u64,
     pub mutation: &'static str,
     pub source: String,
+    pub expected_valid: bool,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MutationVerification {
+    pub seed: u64,
+    pub mutation: &'static str,
+    pub accepted: bool,
+    pub crashed: bool,
+}
+
+pub const MALFORMED_CORPUS: &[&str] = &[
+    "",
+    "module",
+    "module x\nfn main( -> Int\n  1\n",
+    "module x\nfn main() -> Int\n    1\n  broken\n",
+    "module x\nfn main() -> Int\n  [1,\n",
+    "module x\nfn main() -> Int\n  1 / 0\n",
+];
 
 pub fn generate(seed: u64) -> GeneratedCase {
     let mut rng = Rng(seed);
@@ -49,30 +69,83 @@ fn main(a: Int, b: Int) -> Int
 "#
         .into(),
     };
-    GeneratedCase { seed, kind, source }
+    GeneratedCase { seed, kind, source, expected_valid: true }
 }
 
 pub fn mutate(case: &GeneratedCase, seed: u64) -> MutationCase {
-    let (mutation, source) = match seed % 4 {
-        0 if case.source.contains(" + ") => ("add-to-sub", case.source.replacen(" + ", " - ", 1)),
-        1 if case.source.contains(" == ") => ("eq-to-ne", case.source.replacen(" == ", " != ", 1)),
-        2 if case.source.contains(" * ") => ("mul-to-mod", case.source.replacen(" * ", " % ", 1)),
-        _ => ("whitespace", format!("{}\n", case.source)),
+    let (mutation, source, expected_valid) = match seed % 8 {
+        0 if case.source.contains(" + ") => (
+            "add-to-sub",
+            case.source.replacen(" + ", " - ", 1),
+            true,
+        ),
+        1 if case.source.contains(" == ") => (
+            "eq-to-ne",
+            case.source.replacen(" == ", " != ", 1),
+            true,
+        ),
+        2 if case.source.contains(" * ") => (
+            "mul-to-mod",
+            case.source.replacen(" * ", " % ", 1),
+            true,
+        ),
+        3 => (
+            "remove-module",
+            case.source.replacen("module generated\n", "", 1),
+            false,
+        ),
+        4 => ("corrupt-indent", format!("{}  broken\n", case.source), false),
+        5 => ("truncate", case.source[..case.source.len() / 2].to_string(), false),
+        6 => ("invalid-token", format!("{}\n@\n", case.source), false),
+        _ => ("whitespace", format!("{}\n", case.source), true),
     };
     MutationCase {
         seed,
         mutation,
         source,
+        expected_valid,
     }
 }
 
-pub fn verify_mutation(case: &MutationCase) -> Result<(), String> {
-    let generated = GeneratedCase {
-        seed: case.seed,
-        kind: "mutation",
-        source: case.source.clone(),
-    };
-    verify(&generated)
+pub fn verify_mutation(case: &MutationCase) -> Result<MutationVerification, String> {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        verify(&GeneratedCase {
+            seed: case.seed,
+            kind: "mutation",
+            source: case.source.clone(),
+            expected_valid: case.expected_valid,
+        })
+    }));
+    match result {
+        Ok(Ok(())) if case.expected_valid => Ok(MutationVerification {
+            seed: case.seed,
+            mutation: case.mutation,
+            accepted: true,
+            crashed: false,
+        }),
+        Ok(Ok(())) => Err(format!("invalid mutation {} was accepted", case.mutation)),
+        Ok(Err(_)) if !case.expected_valid => Ok(MutationVerification {
+            seed: case.seed,
+            mutation: case.mutation,
+            accepted: false,
+            crashed: false,
+        }),
+        Ok(Err(error)) => Err(format!(
+            "valid mutation {} unexpectedly failed: {error}",
+            case.mutation
+        )),
+        Err(_) => Err(format!(
+            "compiler panicked while verifying mutation {}",
+            case.mutation
+        )),
+    }
+}
+
+pub fn verify_malformed(source: &str) -> Result<(), String> {
+    if catch_unwind(AssertUnwindSafe(|| parse(source))).is_err() {
+        return Err("compiler panicked on malformed input".into());
+    }
+    Ok(())
 }
 
 pub fn verify(case: &GeneratedCase) -> Result<(), String> {
@@ -117,11 +190,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn deterministic_mutations_survive_the_compiler_pipeline() {
-        for seed in 0..512 {
+    fn deterministic_mutations_cover_accept_and_reject_paths() {
+        let mut accepted = 0;
+        let mut rejected = 0;
+        for seed in 0..1024 {
             let generated = generate(seed);
             let mutation = mutate(&generated, seed.wrapping_add(17));
-            verify_mutation(&mutation).unwrap_or_else(|error| panic!("{error}"));
+            let verification =
+                verify_mutation(&mutation).unwrap_or_else(|error| panic!("{error}"));
+            if verification.accepted {
+                accepted += 1;
+            } else {
+                rejected += 1;
+            }
+            assert!(!verification.crashed);
+        }
+        assert!(accepted > 0);
+        assert!(rejected > 0);
+    }
+
+    #[test]
+    fn malformed_corpus_never_panics() {
+        for source in MALFORMED_CORPUS {
+            verify_malformed(source).unwrap_or_else(|error| panic!("{error}"));
         }
     }
 
