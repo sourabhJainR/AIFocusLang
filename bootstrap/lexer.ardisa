@@ -1,0 +1,267 @@
+module lexer
+
+fn is_letter(c: Int) -> Bool
+  if c == 95
+    true
+  else
+    if c >= 65
+      if c <= 90
+        true
+      else
+        if c >= 97
+          if c <= 122
+            true
+          else
+            false
+        else
+          false
+    else
+      false
+
+fn is_digit(c: Int) -> Bool
+  if c >= 48
+    if c <= 57
+      true
+    else
+      false
+  else
+    false
+
+fn token(kind: String, value: String) -> String
+  kind + "=" + value + "|"
+
+fn keyword(word: String) -> String
+  if word == "module"
+    "Module"
+  else
+    if word == "fn"
+      "Fn"
+    else
+      if word == "if"
+        "If"
+      else
+        if word == "else"
+          "Else"
+        else
+          if word == "let"
+            "Let"
+          else
+            if word == "set"
+              "Set"
+            else
+              if word == "return"
+                "Return"
+              else
+                if word == "scope"
+                  "Scope"
+                else
+                  if word == "spawn"
+                    "Spawn"
+                  else
+                    if word == "join"
+                      "Join"
+                    else
+                      if word == "cancel"
+                        "Cancel"
+                      else
+                        if word == "while"
+                          "While"
+                        else
+                          if word == "true"
+                            "True"
+                          else
+                            if word == "false"
+                              "False"
+                            else
+                              "Ident"
+
+fn lex(source: String) -> String
+  let output = ""
+  let index = 0
+  let indent = 0
+  let line_start = true
+  while index < len(source)
+    if line_start
+      let spaces = 0
+      while index < len(source)
+        if source[index] == 32
+          set spaces = spaces + 1
+          set index = index + 1
+        else
+          set index = index
+      if spaces > indent
+        set indent = spaces
+        set output = output + token("Indent", chr(spaces))
+      else
+        if spaces < indent
+          while indent > spaces
+            if indent > 1
+              set indent = indent - 2
+            else
+              set indent = 0
+            set output = output + token("Dedent", "")
+      set line_start = false
+    if index < len(source)
+      let c = source[index]
+      if c == 10
+        set output = output + token("Newline", "")
+        set index = index + 1
+        set line_start = true
+      else
+        if c == 32
+          set index = index + 1
+        else
+          if c == 35
+            while index < len(source)
+              if source[index] == 10
+                set index = index
+              else
+                set index = index + 1
+          else
+            if is_letter(c)
+              let word = ""
+              while index < len(source)
+                if is_letter(source[index])
+                  set word = word + chr(source[index])
+                  set index = index + 1
+                else
+                  if is_digit(source[index])
+                    set word = word + chr(source[index])
+                    set index = index + 1
+                  else
+                    set index = index
+              set output = output + token(keyword(word), word)
+            else
+              if is_digit(c)
+                let number = ""
+                while index < len(source)
+                  if is_digit(source[index])
+                    set number = number + chr(source[index])
+                    set index = index + 1
+                  else
+                    set index = index
+                set output = output + token("Int", number)
+              else
+                if c == 34
+                  let value = ""
+                  set index = index + 1
+                  let closed = false
+                  while index < len(source)
+                    if closed == false
+                      if source[index] == 34
+                        set closed = true
+                      else
+                        set value = value + chr(source[index])
+                    set index = index + 1
+                  set output = output + token("String", value)
+                else
+                  if c == 45
+                    if index + 1 < len(source)
+                      if source[index + 1] == 62
+                        set output = output + token("Arrow", "->")
+                        set index = index + 2
+                      else
+                        set output = output + token("Minus", "-")
+                        set index = index + 1
+                    else
+                      set output = output + token("Minus", "-")
+                      set index = index + 1
+                  else
+                    if c == 61
+                      if index + 1 < len(source)
+                        if source[index + 1] == 61
+                          set output = output + token("EqualEqual", "==")
+                          set index = index + 2
+                        else
+                          set output = output + token("Equal", "=")
+                          set index = index + 1
+                      else
+                        set output = output + token("Equal", "=")
+                        set index = index + 1
+                    else
+                      if c == 33
+                        if index + 1 < len(source)
+                          if source[index + 1] == 61
+                            set output = output + token("NotEqual", "!=")
+                            set index = index + 2
+                          else
+                            set output = output + token("NotEqual", "!")
+                            set index = index + 1
+                        else
+                          set output = output + token("NotEqual", "!")
+                          set index = index + 1
+                      else
+                        if c == 60
+                          if index + 1 < len(source)
+                            if source[index + 1] == 61
+                              set output = output + token("LessEqual", "<=")
+                              set index = index + 2
+                            else
+                              set output = output + token("Less", "<")
+                              set index = index + 1
+                          else
+                            set output = output + token("Less", "<")
+                            set index = index + 1
+                        else
+                          if c == 62
+                            if index + 1 < len(source)
+                              if source[index + 1] == 61
+                                set output = output + token("GreaterEqual", ">=")
+                                set index = index + 2
+                              else
+                                set output = output + token("Greater", ">")
+                                set index = index + 1
+                            else
+                              set output = output + token("Greater", ">")
+                              set index = index + 1
+                          else
+                            if c == 43
+                              set output = output + token("Plus", "+")
+                              set index = index + 1
+                            else
+                              if c == 42
+                                set output = output + token("Star", "*")
+                                set index = index + 1
+                              else
+                                if c == 47
+                                  set output = output + token("Slash", "/")
+                                  set index = index + 1
+                                else
+                                  if c == 37
+                                    set output = output + token("Percent", "%")
+                                    set index = index + 1
+                                  else
+                                    if c == 44
+                                      set output = output + token("Comma", ",")
+                                      set index = index + 1
+                                    else
+                                      if c == 58
+                                        set output = output + token("Colon", ":")
+                                        set index = index + 1
+                                      else
+                                        if c == 91
+                                          set output = output + token("LBracket", "[")
+                                          set index = index + 1
+                                        else
+                                          if c == 93
+                                            set output = output + token("RBracket", "]")
+                                            set index = index + 1
+                                          else
+                                            if c == 40
+                                              set output = output + token("LParen", "(")
+                                              set index = index + 1
+                                            else
+                                              if c == 41
+                                                set output = output + token("RParen", ")")
+                                                set index = index + 1
+                                              else
+                                                set output = output + token("Unknown", chr(c))
+                                                set index = index + 1
+  while indent > 0
+    if indent > 1
+      set indent = indent - 2
+    else
+      set indent = 0
+    set output = output + token("Dedent", "")
+  set output = output + token("Eof", "")
+  output
