@@ -29,3 +29,12 @@ Keep the language core small. Put machine-facing complexity in compiler tooling.
 ## AI-facing compiler contract
 
 The long-term compiler API should expose JSON or an equivalent structured format containing module identity, stable node IDs, source spans, declarations, references, inferred types, effects, ownership transitions, diagnostics, suggested edits, and test/evidence requirements.
+
+
+## Repository independence
+
+Ardisa is a standalone language and compiler repository. Its compiler, tests, learning records, verification logic, and engineering feedback types must not require another project at build time, test time, or runtime. External projects may study Ardisa or consume its documented outputs, but Ardisa must remain executable without them.
+
+## Evidence boundary
+
+A feature is complete only when its behavior is exercised by tests that can fail for the relevant defect. Documentation and manifests describe status; they do not substitute for executable verification.
