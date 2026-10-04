@@ -12,6 +12,9 @@ pub enum NativeInstr {
     Index,
     Len,
     Append(String),
+    MakeOk,
+    MakeErr,
+    Unwrap,
     Load(String),
     Store(String),
     StoreIndex(String),
@@ -52,6 +55,8 @@ pub enum NativeValue {
     Bool(bool),
     String(String),
     List(Vec<NativeValue>),
+    ResultOk(Box<NativeValue>),
+    ResultErr(Box<NativeValue>),
     Unit,
 }
 
@@ -232,7 +237,13 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
             for arg in args {
                 emit_value(arg, code)?;
             }
-            if callee == "len" && args.len() == 1 {
+            if callee == "ok" && args.len() == 1 {
+                code.push(NativeInstr::MakeOk);
+            } else if callee == "err" && args.len() == 1 {
+                code.push(NativeInstr::MakeErr);
+            } else if callee == "unwrap" && args.len() == 1 {
+                code.push(NativeInstr::Unwrap);
+            } else if callee == "len" && args.len() == 1 {
                 code.push(NativeInstr::Len);
             } else if callee == "push" && args.len() == 2 {
                 let crate::ir::IrValue::Name(name) = &args[0] else {
@@ -331,6 +342,30 @@ pub fn run(
                 };
                 items.push(value);
                 stack.push(NativeValue::Unit);
+            }
+            NativeInstr::MakeOk => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
+                stack.push(NativeValue::ResultOk(Box::new(value)));
+            }
+            NativeInstr::MakeErr => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
+                stack.push(NativeValue::ResultErr(Box::new(value)));
+            }
+            NativeInstr::Unwrap => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?;
+                match value {
+                    NativeValue::ResultOk(value) => stack.push(*value),
+                    NativeValue::ResultErr(_) => {
+                        return Err(NativeError::Type("unwrap on Err".into()));
+                    }
+                    _ => return Err(NativeError::Type("unwrap requires Result".into())),
+                }
             }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
@@ -542,6 +577,30 @@ fn run_function(
                 };
                 items.push(value);
                 stack.push(NativeValue::Unit);
+            }
+            NativeInstr::MakeOk => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
+                stack.push(NativeValue::ResultOk(Box::new(value)));
+            }
+            NativeInstr::MakeErr => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
+                stack.push(NativeValue::ResultErr(Box::new(value)));
+            }
+            NativeInstr::Unwrap => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?;
+                match value {
+                    NativeValue::ResultOk(value) => stack.push(*value),
+                    NativeValue::ResultErr(_) => {
+                        return Err(NativeError::Type("unwrap on Err".into()));
+                    }
+                    _ => return Err(NativeError::Type("unwrap requires Result".into())),
+                }
             }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {

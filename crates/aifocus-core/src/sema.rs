@@ -379,6 +379,37 @@ impl Checker {
                     );
                     return None;
                 };
+                if name == "ok" || name == "err" {
+                    if args.len() != 1 {
+                        self.error("AIF327", format!("{name} expects one argument"), expr.span);
+                        return None;
+                    }
+                    let value_type = self.check_expr(&args[0], locals)?;
+                    let unit = type_node(TypeKind::Unit, expr.span);
+                    return Some(if name == "ok" {
+                        type_node(
+                            TypeKind::Result(Box::new(value_type), Box::new(unit)),
+                            expr.span,
+                        )
+                    } else {
+                        type_node(
+                            TypeKind::Result(Box::new(unit), Box::new(value_type)),
+                            expr.span,
+                        )
+                    });
+                }
+                if name == "unwrap" {
+                    if args.len() != 1 {
+                        self.error("AIF328", "unwrap expects one argument", expr.span);
+                        return None;
+                    }
+                    let result_type = self.check_expr(&args[0], locals)?;
+                    let TypeKind::Result(ok, _) = result_type.kind else {
+                        self.error("AIF329", "unwrap requires Result<T, E>", args[0].span);
+                        return None;
+                    };
+                    return Some(*ok);
+                }
                 if name == "push" {
                     if args.len() != 2 {
                         self.error("AIF324", "push expects a List<T> and one value", expr.span);
