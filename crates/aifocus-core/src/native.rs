@@ -7,6 +7,7 @@ use crate::ir::{IrFunction, IrModule, IrOp, IrValue};
 pub enum NativeInstr {
     PushInt(i64),
     PushBool(bool),
+    PushUnit,
     PushString(String),
     PushList(usize),
     Index,
@@ -179,6 +180,10 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
     Ok(())
 }
 
+fn block_terminates(ops: &[IrOp]) -> bool {
+    matches!(ops.last(), Some(IrOp::Return(_)))
+}
+
 fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
     match value {
         IrValue::Int(value) => code.push(NativeInstr::PushInt(*value)),
@@ -229,6 +234,12 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
             let else_start = code.len();
             for op in else_ops {
                 emit_op(op, code)?;
+            }
+            if !block_terminates(then_ops) {
+                code.insert(else_start, NativeInstr::PushUnit);
+            }
+            if !block_terminates(else_ops) {
+                code.push(NativeInstr::PushUnit);
             }
             let end = code.len();
             code[jump_if] = NativeInstr::JumpIfFalse(else_start);
@@ -284,6 +295,7 @@ pub fn run(
         match instr {
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
+            NativeInstr::PushUnit => stack.push(NativeValue::Unit),
             NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::PushList(len) => {
                 if stack.len() < len {
@@ -537,6 +549,7 @@ fn run_function(
             }
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
+            NativeInstr::PushUnit => stack.push(NativeValue::Unit),
             NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::PushList(len) => {
                 if stack.len() < len {
@@ -799,6 +812,26 @@ fn main(a: Int) -> Int
     return 1
   else
     return 2
+",
+        )
+        .unwrap();
+        let ir = crate::ir::lower(&module);
+        let code = compile(&ir).unwrap();
+        let result = run(&code, &[(String::from("a"), NativeValue::Int(0))]).unwrap();
+        assert_eq!(result, NativeValue::Int(1));
+    }
+
+    #[test]
+    fn compiles_and_runs_statement_style_if() {
+        let module = crate::parse(
+            "module x
+fn main(a: Int) -> Int
+  let value = 0
+  if a == 0
+    set value = 1
+  else
+    set value = 2
+  value
 ",
         )
         .unwrap();
