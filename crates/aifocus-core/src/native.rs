@@ -202,7 +202,6 @@ pub fn run(
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
             NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
-            NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
@@ -318,6 +317,7 @@ fn run_function(
             }
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
+            NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
