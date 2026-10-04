@@ -384,13 +384,14 @@ fn verification_requirements() -> Vec<VerificationRequirement> {
     ]
 }
 
-
 pub const MAX_STDIO_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
 /// Encode one protocol payload using Content-Length framing.
 pub fn encode_stdio_frame(payload: &[u8]) -> Result<Vec<u8>, ProtocolError> {
     if payload.len() > MAX_STDIO_FRAME_BYTES {
-        return Err(ProtocolError::Edit("stdio payload exceeds 8 MiB limit".into()));
+        return Err(ProtocolError::Edit(
+            "stdio payload exceeds 8 MiB limit".into(),
+        ));
     }
     let mut frame = format!("Content-Length: {}\r\n\r\n", payload.len()).into_bytes();
     frame.extend_from_slice(payload);
@@ -430,7 +431,10 @@ pub fn decode_stdio_frame(input: &[u8]) -> Result<(Vec<u8>, &[u8]), ProtocolErro
     if input.len() < payload_end {
         return Err(ProtocolError::Edit("incomplete stdio payload".into()));
     }
-    Ok((input[payload_start..payload_end].to_vec(), &input[payload_end..]))
+    Ok((
+        input[payload_start..payload_end].to_vec(),
+        &input[payload_end..],
+    ))
 }
 
 #[cfg(test)]
