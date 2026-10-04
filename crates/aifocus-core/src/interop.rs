@@ -3,6 +3,7 @@ pub enum InteropType {
     Int,
     Bool,
     Unit,
+    IntSliceRef,
 }
 
 impl InteropType {
@@ -11,6 +12,7 @@ impl InteropType {
             Self::Int => "i64",
             Self::Bool => "bool",
             Self::Unit => "()",
+            Self::IntSliceRef => "*const i64, usize",
         }
     }
 }
@@ -31,6 +33,7 @@ pub struct InteropContract {
     pub abi_version: &'static str,
     pub function: RustFunction,
     pub unsafe_call_isolated: bool,
+    pub unsafe_escape_reason: String,
 }
 
 pub struct SafeRustBoundary {
@@ -57,7 +60,9 @@ impl SafeRustBoundary {
                 InteropType::Int | InteropType::Bool | InteropType::Unit
             )
         {
-            return Err("Rust interop exposes only ABI-safe scalar types".into());
+            return Err(
+                "Rust interop exposes only ABI-safe scalars or read-only Int slice borrows".into(),
+            );
         }
         Ok(Self { function })
     }
@@ -67,6 +72,9 @@ impl SafeRustBoundary {
             abi_version: ABI_VERSION,
             function: self.function.clone(),
             unsafe_call_isolated: true,
+            unsafe_escape_reason:
+                "generated wrapper contains the only unsafe FFI call; borrowed slices are read-only and scoped to the call"
+                    .into(),
         }
     }
 
@@ -76,34 +84,69 @@ impl SafeRustBoundary {
 
     pub fn wrapper(&self) -> String {
         let f = &self.function;
-        let params = f
+        let extern_params = f
             .params
             .iter()
-            .map(|(name, ty)| format!("{name}: {}", ty.rust_name()))
+            .map(|(name, ty)| match ty {
+                InteropType::IntSliceRef => {
+                    format!("{name}_ptr: *const i64, {name}_len: usize")
+                }
+                _ => format!("{name}: {}", ty.rust_name()),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let safe_params = f
+            .params
+            .iter()
+            .map(|(name, ty)| match ty {
+                InteropType::IntSliceRef => format!("{name}: &[i64]"),
+                _ => format!("{name}: {}", ty.rust_name()),
+            })
             .collect::<Vec<_>>()
             .join(", ");
         let args = f
             .params
             .iter()
-            .map(|(name, _)| name.as_str())
+            .map(|(name, ty)| match ty {
+                InteropType::IntSliceRef => {
+                    format!("{name}.as_ptr(), {name}.len()")
+                }
+                _ => name.clone(),
+            })
             .collect::<Vec<_>>()
             .join(", ");
         format!(
             r#"unsafe extern "C" {{
-    fn {symbol}({params}) -> {ret};
+    fn {symbol}({extern_params}) -> {ret};
 }}
 
-fn {name}({params}) -> {ret} {{
+fn {name}({safe_params}) -> {ret} {{
     unsafe {{ {symbol}({args}) }}
 }}
 "#,
             symbol = f.symbol,
             name = f.name,
-            params = params,
+            extern_params = extern_params,
+            safe_params = safe_params,
             ret = f.return_type.rust_name(),
             args = args,
         )
     }
+
+    pub fn unsafe_escape_block(&self, reason: &str, expression: &str) -> Result<String, String> {
+        let reason = reason.trim();
+        if reason.is_empty() {
+            return Err("unsafe escape blocks require a non-empty safety rationale".into());
+        }
+        let expression = expression.trim();
+        if expression.is_empty() {
+            return Err("unsafe escape blocks require a non-empty expression".into());
+        }
+        Ok(format!(
+            "unsafe {{\n    // SAFETY: {reason}\n    {expression}\n}}"
+        ))
+    }
+
 }
 
 pub fn validate(function: &RustFunction) -> Result<(), String> {
@@ -126,6 +169,37 @@ fn is_rust_identifier(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accepts_read_only_int_slice_borrow() {
+        let function = RustFunction {
+            symbol: "native_sum".into(),
+            name: "sum".into(),
+            params: vec![("values".into(), InteropType::IntSliceRef)],
+            return_type: InteropType::Int,
+        };
+        let boundary = SafeRustBoundary::new(function).unwrap();
+        let wrapper = boundary.wrapper();
+        assert!(wrapper.contains("values_ptr: *const i64, values_len: usize"));
+        assert!(wrapper.contains("values: &[i64]"));
+        assert!(wrapper.contains("native_sum(values.as_ptr(), values.len())"));
+    }
+
+    #[test]
+    fn unsafe_escape_requires_a_rationale() {
+        let function = RustFunction {
+            symbol: "native_add".into(),
+            name: "add".into(),
+            params: vec![],
+            return_type: InteropType::Int,
+        };
+        let boundary = SafeRustBoundary::new(function).unwrap();
+        assert!(boundary.unsafe_escape_block("", "native_add()").is_err());
+        let block = boundary
+            .unsafe_escape_block("FFI contract guarantees the symbol and ABI", "native_add()")
+            .unwrap();
+        assert!(block.contains("// SAFETY: FFI contract guarantees"));
+    }
 
     #[test]
     fn accepts_ffi_safe_scalar_boundary() {
