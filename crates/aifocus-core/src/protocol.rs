@@ -87,10 +87,10 @@ impl CompilerSession {
     ) -> Result<CompilerResponse, ProtocolError> {
         let result = execute(source, request);
         if let Err(error) = &result {
-            let diagnostics = match error {
+            let diagnostics: &[Diagnostic] = match error {
                 ProtocolError::InvalidSource(items)
                 | ProtocolError::Semantic(items)
-                | ProtocolError::Ownership(items) => items,
+                | ProtocolError::Ownership(items) => items.as_slice(),
                 ProtocolError::Edit(_) => &[],
             };
             for diagnostic in diagnostics {
