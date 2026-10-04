@@ -86,6 +86,7 @@ pub enum NativeValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeError {
     Unsupported(String),
+    Cancelled(String),
     InvalidProgram(String),
     Type(String),
 }
@@ -611,7 +612,7 @@ fn run_function(
             .as_ref()
             .is_some_and(|token| token.load(Ordering::Acquire))
         {
-            return Err(NativeError::Unsupported("task cancelled".into()));
+            return Err(NativeError::Cancelled("task cancelled".into()));
         }
         let instr = function.code[pc].clone();
         pc += 1;
@@ -631,6 +632,9 @@ fn run_function(
                         .join()
                         .map_err(|_| NativeError::Unsupported(format!("task '{name}' panicked")))?;
                     if let Err(error) = result {
+                        if matches!(error, NativeError::Cancelled(_)) {
+                            continue;
+                        }
                         for sibling in tasks.values() {
                             sibling.cancel();
                         }
@@ -686,6 +690,7 @@ fn run_function(
                     .map_err(|_| NativeError::Unsupported(format!("task '{name}' panicked")))?;
                 match result {
                     Ok(_) => stack.push(NativeValue::Unit),
+                    Err(NativeError::Cancelled(_)) => stack.push(NativeValue::Unit),
                     Err(error) => {
                         for sibling in scope.values() {
                             sibling.cancel();
@@ -1111,13 +1116,39 @@ fn main() -> Int
     fn executes_structured_scope_with_cancelled_child() {
         let module = crate::parse(
             "module x
-fn worker(a: Int) -> Int
-  a + 1
+fn worker() -> Int
+  while true
+    1
+  return 0
 fn main() -> Int
   scope
-    spawn worker_task = worker(4)
+    spawn worker_task = worker()
     cancel worker_task
-    join worker_task
+  9
+",
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        crate::concurrency::analyze(&module).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        assert_eq!(
+            run_program(&program, "main", &[]).unwrap(),
+            NativeValue::Int(9)
+        );
+    }
+
+    #[test]
+    fn cancellation_is_a_normal_scope_terminal_state() {
+        let module = crate::parse(
+            "module x
+fn worker() -> Int
+  while true
+    1
+  return 0
+fn main() -> Int
+  scope
+    spawn worker_task = worker()
+    cancel worker_task
   9
 ",
         )
