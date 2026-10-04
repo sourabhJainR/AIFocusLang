@@ -11,6 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Check formatting
+        id: check_formatting
         run: |
           cargo fmt --all -- --check
         continue-on-error: true
