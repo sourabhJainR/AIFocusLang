@@ -386,11 +386,7 @@ impl Checker {
                     }
                     let argument_type = self.check_expr(&args[0], locals)?;
                     if !matches!(argument_type.kind, TypeKind::String | TypeKind::List(_)) {
-                        self.error(
-                            "AIF323",
-                            "len requires String or List<T>",
-                            args[0].span,
-                        );
+                        self.error("AIF323", "len requires String or List<T>", args[0].span);
                         return None;
                     }
                     return Some(type_node(TypeKind::Int, expr.span));
