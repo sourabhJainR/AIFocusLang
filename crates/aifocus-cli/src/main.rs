@@ -34,6 +34,21 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
+        Some("bootstrap") => match args.next().as_deref() {
+            Some("compile") => match (args.next(), args.next()) {
+                (Some(source), Some(output)) => bootstrap_compile(&source, &output),
+                _ => { eprintln!("error: bootstrap compile requires source and output"); ExitCode::from(2) }
+            },
+            Some("run") => match args.next() {
+                Some(output) => bootstrap_run(&output, args.collect()),
+                None => { eprintln!("error: bootstrap run requires an executable artifact"); ExitCode::from(2) }
+            },
+            Some("verify") => match args.next() {
+                Some(output) => bootstrap_verify(&output),
+                None => { eprintln!("error: bootstrap verify requires an executable artifact"); ExitCode::from(2) }
+            },
+            _ => { eprintln!("error: bootstrap requires compile, run, or verify"); ExitCode::from(2) }
+        },
         Some("fmt") => match args.next() {
             Some(path) => format_file(&path),
             None => {
@@ -61,6 +76,18 @@ fn main() -> ExitCode {
             eprintln!("error: unknown command '{command}'");
             ExitCode::from(2)
         }
+    }
+}
+
+fn bootstrap_verify(path: &str) -> ExitCode {
+    let artifact = match fs::read_to_string(path) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{path}: error[AIF000]: {error}"); return ExitCode::from(1); }
+    };
+    match ardisa_core::native::decode_program(&artifact) {
+        Ok(program) if program.functions.contains_key("main") => ExitCode::SUCCESS,
+        Ok(_) => { eprintln!("{path}: error[AIF605]: executable has no main entry"); ExitCode::from(1) }
+        Err(error) => { eprintln!("{path}: error[AIF603]: invalid executable: {error:?}"); ExitCode::from(1) }
     }
 }
 
