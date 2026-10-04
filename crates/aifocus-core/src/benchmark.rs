@@ -16,6 +16,8 @@ pub struct BenchmarkResult {
     pub total_source_bytes: usize,
     pub native_instruction_count: usize,
     pub lowered_rust_bytes: usize,
+    pub native_compile_ns: u128,
+    pub native_execute_ns: u128,
 }
 
 impl BenchmarkResult {
@@ -66,6 +68,8 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
         total_source_bytes: 0,
         native_instruction_count: 0,
         lowered_rust_bytes: 0,
+        native_compile_ns: 0,
+        native_execute_ns: 0,
     };
 
     for offset in 0..cases {
@@ -90,6 +94,7 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
         let lowered = ir::lower(&module);
         let rust = crate::lower::lower(&module);
         result.lowered_rust_bytes += rust.rust.len();
+        let compile_started = Instant::now();
         let code = match native::compile(&lowered) {
             Ok(code) => code,
             Err(_) => {
@@ -97,17 +102,20 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
                 continue;
             }
         };
+        result.native_compile_ns += compile_started.elapsed().as_nanos();
         result.native_compiled += 1;
         result.native_instruction_count += code.len();
-        if native::run(
+        let execute_started = Instant::now();
+        let executed = native::run(
             &code,
             &[
                 ("a".into(), native::NativeValue::Int(3)),
                 ("b".into(), native::NativeValue::Int(4)),
             ],
         )
-        .is_ok()
-        {
+        .is_ok();
+        result.native_execute_ns += execute_started.elapsed().as_nanos();
+        if executed {
             result.native_executed += 1;
         } else {
             result.failed_cases += 1;
