@@ -53,8 +53,18 @@ pub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, Nativ
         ));
     }
     let mut code = Vec::new();
-    for op in &function.ops {
-        emit_op(op, &mut code)?;
+    for (index, op) in function.ops.iter().enumerate() {
+        let is_last_expression = index + 1 == function.ops.len()
+            && matches!(op, IrOp::Expr(_))
+            && function.return_type.is_some();
+        if is_last_expression {
+            if let IrOp::Expr(value) = op {
+                emit_value(value, &mut code)?;
+                code.push(NativeInstr::Return);
+            }
+        } else {
+            emit_op(op, &mut code)?;
+        }
     }
     if !matches!(code.last(), Some(NativeInstr::Return)) {
         code.push(NativeInstr::Return);
