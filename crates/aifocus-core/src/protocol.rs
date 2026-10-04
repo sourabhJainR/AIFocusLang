@@ -165,7 +165,11 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 queried_node: None,
                 queried_type: None,
                 queried_effects: None,
-                source_evidence: vec![source_evidence(&result.source, changed_node.unwrap(), "edit:applied")?],
+                source_evidence: vec![source_evidence(
+                    &result.source,
+                    changed_node.unwrap(),
+                    "edit:applied",
+                )?],
             })
         }
         CompilerRequest::ApplyEdits(edits) => {
@@ -181,7 +185,9 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 source_evidence: result
                     .changed_nodes
                     .iter()
-                    .filter_map(|node| source_evidence(&result.source, *node, "transaction:applied").ok())
+                    .filter_map(|node| {
+                        source_evidence(&result.source, *node, "transaction:applied").ok()
+                    })
                     .collect(),
             })
         }
@@ -394,7 +400,9 @@ pub fn decode_response_frame(input: &[u8]) -> Result<(String, &[u8]), ProtocolEr
     let payload = String::from_utf8(payload)
         .map_err(|_| ProtocolError::Edit("response payload is not valid UTF-8".into()))?;
     if !payload.starts_with(&format!("{RESPONSE_PROTOCOL_VERSION}\n")) {
-        return Err(ProtocolError::Edit("unsupported response protocol version".into()));
+        return Err(ProtocolError::Edit(
+            "unsupported response protocol version".into(),
+        ));
     }
     Ok((payload, rest))
 }
@@ -404,9 +412,12 @@ fn source_evidence(
     node: NodeId,
     evidence: &str,
 ) -> Result<SourceEvidence, ProtocolError> {
-    let span = edit::query(&crate::parse(source).map_err(ProtocolError::InvalidSource)?, node)
-        .map_err(|error| ProtocolError::Edit(error.to_string()))?
-        .span;
+    let span = edit::query(
+        &crate::parse(source).map_err(ProtocolError::InvalidSource)?,
+        node,
+    )
+    .map_err(|error| ProtocolError::Edit(error.to_string()))?
+    .span;
     Ok(SourceEvidence {
         node,
         span,
