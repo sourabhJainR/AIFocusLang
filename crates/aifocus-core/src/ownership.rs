@@ -232,7 +232,9 @@ impl Checker {
                 Some(ty.clone())
             }
             ExprKind::List(items) => {
-                for item in items { self.check_expr(item, locals, AccessMode::Move); }
+                for item in items {
+                    self.check_expr(item, locals, AccessMode::Move);
+                }
                 Some(type_node(TypeKind::List(Box::new(TypeKind::Unit)), expr))
             }
             ExprKind::Index { collection, index } => {
