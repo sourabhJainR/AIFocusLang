@@ -30,6 +30,7 @@ pub struct BootstrapReport {
     pub blocker: Option<&'static str>,
 }
 
+// Bootstrap verification follows the native function representation.
 pub fn verify() -> BootstrapReport {
     let Ok(module) = parse(BOOTSTRAP_SOURCE) else {
         return failed("bootstrap source does not parse");
