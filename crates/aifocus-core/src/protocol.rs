@@ -151,7 +151,9 @@ pub fn encode_request(request: &CompilerRequest) -> String {
 pub fn decode_request(wire: &str) -> Result<CompilerRequest, ProtocolError> {
     let mut lines = wire.split('\n');
     if lines.next() != Some(WIRE_PROTOCOL_VERSION) {
-        return Err(ProtocolError::Edit("unsupported wire protocol version".into()));
+        return Err(ProtocolError::Edit(
+            "unsupported wire protocol version".into(),
+        ));
     }
     match lines.next() {
         Some("INSPECT") => Ok(CompilerRequest::Inspect),
@@ -169,7 +171,9 @@ pub fn decode_request(wire: &str) -> Result<CompilerRequest, ProtocolError> {
                 .next()
                 .ok_or_else(|| ProtocolError::Edit("transaction is missing its edit count".into()))?
                 .parse::<usize>()
-                .map_err(|_| ProtocolError::Edit("transaction edit count is not an integer".into()))?;
+                .map_err(|_| {
+                    ProtocolError::Edit("transaction edit count is not an integer".into())
+                })?;
             let mut edits = Vec::with_capacity(count);
             for _ in 0..count {
                 edits.push(decode_edit(&mut lines)?);
@@ -183,10 +187,18 @@ pub fn decode_request(wire: &str) -> Result<CompilerRequest, ProtocolError> {
 fn encode_edit(edit: &StructuralEdit, out: &mut String) {
     match edit {
         StructuralEdit::Replace { node, source } => {
-            out.push_str(&format!("REPLACE\n{}\n{}\n", node.0, hex(source.as_bytes())));
+            out.push_str(&format!(
+                "REPLACE\n{}\n{}\n",
+                node.0,
+                hex(source.as_bytes())
+            ));
         }
         StructuralEdit::InsertBefore { node, source } => {
-            out.push_str(&format!("INSERT_BEFORE\n{}\n{}\n", node.0, hex(source.as_bytes())));
+            out.push_str(&format!(
+                "INSERT_BEFORE\n{}\n{}\n",
+                node.0,
+                hex(source.as_bytes())
+            ));
         }
         StructuralEdit::Delete { node } => {
             out.push_str(&format!("DELETE\n{}\n", node.0));
