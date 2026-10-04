@@ -23,7 +23,7 @@ pub struct RustFunction {
     pub return_type: InteropType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub const ABI_VERSION: &str = "ardisa-c-abi-v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
