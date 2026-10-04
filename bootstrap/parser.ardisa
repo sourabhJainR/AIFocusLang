@@ -61,10 +61,13 @@ fn next_cursor(stream: String, start: Int) -> Int
   delimiter
 
 fn node(kind: String, value: String) -> String
-  if len(value) > 0
-    "(" + kind + " " + value + ")"
+  if kind == "String"
+    "(String)"
   else
-    "(" + kind + ")"
+    if len(value) > 0
+      "(" + kind + " " + value + ")"
+    else
+      "(" + kind + ")"
 
 fn parse(stream: String) -> String
   let result = "(Module"
