@@ -231,7 +231,9 @@ pub fn run(
             NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::PushList(len) => {
                 if stack.len() < len {
-                    return Err(NativeError::InvalidProgram("list has insufficient stack values".into()));
+                    return Err(NativeError::InvalidProgram(
+                        "list has insufficient stack values".into(),
+                    ));
                 }
                 let start = stack.len() - len;
                 stack.push(NativeValue::List(stack.drain(start..).collect()));
