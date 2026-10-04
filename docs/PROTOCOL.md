@@ -22,3 +22,7 @@ Structural edits are re-parsed and re-validated before a response is returned. I
 - Verification requirement names are stable identifiers.
 - Node IDs and source spans remain part of the compiler data model.
 - Learning remains advisory and does not alter protocol authority.
+
+## Structural operations
+
+The protocol supports querying a stable node span and applying multiple non-overlapping structural edits as one transaction. A transaction is parsed and validated only after all edits are applied; overlapping edits are rejected before mutation.
