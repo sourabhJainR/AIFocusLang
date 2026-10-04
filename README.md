@@ -50,9 +50,11 @@ The syntax is intentionally easy for both people and coding agents to parse.
 
 ## Status
 
-Bootstrap stage. The first milestone establishes a small language contract and compiler architecture before adding advanced Rust features.
+Bootstrap-to-self-hosting development is in progress. The repository now contains a deterministic parser, semantic and ownership checks, effects, structured-concurrency primitives, Rust lowering, a native execution backend, an AI-facing compiler protocol, differential tests, persistent diagnostic learning, and a reproducible stage2 compiler-pipeline replay. Full compiler self-hosting is not yet claimed.
 
-See `docs/ROADMAP.md` and `docs/DESIGN.md`.
+The repository is intentionally standalone: it has no runtime or build dependency on an external agent framework. Engineering feedback and learning are repository-local compiler facilities.
+
+See `docs/ROADMAP.md`, `docs/DESIGN.md`, and `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Source files
 
