@@ -306,7 +306,7 @@ fn ownership_of(ty: &Type) -> OwnershipClass {
         TypeKind::Int | TypeKind::Bool | TypeKind::Unit => OwnershipClass::Copy,
         TypeKind::String | TypeKind::Named(_) | TypeKind::Result(_, _) | TypeKind::List(_) => {
             OwnershipClass::Move
-        },
+        }
     }
 }
 
