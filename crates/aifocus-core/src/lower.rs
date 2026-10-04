@@ -201,6 +201,7 @@ impl Lowerer {
                     BinaryOp::Sub => "-",
                     BinaryOp::Mul => "*",
                     BinaryOp::Div => "/",
+                    BinaryOp::Mod => "%",
                     BinaryOp::Equal => "==",
                     BinaryOp::NotEqual => "!=",
                     BinaryOp::Less => "<",
