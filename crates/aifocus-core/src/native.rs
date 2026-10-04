@@ -907,7 +907,7 @@ fn run_function(
             NativeInstr::Pop => {
                 stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack"))?;
+                    .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack".into()))?;
             }
         }
     }
