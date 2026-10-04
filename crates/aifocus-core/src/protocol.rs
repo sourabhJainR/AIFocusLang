@@ -390,6 +390,25 @@ mod tests {
     use crate::ast::{Item, StmtKind};
 
     #[test]
+    fn stdio_frames_round_trip_and_support_multiple_messages() {
+        let first = encode_stdio_frame(b"ardisa-one").unwrap();
+        let second = encode_stdio_frame(b"ardisa-two").unwrap();
+        let mut stream = first;
+        stream.extend_from_slice(&second);
+        let (payload, rest) = decode_stdio_frame(&stream).unwrap();
+        assert_eq!(payload, b"ardisa-one");
+        let (payload, rest) = decode_stdio_frame(rest).unwrap();
+        assert_eq!(payload, b"ardisa-two");
+        assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn stdio_frames_reject_oversized_payloads() {
+        let payload = vec![0u8; MAX_STDIO_FRAME_BYTES + 1];
+        assert!(encode_stdio_frame(&payload).is_err());
+    }
+
+    #[test]
     fn wire_requests_round_trip_without_ambiguous_source_framing() {
         let request = CompilerRequest::ApplyEdits(vec![
             StructuralEdit::Replace {
