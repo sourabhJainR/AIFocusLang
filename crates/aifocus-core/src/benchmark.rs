@@ -144,6 +144,10 @@ mod tests {
             result.deterministic_report(),
             run(0, 64).deterministic_report()
         );
-        assert!(result.deterministic_report().contains("native_instructions="));
+        assert!(
+            result
+                .deterministic_report()
+                .contains("native_instructions=")
+        );
     }
 }
