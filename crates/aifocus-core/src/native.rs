@@ -21,6 +21,7 @@ pub enum NativeInstr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Deterministic collection of compiled Ardisa functions.
 pub struct NativeProgram {
     pub functions: BTreeMap<String, Vec<NativeInstr>>,
 }
