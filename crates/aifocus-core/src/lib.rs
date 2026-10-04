@@ -32,10 +32,10 @@ pub use interop::{InteropType, RustFunction, SafeRustBoundary};
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
 pub use learning::{LearningEntry, LearningKey, PersistentCompilerLearning};
 pub use native::{NativeError, NativeInstr, NativeValue};
-pub use ownership::{
-    AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition,
+pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
+pub use protocol::{
+    CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, ProtocolError,
 };
-pub use protocol::{CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, ProtocolError};
 
 pub use ast::{
     BinaryOp, Block, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
