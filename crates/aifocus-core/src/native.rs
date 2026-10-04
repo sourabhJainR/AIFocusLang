@@ -180,7 +180,6 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
                 argc: args.len(),
             });
         }
-
     }
     Ok(())
 }
