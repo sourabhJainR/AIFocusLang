@@ -36,12 +36,7 @@ impl Embedding {
     pub fn cosine_similarity(&self, other: &Self) -> Option<f32> {
         let dot = self.dot(other)?;
         let a = self.values.iter().map(|v| v * v).sum::<f32>().sqrt();
-        let b = other
-            .values
-            .iter()
-            .map(|v| v * v)
-            .sum::<f32>()
-            .sqrt();
+        let b = other.values.iter().map(|v| v * v).sum::<f32>().sqrt();
         if a == 0.0 || b == 0.0 {
             None
         } else {
@@ -94,7 +89,8 @@ impl Distribution {
     }
 
     pub fn entropy(&self) -> f32 {
-        -self.weights
+        -self
+            .weights
             .iter()
             .filter(|p| **p > 0.0)
             .map(|p| p * p.ln())
@@ -124,14 +120,8 @@ pub struct Tensor {
 }
 
 impl Tensor {
-    pub fn new(
-        shape: Vec<usize>,
-        values: Vec<f32>,
-        quantization: Quantization,
-    ) -> Option<Self> {
-        let elements = shape
-            .iter()
-            .try_fold(1usize, |a, b| a.checked_mul(*b))?;
+    pub fn new(shape: Vec<usize>, values: Vec<f32>, quantization: Quantization) -> Option<Self> {
+        let elements = shape.iter().try_fold(1usize, |a, b| a.checked_mul(*b))?;
         (elements == values.len()).then_some(Self {
             shape,
             values,
