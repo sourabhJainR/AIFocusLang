@@ -232,10 +232,20 @@ impl Checker {
                 Some(ty.clone())
             }
             ExprKind::List(items) => {
+                let mut element_type = None;
                 for item in items {
-                    self.check_expr(item, locals, AccessMode::Move);
+                    if let Some(ty) = self.check_expr(item, locals, AccessMode::Move) {
+                        if element_type.is_none() {
+                            element_type = Some(ty);
+                        }
+                    }
                 }
-                Some(type_node(TypeKind::List(Box::new(TypeKind::Unit)), expr))
+                Some(type_node(
+                    TypeKind::List(Box::new(
+                        element_type.unwrap_or_else(|| type_node(TypeKind::Unit, expr)),
+                    )),
+                    expr,
+                ))
             }
             ExprKind::Index { collection, index } => {
                 self.check_expr(collection, locals, AccessMode::SharedBorrow);
