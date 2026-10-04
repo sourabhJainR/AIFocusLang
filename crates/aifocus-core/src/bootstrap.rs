@@ -23,6 +23,9 @@ pub struct BootstrapEvidence {
     pub stage2_deterministic: bool,
     pub rust_host_required: bool,
     pub independently_verified: bool,
+    pub compiler_subset_present: bool,
+    pub self_compilation_verified: bool,
+    pub self_rebuild_deterministic: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +121,9 @@ pub fn verify() -> BootstrapReport {
                     stage2_deterministic: false,
                     rust_host_required: true,
                     independently_verified: false,
+                    compiler_subset_present: false,
+                    self_compilation_verified: false,
+                    self_rebuild_deterministic: false,
                 },
                 blocker: Some(blocker),
             };
@@ -142,6 +148,9 @@ pub fn verify() -> BootstrapReport {
                     stage2_deterministic: false,
                     rust_host_required: true,
                     independently_verified: false,
+                    compiler_subset_present: true,
+                    self_compilation_verified: false,
+                    self_rebuild_deterministic: false,
                 },
                 blocker: Some(blocker),
             };
@@ -165,6 +174,9 @@ pub fn verify() -> BootstrapReport {
             stage2_deterministic: stage2_reproducible,
             rust_host_required: true,
             independently_verified: stage2_reproducible,
+            compiler_subset_present: true,
+            self_compilation_verified: stage2_reproducible,
+            self_rebuild_deterministic: stage2_reproducible,
         },
         blocker: Some(
             "stage2 is now a deterministic Ardisa-authored compiler-pipeline replay; true self-hosting still requires the Ardisa compiler to compile and recompile itself without the Rust host",
@@ -181,6 +193,7 @@ const SELF_HOSTED_SOURCES: &[(&str, &str)] = &[
         include_str!("../../../bootstrap/semantic.ardisa"),
     ),
     ("ir", include_str!("../../../bootstrap/ir.ardisa")),
+    ("compiler", include_str!("../../../bootstrap/compiler.ardisa")),
 ];
 
 fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
@@ -199,6 +212,7 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
                     "ast" => "self-hosted AST source does not parse",
                     "semantic" => "self-hosted semantic source does not parse",
                     "ir" => "self-hosted IR source does not parse",
+                    "compiler" => "self-hosted compiler source does not parse",
                     "AIF000" => "self-hosted source parse failed (AIF000)",
                     _ => "self-hosted source parse failed with diagnostic",
                 });
@@ -210,6 +224,7 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
             "ast" => "self-hosted AST fails semantic validation",
             "semantic" => "self-hosted semantic source fails semantic validation",
             "ir" => "self-hosted IR fails semantic validation",
+            "compiler" => "self-hosted compiler source fails semantic validation",
             _ => "self-hosted source fails semantic validation",
         })?;
         ownership::infer(&module).map_err(|errors| {
@@ -225,6 +240,8 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
                 ("semantic", "AIF403") => "self-hosted semantic stage has an ownership conflict",
                 ("ir", "AIF400") => "self-hosted IR has a use-after-move",
                 ("ir", "AIF403") => "self-hosted IR has an ownership conflict",
+                ("compiler", "AIF400") => "self-hosted compiler has a use-after-move",
+                ("compiler", "AIF403") => "self-hosted compiler has an ownership conflict",
                 _ => "self-hosted source fails ownership validation",
             }
         })?;
@@ -249,6 +266,38 @@ fn main(a: Int) -> Int
     let ast = programs.get("ast").ok_or("missing ast program")?;
     let semantic = programs.get("semantic").ok_or("missing semantic program")?;
     let ir_program = programs.get("ir").ok_or("missing ir program")?;
+    let compiler_program = programs
+        .get("compiler")
+        .ok_or("missing self-hosted compiler program")?;
+    let compiler_source = SELF_HOSTED_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "compiler")
+        .map(|(_, source)| (*source).to_string())
+        .ok_or("missing compiler source")?;
+
+    let self_compile = native::run_program(
+        compiler_program,
+        "compile",
+        &[native::NativeValue::String(compiler_source.clone())],
+    )
+    .map_err(|_| "self-hosted compiler failed to compile its own source")?;
+    let self_compile = match self_compile {
+        native::NativeValue::String(value) if value.starts_with("IR[") => value,
+        _ => return Err("self-hosted compiler produced an invalid IR artifact"),
+    };
+    let self_compile_repeat = native::run_program(
+        compiler_program,
+        "compile",
+        &[native::NativeValue::String(compiler_source)],
+    )
+    .map_err(|_| "self-hosted compiler failed deterministic rebuild")?;
+    let self_compile_repeat = match self_compile_repeat {
+        native::NativeValue::String(value) => value,
+        _ => return Err("self-hosted compiler rebuild produced a non-string artifact"),
+    };
+    if self_compile != self_compile_repeat {
+        return Err("self-hosted compiler rebuild is not deterministic");
+    }
 
     let tokens = native::run_program(lexer, "lex", &[native::NativeValue::String(source.into())])
         .unwrap_or_else(|error| panic!("self-hosted lexer native error: {:?}", error));
@@ -301,7 +350,7 @@ fn main(a: Int) -> Int
         _ => return Err("self-hosted IR lowering returned non-string IR"),
     };
 
-    let mut replay_fingerprint = fingerprint(&format!("{tokens}:{lowered_value}"));
+    let mut replay_fingerprint = fingerprint(&format!("{tokens}:{lowered_value}:{self_compile}"));
     for (name, source) in SELF_HOSTED_SOURCES {
         let replay_tokens = match native::run_program(
             lexer,
@@ -464,6 +513,9 @@ fn failed(blocker: &'static str) -> BootstrapReport {
             stage2_deterministic: false,
             rust_host_required: true,
             independently_verified: false,
+            compiler_subset_present: false,
+            self_compilation_verified: false,
+            self_rebuild_deterministic: false,
         },
         blocker: Some(blocker),
     }
