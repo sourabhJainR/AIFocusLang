@@ -106,20 +106,23 @@ impl PersistentCompilerLearning {
             task_kind: task_kind.into(),
             diagnostic: diagnostic.code.into(),
         };
-        let entry = self
-            .entries
-            .entry(key.clone())
-            .or_insert_with(|| LearningEntry {
-                key,
-                message: diagnostic.message.clone(),
-                occurrences: 0,
-                status: LearningStatus::Observed,
-            });
-        entry.message = diagnostic.message.clone();
-        entry.occurrences += 1;
-        entry.status = LearningStatus::VerifiedRepair;
+        let occurrences = {
+            let entry = self
+                .entries
+                .entry(key)
+                .or_insert_with(|| LearningEntry {
+                    key: key.clone(),
+                    message: diagnostic.message.clone(),
+                    occurrences: 0,
+                    status: LearningStatus::Observed,
+                });
+            entry.message = diagnostic.message.clone();
+            entry.occurrences += 1;
+            entry.status = LearningStatus::VerifiedRepair;
+            entry.occurrences
+        };
         self.record_provenance(
-            format!("repair:{}:{}", diagnostic.code, entry.occurrences),
+            format!("repair:{}:{occurrences}", diagnostic.code),
             ProvenanceKind::Repair,
             diagnostic.code,
             None,
