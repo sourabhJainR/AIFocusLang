@@ -3,7 +3,7 @@
 //! These structures are intentionally dependency-free and deterministic so they
 //! can be used by the compiler bootstrap before an external runtime exists.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Embedding {
@@ -122,14 +122,14 @@ pub struct TraceEvent {
 
 #[derive(Debug, Clone)]
 pub struct TraceBuffer {
-    events: Vec<TraceEvent>,
+    events: VecDeque<TraceEvent>,
     capacity: usize,
     next_sequence: u64,
 }
 
 impl TraceBuffer {
     pub fn with_capacity(capacity: usize) -> Self {
-        Self { events: Vec::with_capacity(capacity), capacity, next_sequence: 0 }
+        Self { events: VecDeque::with_capacity(capacity), capacity, next_sequence: 0 }
     }
     pub fn push(&mut self, level: TraceLevel, operation: &'static str, duration_ns: u64, message: impl Into<String>) {
         if self.capacity == 0 { return; }
@@ -143,10 +143,10 @@ impl TraceBuffer {
             message: message.into(),
         };
         self.next_sequence = self.next_sequence.wrapping_add(1);
-        if self.events.len() == self.capacity { self.events.remove(0); }
-        self.events.push(event);
+        if self.events.len() == self.capacity { self.events.pop_front(); }
+        self.events.push_back(event);
     }
-    pub fn events(&self) -> &[TraceEvent] { &self.events }
+    pub fn events(&self) -> impl DoubleEndedIterator<Item = &TraceEvent> { self.events.iter() }
     pub fn clear(&mut self) { self.events.clear(); }
 }
 
@@ -195,7 +195,7 @@ mod tests {
         t.push(TraceLevel::Info, "parse", 10, "one");
         t.push(TraceLevel::Info, "sema", 20, "two");
         t.push(TraceLevel::Warn, "native", 30, "three");
-        assert_eq!(t.events().len(), 2);
-        assert_eq!(t.events()[0].sequence, 1);
+        assert_eq!(t.events().count(), 2);
+        assert_eq!(t.events().next().unwrap().sequence, 1);
     }
 }
