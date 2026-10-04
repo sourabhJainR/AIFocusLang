@@ -25,6 +25,7 @@ pub mod protocol;
 pub mod sema;
 pub mod source;
 pub mod token;
+pub mod typed_ir;
 
 pub use ai::{
     Distribution, Embedding, Modality, Probability, Quantization, RuntimeError, SemanticValue,
@@ -44,6 +45,7 @@ pub use interop::{
     AbiParameterContract, InteropType, OwnershipContract, RustFunction, SafeRustBoundary,
 };
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
+pub use typed_ir::{TypedBasicBlock, TypedIrFunction, TypedIrModule, TypedIrOp, TypedTerminator, TypedValue, TypedValueKind};
 pub use learning::{
     LearningEntry, LearningKey, LearningProvenance, LearningStatus, PersistentCompilerLearning,
     ProvenanceKind,
