@@ -91,7 +91,7 @@ pub fn verify() -> BootstrapReport {
         && stage0.functions == stage1.functions;
 
     let stage2 = match self_hosted_pipeline_artifact() {
-        Ok(artifact) => Some(artifact),
+        Ok(artifact) => artifact,
         Err(blocker) => {
             return BootstrapReport {
                 parsed: true,
@@ -108,6 +108,25 @@ pub fn verify() -> BootstrapReport {
             };
         }
     };
+    let stage2_repeat = match self_hosted_pipeline_artifact() {
+        Ok(artifact) => artifact,
+        Err(blocker) => {
+            return BootstrapReport {
+                parsed: true,
+                semantically_valid: true,
+                ownership_valid: true,
+                native_compiled: true,
+                native_result,
+                stage0: Some(stage0),
+                stage1: Some(stage1),
+                stage2: Some(stage2),
+                reproducible: false,
+                self_hosting_ready: false,
+                blocker: Some(blocker),
+            };
+        }
+    };
+    let stage2_reproducible = stage2 == stage2_repeat;
 
     BootstrapReport {
         parsed: true,
@@ -117,11 +136,11 @@ pub fn verify() -> BootstrapReport {
         native_result,
         stage0: Some(stage0),
         stage1: Some(stage1),
-        stage2: stage2.clone(),
-        reproducible: reproducible && stage2.is_some(),
+        stage2: Some(stage2),
+        reproducible: reproducible && stage2_reproducible,
         self_hosting_ready: false,
         blocker: Some(
-            "stage2 now executes the Ardisa-authored source pipeline natively; true self-hosting still requires that pipeline to compile and recompile the compiler itself without the Rust host",
+            "stage2 is now a deterministic Ardisa-authored compiler-pipeline replay; true self-hosting still requires the Ardisa compiler to compile and recompile itself without the Rust host",
         ),
     }
 }
@@ -445,7 +464,10 @@ pub fn stage_manifest() -> BTreeMap<&'static str, &'static str> {
             "stage1",
             "Native Ardisa program compiled by the same deterministic pipeline",
         ),
-        ("stage2", "Reserved for Ardisa compiler compiling itself"),
+        (
+            "stage2",
+            "Deterministic Ardisa-authored compiler-pipeline replay over compiler sources",
+        ),
     ])
 }
 
@@ -482,7 +504,7 @@ mod tests {
         assert_eq!(manifest.len(), 3);
         assert_eq!(
             manifest["stage2"],
-            "Reserved for Ardisa compiler compiling itself"
+            "Deterministic Ardisa-authored compiler-pipeline replay over compiler sources"
         );
     }
 }
