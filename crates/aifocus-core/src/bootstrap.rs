@@ -513,6 +513,9 @@ fn failed(blocker: &'static str) -> BootstrapReport {
             stage2_deterministic: false,
             rust_host_required: true,
             independently_verified: false,
+            compiler_subset_present: false,
+            self_compilation_verified: false,
+            self_rebuild_deterministic: false,
         },
         blocker: Some(blocker),
     }
