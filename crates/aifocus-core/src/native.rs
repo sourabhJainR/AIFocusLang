@@ -952,6 +952,152 @@ fn add_values(left: NativeValue, right: NativeValue) -> Result<NativeValue, Nati
     }
 }
 
+
+/// Stable, dependency-free serialization for bootstrap artifacts.
+///
+/// The format is deliberately textual and line-oriented so an existing
+/// Ardisa VM can consume a compiler artifact without invoking the Rust compiler.
+pub const ARTIFACT_MAGIC: &str = "ARDISA-EXEC-V1";
+
+pub fn encode_program(program: &NativeProgram) -> String {
+    let mut out = String::from(ARTIFACT_MAGIC);
+    out.push('\n');
+    for (name, function) in &program.functions {
+        out.push_str("FN|");
+        out.push_str(&escape_artifact(name));
+        out.push('|');
+        out.push_str(&function.params.len().to_string());
+        out.push('|');
+        out.push_str(&function.params.iter().map(|p| escape_artifact(p)).collect::<Vec<_>>().join(","));
+        out.push('\n');
+        for instr in &function.code {
+            out.push_str("I|");
+            out.push_str(&encode_instr(instr));
+            out.push('\n');
+        }
+        out.push_str("END\n");
+    }
+    out
+}
+
+pub fn decode_program(input: &str) -> Result<NativeProgram, NativeError> {
+    let mut lines = input.lines();
+    if lines.next() != Some(ARTIFACT_MAGIC) {
+        return Err(NativeError::InvalidProgram("invalid Ardisa executable magic".into()));
+    }
+    let mut functions = BTreeMap::new();
+    let mut current: Option<(String, Vec<String>, Vec<NativeInstr>)> = None;
+    for line in lines {
+        if let Some(rest) = line.strip_prefix("FN|") {
+            if current.is_some() {
+                return Err(NativeError::InvalidProgram("nested function in executable".into()));
+            }
+            let mut parts = rest.split('|');
+            let name = unescape_artifact(parts.next().unwrap_or(""))?;
+            let _count = parts.next().unwrap_or("0").parse::<usize>()
+                .map_err(|_| NativeError::InvalidProgram("invalid parameter count".into()))?;
+            let params = if let Some(raw) = parts.next() {
+                if raw.is_empty() { Vec::new() } else {
+                    raw.split(',').map(unescape_artifact).collect::<Result<Vec<_>, _>>()?
+                }
+            } else { Vec::new() };
+            current = Some((name, params, Vec::new()));
+        } else if line == "END" {
+            let (name, params, code) = current.take()
+                .ok_or_else(|| NativeError::InvalidProgram("function terminator without function".into()))?;
+            functions.insert(name, NativeFunction { params, code });
+        } else if let Some(rest) = line.strip_prefix("I|") {
+            let (_, _, code) = current.as_mut()
+                .ok_or_else(|| NativeError::InvalidProgram("instruction outside function".into()))?;
+            code.push(decode_instr(rest)?);
+        } else if !line.is_empty() {
+            return Err(NativeError::InvalidProgram("unknown executable record".into()));
+        }
+    }
+    if current.is_some() {
+        return Err(NativeError::InvalidProgram("unterminated executable function".into()));
+    }
+    Ok(NativeProgram { functions })
+}
+
+fn escape_artifact(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('|', "\p").replace(',', "\c").replace('\n', "\n")
+}
+
+fn unescape_artifact(value: &str) -> Result<String, NativeError> {
+    let mut out = String::new();
+    let mut escaped = false;
+    for ch in value.chars() {
+        if escaped {
+            out.push(match ch { 'p' => '|', 'c' => ',', 'n' => '\n', '\\' => '\\', other => other });
+            escaped = false;
+        } else if ch == '\\' {
+            escaped = true;
+        } else {
+            out.push(ch);
+        }
+    }
+    if escaped { return Err(NativeError::InvalidProgram("trailing artifact escape".into())); }
+    Ok(out)
+}
+
+fn encode_instr(instr: &NativeInstr) -> String {
+    match instr {
+        NativeInstr::PushInt(v) => format!("PushInt:{v}"),
+        NativeInstr::PushBool(v) => format!("PushBool:{v}"),
+        NativeInstr::PushUnit => "PushUnit".into(),
+        NativeInstr::PushString(v) => format!("PushString:{}", escape_artifact(v)),
+        NativeInstr::PushList(v) => format!("PushList:{v}"),
+        NativeInstr::Index => "Index".into(), NativeInstr::Len => "Len".into(),
+        NativeInstr::Append(v) => format!("Append:{}", escape_artifact(v)),
+        NativeInstr::MakeOk => "MakeOk".into(), NativeInstr::Chr => "Chr".into(),
+        NativeInstr::MakeErr => "MakeErr".into(), NativeInstr::Unwrap => "Unwrap".into(),
+        NativeInstr::Load(v) => format!("Load:{}", escape_artifact(v)),
+        NativeInstr::Store(v) => format!("Store:{}", escape_artifact(v)),
+        NativeInstr::StoreIndex(v) => format!("StoreIndex:{}", escape_artifact(v)),
+        NativeInstr::Add => "Add".into(), NativeInstr::Sub => "Sub".into(),
+        NativeInstr::Mul => "Mul".into(), NativeInstr::Div => "Div".into(),
+        NativeInstr::Mod => "Mod".into(), NativeInstr::Equal => "Equal".into(),
+        NativeInstr::NotEqual => "NotEqual".into(), NativeInstr::Less => "Less".into(),
+        NativeInstr::LessEqual => "LessEqual".into(), NativeInstr::Greater => "Greater".into(),
+        NativeInstr::GreaterEqual => "GreaterEqual".into(),
+        NativeInstr::JumpIfFalse(v) => format!("JumpIfFalse:{v}"),
+        NativeInstr::Jump(v) => format!("Jump:{v}"), NativeInstr::Return => "Return".into(),
+        NativeInstr::Pop => "Pop".into(),
+        NativeInstr::Call { callee, argc } => format!("Call:{},{}", escape_artifact(callee), argc),
+        NativeInstr::ScopeStart => "ScopeStart".into(), NativeInstr::ScopeEnd => "ScopeEnd".into(),
+        NativeInstr::Spawn { name, callee, argc } => format!("Spawn:{},{},{}", escape_artifact(name), escape_artifact(callee), argc),
+        NativeInstr::Join { name } => format!("Join:{}", escape_artifact(name)),
+        NativeInstr::Cancel { name } => format!("Cancel:{}", escape_artifact(name)),
+    }
+}
+
+fn decode_instr(s: &str) -> Result<NativeInstr, NativeError> {
+    let mut p=s.splitn(2, ':'); let op=p.next().unwrap_or(""); let arg=p.next().unwrap_or("");
+    let bad=||NativeError::InvalidProgram(format!("invalid instruction '{s}'"));
+    let int=|v:&str|v.parse::<usize>().map_err(|_|bad());
+    Ok(match op {
+        "PushInt"=>NativeInstr::PushInt(arg.parse().map_err(|_|bad())?),
+        "PushBool"=>NativeInstr::PushBool(arg=="true"),
+        "PushUnit"=>NativeInstr::PushUnit,"Index"=>NativeInstr::Index,"Len"=>NativeInstr::Len,
+        "PushString"=>NativeInstr::PushString(unescape_artifact(arg)?),
+        "PushList"=>NativeInstr::PushList(int(arg)?),"Append"=>NativeInstr::Append(unescape_artifact(arg)?),
+        "MakeOk"=>NativeInstr::MakeOk,"Chr"=>NativeInstr::Chr,"MakeErr"=>NativeInstr::MakeErr,"Unwrap"=>NativeInstr::Unwrap,
+        "Load"=>NativeInstr::Load(unescape_artifact(arg)?),"Store"=>NativeInstr::Store(unescape_artifact(arg)?),
+        "StoreIndex"=>NativeInstr::StoreIndex(unescape_artifact(arg)?),"Add"=>NativeInstr::Add,"Sub"=>NativeInstr::Sub,
+        "Mul"=>NativeInstr::Mul,"Div"=>NativeInstr::Div,"Mod"=>NativeInstr::Mod,"Equal"=>NativeInstr::Equal,
+        "NotEqual"=>NativeInstr::NotEqual,"Less"=>NativeInstr::Less,"LessEqual"=>NativeInstr::LessEqual,
+        "Greater"=>NativeInstr::Greater,"GreaterEqual"=>NativeInstr::GreaterEqual,
+        "JumpIfFalse"=>NativeInstr::JumpIfFalse(int(arg)?),"Jump"=>NativeInstr::Jump(int(arg)?),
+        "Return"=>NativeInstr::Return,"Pop"=>NativeInstr::Pop,
+        "Call"=>{let mut x=arg.split(','); NativeInstr::Call{callee:unescape_artifact(x.next().ok_or_else(bad)?)?,argc:int(x.next().ok_or_else(bad)?)?}},
+        "ScopeStart"=>NativeInstr::ScopeStart,"ScopeEnd"=>NativeInstr::ScopeEnd,
+        "Spawn"=>{let mut x=arg.split(','); NativeInstr::Spawn{name:unescape_artifact(x.next().ok_or_else(bad)?)?,callee:unescape_artifact(x.next().ok_or_else(bad)?)?,argc:int(x.next().ok_or_else(bad)?)?}},
+        "Join"=>NativeInstr::Join{name:unescape_artifact(arg)?},"Cancel"=>NativeInstr::Cancel{name:unescape_artifact(arg)?},
+        _=>return Err(bad()),
+    })
+}
+
 fn pop_int(stack: &mut Vec<NativeValue>) -> Result<i64, NativeError> {
     match stack.pop() {
         Some(NativeValue::Int(value)) => Ok(value),
