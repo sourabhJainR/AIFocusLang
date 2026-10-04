@@ -362,6 +362,10 @@ impl Checker {
                             *state = State::Moved;
                         }
                     }
+                } else {
+                    // The branch may execute, so a move in it is conservatively
+                    // considered visible after the conditional.
+                    merge_states(locals, &then_locals, false);
                 }
                 Some(type_node(TypeKind::Unit, expr))
             }
