@@ -146,7 +146,6 @@ fn {name}({safe_params}) -> {ret} {{
             "unsafe {{\n    // SAFETY: {reason}\n    {expression}\n}}"
         ))
     }
-
 }
 
 pub fn validate(function: &RustFunction) -> Result<(), String> {
