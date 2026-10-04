@@ -18,6 +18,11 @@ pub enum NativeInstr {
     Mul,
     Div,
     Equal,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
     JumpIfFalse(usize),
     Jump(usize),
     Return,
@@ -191,6 +196,11 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
                 crate::BinaryOp::Mul => NativeInstr::Mul,
                 crate::BinaryOp::Div => NativeInstr::Div,
                 crate::BinaryOp::Equal => NativeInstr::Equal,
+                crate::BinaryOp::NotEqual => NativeInstr::NotEqual,
+                crate::BinaryOp::Less => NativeInstr::Less,
+                crate::BinaryOp::LessEqual => NativeInstr::LessEqual,
+                crate::BinaryOp::Greater => NativeInstr::Greater,
+                crate::BinaryOp::GreaterEqual => NativeInstr::GreaterEqual,
             });
         }
         IrValue::If {
@@ -321,14 +331,28 @@ pub fn run(
                 };
                 stack.push(NativeValue::Int(value));
             }
-            NativeInstr::Equal => {
+            NativeInstr::Equal
+            | NativeInstr::NotEqual
+            | NativeInstr::Less
+            | NativeInstr::LessEqual
+            | NativeInstr::Greater
+            | NativeInstr::GreaterEqual => {
                 let right = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
                 let left = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
-                stack.push(NativeValue::Bool(left == right));
+                let result = match instr {
+                    NativeInstr::Equal => left == right,
+                    NativeInstr::NotEqual => left != right,
+                    NativeInstr::Less => compare_ints(&left, &right, |a, b| a < b)?,
+                    NativeInstr::LessEqual => compare_ints(&left, &right, |a, b| a <= b)?,
+                    NativeInstr::Greater => compare_ints(&left, &right, |a, b| a > b)?,
+                    NativeInstr::GreaterEqual => compare_ints(&left, &right, |a, b| a >= b)?,
+                    _ => unreachable!(),
+                };
+                stack.push(NativeValue::Bool(result));
             }
             NativeInstr::JumpIfFalse(target) => {
                 let value = stack
@@ -492,14 +516,28 @@ fn run_function(
                 };
                 stack.push(NativeValue::Int(value));
             }
-            NativeInstr::Equal => {
+            NativeInstr::Equal
+            | NativeInstr::NotEqual
+            | NativeInstr::Less
+            | NativeInstr::LessEqual
+            | NativeInstr::Greater
+            | NativeInstr::GreaterEqual => {
                 let right = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
                 let left = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
-                stack.push(NativeValue::Bool(left == right));
+                let result = match instr {
+                    NativeInstr::Equal => left == right,
+                    NativeInstr::NotEqual => left != right,
+                    NativeInstr::Less => compare_ints(&left, &right, |a, b| a < b)?,
+                    NativeInstr::LessEqual => compare_ints(&left, &right, |a, b| a <= b)?,
+                    NativeInstr::Greater => compare_ints(&left, &right, |a, b| a > b)?,
+                    NativeInstr::GreaterEqual => compare_ints(&left, &right, |a, b| a >= b)?,
+                    _ => unreachable!(),
+                };
+                stack.push(NativeValue::Bool(result));
             }
             NativeInstr::JumpIfFalse(target) => {
                 let value = stack
@@ -521,6 +559,19 @@ fn run_function(
     Err(NativeError::InvalidProgram(
         "program terminated without return".into(),
     ))
+}
+
+fn compare_ints(
+    left: &NativeValue,
+    right: &NativeValue,
+    predicate: impl FnOnce(i64, i64) -> bool,
+) -> Result<bool, NativeError> {
+    let (NativeValue::Int(left), NativeValue::Int(right)) = (left, right) else {
+        return Err(NativeError::Type(
+            "ordering operators require Int operands".into(),
+        ));
+    };
+    Ok(predicate(*left, *right))
 }
 
 fn add_values(left: NativeValue, right: NativeValue) -> Result<NativeValue, NativeError> {

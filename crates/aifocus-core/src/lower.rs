@@ -202,6 +202,11 @@ impl Lowerer {
                     BinaryOp::Mul => "*",
                     BinaryOp::Div => "/",
                     BinaryOp::Equal => "==",
+                    BinaryOp::NotEqual => "!=",
+                    BinaryOp::Less => "<",
+                    BinaryOp::LessEqual => "<=",
+                    BinaryOp::Greater => ">",
+                    BinaryOp::GreaterEqual => ">=",
                 });
                 self.out.push(' ');
                 self.expr(right, indent);

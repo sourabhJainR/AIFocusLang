@@ -330,7 +330,7 @@ impl Checker {
                             None
                         }
                     }
-                    BinaryOp::Equal => {
+                    BinaryOp::Equal | BinaryOp::NotEqual => {
                         if !same_type(&left_type, &right_type) {
                             self.error(
                                 "AIF306",
@@ -340,6 +340,23 @@ impl Checker {
                             None
                         } else {
                             Some(type_node(TypeKind::Bool, expr.span))
+                        }
+                    }
+                    BinaryOp::Less
+                    | BinaryOp::LessEqual
+                    | BinaryOp::Greater
+                    | BinaryOp::GreaterEqual => {
+                        if is_kind(&left_type, &TypeKind::Int)
+                            && is_kind(&right_type, &TypeKind::Int)
+                        {
+                            Some(type_node(TypeKind::Bool, expr.span))
+                        } else {
+                            self.error(
+                                "AIF321",
+                                "ordering operators require Int operands",
+                                expr.span,
+                            );
+                            None
                         }
                     }
                 }
