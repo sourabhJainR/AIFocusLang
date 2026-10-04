@@ -49,6 +49,7 @@ pub enum TypeKind {
     Unit,
     Named(String),
     Result(Box<Type>, Box<Type>),
+    List(Box<Type>),
 }
 
 impl Type {
@@ -123,6 +124,8 @@ pub enum ExprKind {
         args: Vec<Expr>,
     },
     Group(Box<Expr>),
+    List(Vec<Expr>),
+    Index { collection: Box<Expr>, index: Box<Expr> },
     If {
         condition: Box<Expr>,
         then_branch: Block,
