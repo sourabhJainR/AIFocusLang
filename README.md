@@ -22,7 +22,7 @@ Ardisa source files use the `.ardisa` extension. The extension is part of the la
 3. Direct native execution for the supported language subset, with Rust lowering as an interoperability path.
 4. Rust interoperability and escape hatches.
 5. Native compiler work only after semantics are stable.
-6. AI-facing compiler APIs for structural editing and verification.
+6. AI-facing compiler APIs for structural editing, deterministic wire requests, and verification.
 
 ## Example
 
@@ -50,7 +50,7 @@ The syntax is intentionally easy for both people and coding agents to parse.
 
 ## Status
 
-Bootstrap-to-self-hosting development is in progress. The repository now has a deterministic parser and formatter, semantic and ownership checks, effect analysis, structured-concurrency static/runtime contracts, a narrow safe Rust ABI boundary, differential and generated-program verification, persistent verified-repair learning, a versioned AI-facing compiler protocol with structural queries and transactions, a native execution backend, benchmark fingerprints, and a reproducible stage2 compiler-pipeline replay. Full compiler self-hosting is not yet claimed.
+Bootstrap-to-self-hosting development is in progress. The repository now has a deterministic parser and formatter, flow-sensitive ownership checks, resource-level effect analysis, structured-concurrency failure propagation, a narrow safe Rust ABI boundary, differential and generated-program verification, persistent verified-repair learning, a versioned AI-facing compiler protocol with structural transactions and deterministic wire requests, a native execution backend exposed through `ardisa run`, benchmark fingerprints, and a reproducible stage2 compiler-pipeline replay. Full compiler self-hosting is not yet claimed.
 
 The repository is intentionally standalone: it has no runtime or build dependency on an external agent framework. Engineering feedback and learning are repository-local compiler facilities.
 
