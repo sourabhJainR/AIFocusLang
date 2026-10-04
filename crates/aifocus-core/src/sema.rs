@@ -387,9 +387,15 @@ impl Checker {
                     let value_type = self.check_expr(&args[0], locals)?;
                     let unit = type_node(TypeKind::Unit, expr.span);
                     return Some(if name == "ok" {
-                        type_node(TypeKind::Result(Box::new(value_type), Box::new(unit)), expr.span)
+                        type_node(
+                            TypeKind::Result(Box::new(value_type), Box::new(unit)),
+                            expr.span,
+                        )
                     } else {
-                        type_node(TypeKind::Result(Box::new(unit), Box::new(value_type)), expr.span)
+                        type_node(
+                            TypeKind::Result(Box::new(unit), Box::new(value_type)),
+                            expr.span,
+                        )
                     });
                 }
                 if name == "unwrap" {
