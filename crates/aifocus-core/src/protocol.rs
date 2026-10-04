@@ -128,18 +128,18 @@ pub const WIRE_PROTOCOL_VERSION: &str = "ardisa-wire-v1";
 /// Encode compiler requests into a dependency-free, deterministic wire format.
 /// Source payloads are UTF-8 hex so framing is unambiguous even when source contains newlines.
 pub fn encode_request(request: &CompilerRequest) -> String {
-    let mut out = format!("{WIRE_PROTOCOL_VERSION}\\n");
+    let mut out = format!("{WIRE_PROTOCOL_VERSION}\n");
     match request {
-        CompilerRequest::Inspect => out.push_str("INSPECT\\n"),
+        CompilerRequest::Inspect => out.push_str("INSPECT\n"),
         CompilerRequest::QueryNode(node) => {
-            out.push_str(&format!("QUERY\\n{}\\n", node.0));
+            out.push_str(&format!("QUERY\n{}\n", node.0));
         }
         CompilerRequest::ApplyEdit(edit) => {
-            out.push_str("EDIT\\n");
+            out.push_str("EDIT\n");
             encode_edit(edit, &mut out);
         }
         CompilerRequest::ApplyEdits(edits) => {
-            out.push_str(&format!("TRANSACTION\\n{}\\n", edits.len()));
+            out.push_str(&format!("TRANSACTION\n{}\n", edits.len()));
             for edit in edits {
                 encode_edit(edit, &mut out);
             }
@@ -149,7 +149,7 @@ pub fn encode_request(request: &CompilerRequest) -> String {
 }
 
 pub fn decode_request(wire: &str) -> Result<CompilerRequest, ProtocolError> {
-    let mut lines = wire.split('\\n');
+    let mut lines = wire.split('\n');
     if lines.next() != Some(WIRE_PROTOCOL_VERSION) {
         return Err(ProtocolError::Edit("unsupported wire protocol version".into()));
     }
@@ -183,13 +183,13 @@ pub fn decode_request(wire: &str) -> Result<CompilerRequest, ProtocolError> {
 fn encode_edit(edit: &StructuralEdit, out: &mut String) {
     match edit {
         StructuralEdit::Replace { node, source } => {
-            out.push_str(&format!("REPLACE\\n{}\\n{}\\n", node.0, hex(source.as_bytes())));
+            out.push_str(&format!("REPLACE\n{}\n{}\n", node.0, hex(source.as_bytes())));
         }
         StructuralEdit::InsertBefore { node, source } => {
-            out.push_str(&format!("INSERT_BEFORE\\n{}\\n{}\\n", node.0, hex(source.as_bytes())));
+            out.push_str(&format!("INSERT_BEFORE\n{}\n{}\n", node.0, hex(source.as_bytes())));
         }
         StructuralEdit::Delete { node } => {
-            out.push_str(&format!("DELETE\\n{}\\n", node.0));
+            out.push_str(&format!("DELETE\n{}\n", node.0));
         }
     }
 }
