@@ -495,10 +495,12 @@ fn reuse(source: String) -> String
         )
         .unwrap();
         let model = analyze(&module).unwrap();
-        assert!(model
-            .accesses
-            .values()
-            .any(|access| *access == AccessKind::MutableBorrow));
+        assert!(
+            model
+                .accesses
+                .values()
+                .any(|access| *access == AccessKind::MutableBorrow)
+        );
     }
 
     #[test]
