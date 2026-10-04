@@ -1,11 +1,17 @@
-name: CI
+name: Ardisa Verification
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  check:
+  rust:
+    name: Rust compiler and runtime
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,3 +19,23 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo check --workspace
       - run: cargo test --workspace
+
+  bootstrap:
+    name: True self-hosting gate
+    runs-on: ubuntu-latest
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: chmod +x bootstrap/verify_self_hosting.sh
+      - run: ./bootstrap/verify_self_hosting.sh
+
+  generated-differential:
+    name: Generated differential corpus
+    runs-on: ubuntu-latest
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p aifocus-core fuzz::tests -- --nocapture
+      - run: cargo test -p aifocus-core differential -- --nocapture
