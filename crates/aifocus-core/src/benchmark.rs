@@ -10,6 +10,8 @@ pub struct BenchmarkResult {
     pub ownership_valid: usize,
     pub native_compiled: usize,
     pub native_executed: usize,
+    pub failed_cases: usize,
+    pub fingerprint: u64,
     pub duration_ms: u128,
 }
 
@@ -36,26 +38,35 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
         ownership_valid: 0,
         native_compiled: 0,
         native_executed: 0,
+        failed_cases: 0,
+        fingerprint: 0xcbf29ce484222325,
         duration_ms: 0,
     };
 
     for offset in 0..cases {
         let case = fuzz::generate(seed_start.wrapping_add(offset as u64));
+        result.fingerprint = fingerprint(result.fingerprint, &case.source);
         let Ok(module) = parse(&case.source) else {
+            result.failed_cases += 1;
             continue;
         };
         result.parsed += 1;
         if sema::check(&module).is_err() {
+            result.failed_cases += 1;
             continue;
         }
         result.semantically_valid += 1;
         if ownership::infer(&module).is_err() {
+            result.failed_cases += 1;
             continue;
         }
         result.ownership_valid += 1;
         let code = match native::compile(&ir::lower(&module)) {
             Ok(code) => code,
-            Err(_) => continue,
+            Err(_) => {
+                result.failed_cases += 1;
+                continue;
+            }
         };
         result.native_compiled += 1;
         if native::run(
@@ -68,10 +79,19 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
         .is_ok()
         {
             result.native_executed += 1;
+        } else {
+            result.failed_cases += 1;
         }
     }
     result.duration_ms = started.elapsed().as_millis();
     result
+}
+
+fn fingerprint(mut hash: u64, source: &str) -> u64 {
+    for byte in source.bytes() {
+        hash = hash.wrapping_mul(0x100000001b3).wrapping_add(u64::from(byte));
+    }
+    hash
 }
 
 #[cfg(test)]
@@ -85,6 +105,8 @@ mod tests {
         assert_eq!(result.parsed, 64);
         assert_eq!(result.semantically_valid, 64);
         assert_eq!(result.ownership_valid, 64);
+        assert_eq!(result.failed_cases, 0);
         assert!(result.generation_success_rate() > 0.9);
+        assert_eq!(result.fingerprint, run(0, 64).fingerprint);
     }
 }
