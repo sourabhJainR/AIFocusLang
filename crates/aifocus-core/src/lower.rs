@@ -73,6 +73,19 @@ impl Lowerer {
                     self.expr(value, indent);
                     self.out.push_str(";\n");
                 }
+                StmtKind::SetIndex {
+                    collection,
+                    index,
+                    value,
+                } => {
+                    self.record(stmt.id, stmt.span);
+                    self.expr(collection, indent);
+                    self.out.push('[');
+                    self.expr(index, indent);
+                    self.out.push_str("] = ");
+                    self.expr(value, indent);
+                    self.out.push_str(";\n");
+                }
                 StmtKind::Let { name, value } => {
                     self.record(stmt.id, stmt.span);
                     self.out.push_str("let ");
