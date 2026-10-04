@@ -175,7 +175,7 @@ impl PersistentCompilerLearning {
             out.push('\t');
             out.push_str(&escape(item.parent_id.as_deref().unwrap_or("")));
             out.push('\t');
-            out.push_str(&escape(&item.evidence.join("\u001f")));
+            out.push_str(&escape(&item.evidence.join("\u{001f}")));
             out.push('\n');
         }
         fs::write(path, out).map_err(|error| error.to_string())
