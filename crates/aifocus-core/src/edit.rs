@@ -66,18 +66,24 @@ pub fn apply_transaction(
         .iter()
         .map(|edit| {
             let (node, span, replacement) = match edit {
-                StructuralEdit::Replace { node, source } => {
-                    (*node, find_span(module, *node).ok_or_else(|| missing(*node))?, source.clone())
-                }
-                StructuralEdit::InsertBefore { node, source } => {
-                    (*node, {
+                StructuralEdit::Replace { node, source } => (
+                    *node,
+                    find_span(module, *node).ok_or_else(|| missing(*node))?,
+                    source.clone(),
+                ),
+                StructuralEdit::InsertBefore { node, source } => (
+                    *node,
+                    {
                         let span = find_span(module, *node).ok_or_else(|| missing(*node))?;
                         Span::new(span.start, span.start)
-                    }, source.clone())
-                }
-                StructuralEdit::Delete { node } => {
-                    (*node, find_span(module, *node).ok_or_else(|| missing(*node))?, String::new())
-                }
+                    },
+                    source.clone(),
+                ),
+                StructuralEdit::Delete { node } => (
+                    *node,
+                    find_span(module, *node).ok_or_else(|| missing(*node))?,
+                    String::new(),
+                ),
             };
             Ok((node, span, replacement))
         })
