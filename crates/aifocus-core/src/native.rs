@@ -10,6 +10,7 @@ pub enum NativeInstr {
     PushString(String),
     PushList(usize),
     Index,
+    Len,
     Load(String),
     Store(String),
     StoreIndex(String),
@@ -230,10 +231,14 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
             for arg in args {
                 emit_value(arg, code)?;
             }
-            code.push(NativeInstr::Call {
-                callee: callee.clone(),
-                argc: args.len(),
-            });
+            if callee == "len" && args.len() == 1 {
+                code.push(NativeInstr::Len);
+            } else {
+                code.push(NativeInstr::Call {
+                    callee: callee.clone(),
+                    argc: args.len(),
+                });
+            }
         }
     }
     Ok(())
@@ -294,6 +299,21 @@ pub fn run(
                         ));
                     }
                 }
+            }
+            NativeInstr::Len => {
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("len from empty stack".into()))?;
+                let length = match value {
+                    NativeValue::String(value) => value.len(),
+                    NativeValue::List(values) => values.len(),
+                    _ => {
+                        return Err(NativeError::Type(
+                            "len requires String or List".into(),
+                        ));
+                    }
+                };
+                stack.push(NativeValue::Int(length as i64));
             }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
