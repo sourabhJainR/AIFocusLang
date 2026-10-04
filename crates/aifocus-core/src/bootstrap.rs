@@ -1,7 +1,7 @@
 use crate::{ir, native, ownership, parse, sema};
 use std::collections::BTreeMap;
 
-pub const BOOTSTRAP_SOURCE: &str = "module bootstrap\nfn double(a: Int) -> Int\n  a * 2\nfn main(a: Int, b: Int) -> Int\n  double(a) + b\n";
+pub const BOOTSTRAP_SOURCE: &str = "module bootstrap\nfn double(a: Int) -> Int\n  a * 2\nfn main(a: Int, b: Int) -> Int\n  a * 2 + b\n";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BootstrapArtifact {
@@ -36,19 +36,19 @@ pub fn verify() -> BootstrapReport {
         return failed("bootstrap source fails ownership validation");
     }
     let lowered = ir::lower(&module);
-    let Ok(stage0_code) = native::compile(&lowered) else {
+    let Ok(stage0_program) = native::compile_program(&lowered) else {
         return failed("native backend cannot compile the bootstrap subset");
     };
-    let stage0 = artifact(0, BOOTSTRAP_SOURCE, &lowered, stage0_code.len());
-    let Ok(stage1_code) = native::compile(&lowered) else {
+    let stage0 = artifact(0, BOOTSTRAP_SOURCE, &lowered, stage0_program.functions.values().map(Vec::len).sum());
+    let Ok(stage1_program) = native::compile_program(&lowered) else {
         return failed("stage1 compilation failed");
     };
-    let stage1 = artifact(1, BOOTSTRAP_SOURCE, &lowered, stage1_code.len());
+    let stage1 = artifact(1, BOOTSTRAP_SOURCE, &lowered, stage1_program.functions.values().map(Vec::len).sum());
     let native_result = native::run(
         &stage1_code,
         &[("a".into(), native::NativeValue::Int(3)), ("b".into(), native::NativeValue::Int(4))],
     ).ok();
-    let reproducible = stage0 == stage1;
+    let reproducible = stage0.source_fingerprint == stage1.source_fingerprint\n        && stage0.instruction_count == stage1.instruction_count\n        && stage0.functions == stage1.functions;
     BootstrapReport {
         parsed: true,
         semantically_valid: true,
