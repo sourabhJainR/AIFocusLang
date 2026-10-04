@@ -240,7 +240,9 @@ pub fn run(
             }
             NativeInstr::Index => {
                 let index = pop_int(&mut stack)?;
-                let collection = stack.pop().ok_or_else(|| NativeError::InvalidProgram("index from empty stack".into()))?;
+                let collection = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("index from empty stack".into()))?;
                 let NativeValue::List(values) = collection else {
                     return Err(NativeError::Type("indexing requires a list".into()));
                 };
