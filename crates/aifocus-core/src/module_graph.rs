@@ -106,7 +106,10 @@ impl ModuleGraph {
             match state.get(dependency).copied().unwrap_or(0) {
                 0 => self.visit(dependency, state, stack, order)?,
                 1 => {
-                    let start = stack.iter().position(|item| item == dependency).unwrap_or(0);
+                    let start = stack
+                        .iter()
+                        .position(|item| item == dependency)
+                        .unwrap_or(0);
                     return Err(ModuleGraphError::Cycle(stack[start..].to_vec()));
                 }
                 _ => {}
