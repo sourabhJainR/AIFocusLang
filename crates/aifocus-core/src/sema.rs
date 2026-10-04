@@ -17,6 +17,7 @@ pub struct SemanticModel {
     pub function_returns: HashMap<String, Type>,
 }
 
+/// Validate semantic types including String concatenation.
 pub fn check(module: &Module) -> Result<(), Vec<Diagnostic>> {
     analyze(module).map(|_| ())
 }
@@ -194,17 +195,22 @@ impl Checker {
                 let right_type = self.check_expr(right, locals)?;
                 match op {
                     BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-                        if !is_kind(&left_type, &TypeKind::Int)
-                            || !is_kind(&right_type, &TypeKind::Int)
-                        {
+                        let int_operands = is_kind(&left_type, &TypeKind::Int)
+                            && is_kind(&right_type, &TypeKind::Int);
+                        let string_add = matches!(op, BinaryOp::Add)
+                            && is_kind(&left_type, &TypeKind::String)
+                            && is_kind(&right_type, &TypeKind::String);
+                        if int_operands {
+                            Some(type_node(TypeKind::Int, expr.span))
+                        } else if string_add {
+                            Some(type_node(TypeKind::String, expr.span))
+                        } else {
                             self.error(
                                 "AIF305",
-                                "arithmetic operators require Int operands",
+                                "arithmetic operators require Int operands, except String + String",
                                 expr.span,
                             );
                             None
-                        } else {
-                            Some(type_node(TypeKind::Int, expr.span))
                         }
                     }
                     BinaryOp::Equal => {

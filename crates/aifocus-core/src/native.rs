@@ -7,6 +7,7 @@ use crate::ir::{IrFunction, IrModule, IrOp, IrValue};
 pub enum NativeInstr {
     PushInt(i64),
     PushBool(bool),
+    PushString(String),
     Load(String),
     Store(String),
     Add,
@@ -34,9 +35,11 @@ pub struct NativeFunction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Native values are intentionally dependency-free so the native compiler can bootstrap incrementally.
 pub enum NativeValue {
     Int(i64),
     Bool(bool),
+    String(String),
     Unit,
 }
 
@@ -47,6 +50,7 @@ pub enum NativeError {
     Type(String),
 }
 
+/// Compile the first function for the legacy single-function API.
 pub fn compile(module: &IrModule) -> Result<Vec<NativeInstr>, NativeError> {
     let function = module
         .functions
@@ -77,7 +81,7 @@ pub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, Nativ
     if function
         .params
         .iter()
-        .any(|(_, ty)| !matches!(ty, TypeKind::Int | TypeKind::Bool))
+        .any(|(_, ty)| !matches!(ty, TypeKind::Int | TypeKind::Bool | TypeKind::String))
     {
         return Err(NativeError::Unsupported(
             "native backend currently supports Int and Bool parameters only".into(),
@@ -133,6 +137,7 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
 fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
     match value {
         IrValue::Int(value) => code.push(NativeInstr::PushInt(*value)),
+        IrValue::String(value) => code.push(NativeInstr::PushString(value.clone())),
         IrValue::Bool(value) => code.push(NativeInstr::PushBool(*value)),
         IrValue::Name(name) => code.push(NativeInstr::Load(name.clone())),
         IrValue::Binary { op, left, right } => {
@@ -176,12 +181,6 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
                 argc: args.len(),
             });
         }
-        IrValue::String(_) => {
-            return Err(NativeError::Unsupported(
-                "native backend currently supports literals, names, arithmetic, equality, if, and function calls"
-                    .into(),
-            ));
-        }
     }
     Ok(())
 }
@@ -203,6 +202,7 @@ pub fn run(
         match instr {
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
+            NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
@@ -318,6 +318,7 @@ fn run_function(
             }
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
+            NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
@@ -329,11 +330,19 @@ fn run_function(
                     .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
                 locals.insert(name, value);
             }
-            NativeInstr::Add | NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div => {
+            NativeInstr::Add => {
+                let right = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let left = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                stack.push(add_values(left, right)?);
+            }
+            NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div => {
                 let right = pop_int(&mut stack)?;
                 let left = pop_int(&mut stack)?;
                 let value = match instr {
-                    NativeInstr::Add => left + right,
                     NativeInstr::Sub => left - right,
                     NativeInstr::Mul => left * right,
                     NativeInstr::Div => {
@@ -375,6 +384,18 @@ fn run_function(
     Err(NativeError::InvalidProgram(
         "program terminated without return".into(),
     ))
+}
+
+fn add_values(left: NativeValue, right: NativeValue) -> Result<NativeValue, NativeError> {
+    match (left, right) {
+        (NativeValue::Int(left), NativeValue::Int(right)) => Ok(NativeValue::Int(left + right)),
+        (NativeValue::String(left), NativeValue::String(right)) => {
+            Ok(NativeValue::String(format!("{left}{right}")))
+        }
+        _ => Err(NativeError::Type(
+            "String + String or Int + Int required".into(),
+        )),
+    }
 }
 
 fn pop_int(stack: &mut Vec<NativeValue>) -> Result<i64, NativeError> {
@@ -427,6 +448,22 @@ fn main(a: Int) -> Int
         let code = compile(&ir).unwrap();
         let result = run(&code, &[(String::from("a"), NativeValue::Int(0))]).unwrap();
         assert_eq!(result, NativeValue::Int(1));
+    }
+
+    #[test]
+    fn compiles_and_runs_string_concatenation() {
+        let module = crate::parse(
+            r#"module x
+fn main() -> String
+  "hello " + "ardisa"
+"#,
+        )
+        .unwrap();
+        crate::sema::check(&module).unwrap();
+        let ir = crate::ir::lower(&module);
+        let program = compile_program(&ir).unwrap();
+        let result = run_program(&program, "main", &[]).unwrap();
+        assert_eq!(result, NativeValue::String("hello ardisa".into()));
     }
 
     #[test]
