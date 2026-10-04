@@ -24,7 +24,10 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
-pub use ai::{Embedding, Probability, Distribution, Quantization, Tensor, Modality, SemanticValue, TraceLevel, TraceEvent, TraceBuffer, RuntimeError};
+pub use ai::{
+    Distribution, Embedding, Modality, Probability, Quantization, RuntimeError, SemanticValue,
+    Tensor, TraceBuffer, TraceEvent, TraceLevel,
+};
 pub use concurrency::{CancellationToken, ScopeReport, TaskHandle, TaskSpec, TaskTerminal};
 pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
