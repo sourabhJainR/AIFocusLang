@@ -1,5 +1,7 @@
 # Ardisa roadmap
 
+Status at the current bootstrap checkpoint: the core compiler pipeline is executable and stage2 replay is reproducible; full self-hosting remains open. Each phase below is gated by behavior-level evidence, not file presence alone.
+
 The canonical source extension is `.ardisa`; all examples, fixtures, tooling, and editor integrations should use `*.ardisa`.
 
 ## Phase 0: bootstrap
