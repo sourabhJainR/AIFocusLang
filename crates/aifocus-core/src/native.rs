@@ -49,6 +49,7 @@ pub enum NativeError {
     Type(String),
 }
 
+/// Compile the first function for the legacy single-function API.
 pub fn compile(module: &IrModule) -> Result<Vec<NativeInstr>, NativeError> {
     let function = module
         .functions
