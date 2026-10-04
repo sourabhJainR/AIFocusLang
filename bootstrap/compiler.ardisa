@@ -118,13 +118,12 @@ fn lex_source(source: String) -> String
           set index = index + 1
         else
           if c == 35
-            let scanning_comment = true
             while index < len(source)
-              if scanning_comment == true
-                if source[index] == 10
-                  set scanning_comment = false
-                else
-                  set index = index + 1
+              if source[index] == 10
+                set line_start = true
+                set index = index + 1
+              else
+                set index = index + 1
           else
             if is_letter(c)
               let word = ""
@@ -226,61 +225,61 @@ fn lex_source(source: String) -> String
                           else
                             set output = output + token("Less", "<")
                             set index = index + 1
-                        else
-                          if c == 62
-                            if index + 1 < len(source)
-                              if source[index + 1] == 61
-                                set output = output + token("GreaterEqual", ">=")
-                                set index = index + 2
-                              else
-                                set output = output + token("Greater", ">")
-                                set index = index + 1
+                      else
+                        if c == 62
+                          if index + 1 < len(source)
+                            if source[index + 1] == 61
+                              set output = output + token("GreaterEqual", ">=")
+                              set index = index + 2
                             else
                               set output = output + token("Greater", ">")
                               set index = index + 1
                           else
-                            if c == 43
-                              set output = output + token("Plus", "+")
+                            set output = output + token("Greater", ">")
+                            set index = index + 1
+                        else
+                          if c == 43
+                            set output = output + token("Plus", "+")
+                            set index = index + 1
+                          else
+                            if c == 42
+                              set output = output + token("Star", "*")
                               set index = index + 1
                             else
-                              if c == 42
-                                set output = output + token("Star", "*")
+                              if c == 47
+                                set output = output + token("Slash", "/")
                                 set index = index + 1
                               else
-                                if c == 47
-                                  set output = output + token("Slash", "/")
+                                if c == 37
+                                  set output = output + token("Percent", "%")
                                   set index = index + 1
                                 else
-                                  if c == 37
-                                    set output = output + token("Percent", "%")
+                                  if c == 44
+                                    set output = output + token("Comma", ",")
                                     set index = index + 1
                                   else
-                                    if c == 44
-                                      set output = output + token("Comma", ",")
+                                    if c == 58
+                                      set output = output + token("Colon", ":")
                                       set index = index + 1
                                     else
-                                      if c == 58
-                                        set output = output + token("Colon", ":")
+                                      if c == 91
+                                        set output = output + token("LBracket", "[")
                                         set index = index + 1
                                       else
-                                        if c == 91
-                                          set output = output + token("LBracket", "[")
+                                        if c == 93
+                                          set output = output + token("RBracket", "]")
                                           set index = index + 1
                                         else
-                                          if c == 93
-                                            set output = output + token("RBracket", "]")
+                                          if c == 40
+                                            set output = output + token("LParen", "(")
                                             set index = index + 1
                                           else
-                                            if c == 40
-                                              set output = output + token("LParen", "(")
+                                            if c == 41
+                                              set output = output + token("RParen", ")")
                                               set index = index + 1
                                             else
-                                              if c == 41
-                                                set output = output + token("RParen", ")")
-                                                set index = index + 1
-                                              else
-                                                set output = output + token("Unknown", chr(c))
-                                                set index = index + 1
+                                              set output = output + token("Unknown", chr(c))
+                                              set index = index + 1
   while indent > 0
     if indent > 1
       set indent = indent - 2
@@ -533,6 +532,17 @@ fn classify(atom: String) -> String
 fn op(kind: String, value: String) -> String
   kind + "(" + value + ")"
 
+fn optimize_ir(ir: String) -> String
+  let result = ""
+  let index = 0
+  while index < len(ir)
+    if ir[index] == 32
+      set index = index + 1
+    else
+      set result = result + chr(ir[index])
+      set index = index + 1
+  result
+
 fn lower_ir(ast: String) -> String
   let result = "IR["
   let index = 0
@@ -580,8 +590,12 @@ fn compile(source: String) -> String
   let tokens = lex_source(source)
   let parsed = parse_tokens(tokens)
   let ast = build_ast(parsed)
-  let result = check_ast(ast)
-  if result == "Ok"
-    lower_ir(ast)
+  let semantic = check_ast(ast)
+  if semantic == "Ok"
+    let ir = lower_ir(ast)
+    optimize_ir(ir)
   else
-    "ERROR:" + result
+    "ERROR:" + semantic
+
+fn main(source: String) -> String
+  compile(source)
