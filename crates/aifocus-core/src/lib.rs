@@ -1,6 +1,7 @@
 //! Core language model, parser, and AI-native structural editing API for Ardisa.
 
 pub mod ai;
+pub mod arena;
 pub mod ast;
 pub mod benchmark;
 pub mod bootstrap;
@@ -28,6 +29,7 @@ pub use ai::{
     Distribution, Embedding, Modality, Probability, Quantization, RuntimeError, SemanticValue,
     Tensor, TraceBuffer, TraceEvent, TraceLevel,
 };
+pub use arena::{Arena, ArenaId, RecordField, RecordSchema, RecordValue};
 pub use concurrency::{CancellationToken, ScopeReport, TaskHandle, TaskSpec, TaskTerminal};
 pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
@@ -41,7 +43,8 @@ pub use learning::{LearningEntry, LearningKey, PersistentCompilerLearning};
 pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
 pub use protocol::{
-    CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, ProtocolError,
+    CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, CompilerTrace,
+    ProtocolError,
 };
 
 pub use ast::{
