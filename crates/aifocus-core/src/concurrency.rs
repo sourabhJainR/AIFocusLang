@@ -215,7 +215,7 @@ impl StructuredScope {
                 self.events.push(ScopeEvent::Joined(name));
             }
         }
-        Ok(self.events)
+        Ok(self.events.clone())
     }
 
     pub fn events(&self) -> &[ScopeEvent] {
