@@ -4,26 +4,27 @@ The implementation is evidence-gated. A phase is complete only after its executa
 
 ## Completed foundations
 - Tiny .ardisa language surface, lexer, parser, AST, spans, formatter and deterministic diagnostics.
-- Ownership analysis with move/use-after-move and borrow transition checks.
-- Read/write/call effect analysis and call dependency propagation.
-- Static structured-concurrency scope checking and runtime cancellation/join cleanup.
+- Flow-sensitive ownership state propagation across conditional and loop control flow.
+- Read/write/call effect analysis with resource-level read/write sets and transitive invalidation.
+- Static structured-concurrency scope checking with runtime cancellation, deterministic cleanup order, child-failure propagation and sibling cancellation.
 - Narrow safe Rust scalar ABI contract with isolated unsafe wrapper generation.
 - Differential tests, deterministic generated cases and benchmark fingerprints.
-- Versioned compiler protocol with verification requirements, node queries and atomic multi-edit transactions.
+- Versioned compiler protocol with verification requirements, node queries, atomic multi-edit transactions and deterministic `ardisa-wire-v1` request framing.
 - Persistent compiler learning with observed and verified-repair states.
 - Reproducible stage2 Ardisa-authored compiler-pipeline replay.
+- Direct `ardisa run` execution through the dependency-free native backend for the supported CLI argument types.
+- Rust lowering remains available as an interoperability/build path, including valid lowering of mutable bindings.
 
 ## Remaining phases
 ### A. Semantic completeness
-- flow-sensitive borrow regions across branches, loops and nested scopes;
-- explicit mutable borrow semantics;
-- broader type inference, patterns, traits/interfaces and Result/error semantics;
-- field/resource-level effect dependencies and incremental invalidation.
+- explicit lifetime/borrow-region syntax rather than conservative flow joins;
+- broader type inference, patterns, traits/interfaces and richer Result/error semantics;
+- richer ownership/type interaction for aggregate values.
 
 ### B. Runtime semantics
-- task failure propagation and sibling cancellation;
-- deterministic runtime task traces;
-- stronger structured-concurrency integration with compiler diagnostics.
+- compiler-level task failure diagnostics and source mapping;
+- runtime trace exposure through the compiler protocol;
+- native execution of structured-concurrency operations.
 
 ### C. Interoperability
 - compile-time ABI fixtures;
@@ -37,9 +38,9 @@ The implementation is evidence-gated. A phase is complete only after its executa
 - reproducible benchmark reports.
 
 ### E. Compiler protocol
-- stable machine-readable wire encoding;
 - richer AST/symbol/type/effect query operations;
-- transaction diagnostics with source/evidence mapping.
+- transaction diagnostics with source/evidence mapping;
+- response framing and a stable stdio transport.
 
 ### F. Learning and engineering evidence
 - verified repair provenance;
