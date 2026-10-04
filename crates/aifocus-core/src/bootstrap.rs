@@ -414,3 +414,11 @@ mod tests {
 
     #[test]
     fn manifest_explicitly_models_three_bootstrap_stages() {
+        let manifest = stage_manifest();
+        assert_eq!(manifest.len(), 3);
+        assert_eq!(
+            manifest["stage2"],
+            "Reserved for Ardisa compiler compiling itself"
+        );
+    }
+}
