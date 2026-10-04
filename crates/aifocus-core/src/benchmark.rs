@@ -48,7 +48,7 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
             Err(_) => continue,
         };
         result.native_compiled += 1;
-        if native::run(&code, &[]).is_ok() {
+        if native::run(&code, &[("a".into(), native::NativeValue::Int(3)), ("b".into(), native::NativeValue::Int(4))]).is_ok() {
             result.native_executed += 1;
         }
     }
