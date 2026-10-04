@@ -21,6 +21,7 @@ pub struct EffectModel {
     pub dependencies: HashMap<String, HashSet<String>>,
 }
 
+/// Assignment statements contribute explicit write effects.
 pub fn analyze(module: &Module) -> EffectModel {
     let mut functions = HashMap::new();
     for item in &module.items {
