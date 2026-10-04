@@ -42,7 +42,7 @@ pub use evidence::{CapabilityDecision, CapabilityEvaluation, EvidenceEnvelope, E
 pub use fuzz::{GeneratedCase, generate as generate_fuzz_case};
 pub use interop::{InteropType, RustFunction, SafeRustBoundary};
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
-pub use learning::{LearningEntry, LearningKey, PersistentCompilerLearning};
+pub use learning::{LearningEntry, LearningKey, LearningStatus, PersistentCompilerLearning};
 pub use module_graph::{ModuleGraph, ModuleGraphError, ModuleNode};
 pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
