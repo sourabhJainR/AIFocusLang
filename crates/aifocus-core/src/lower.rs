@@ -306,6 +306,16 @@ mod tests {
     }
 
     #[test]
+    fn generated_rust_supports_mutable_bindings() {
+        let module = parse(
+            "module x\nfn update(a: Int) -> Int\n  let value = a\n  set value = value + 1\n  value\n",
+        )
+        .unwrap();
+        let lowered = lower(&module);
+        assert!(lowered.rust.contains("let mut value = a;"));
+    }
+
+    #[test]
     fn generated_rust_is_accepted_by_rustc() {
         let module = parse("module x\nfn add(a: Int, b: Int) -> Int\n  a + b\n").unwrap();
         let lowered = lower(&module);
