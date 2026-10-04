@@ -180,8 +180,27 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
     Ok(())
 }
 
-fn block_terminates(ops: &[IrOp]) -> bool {
-    matches!(ops.last(), Some(IrOp::Return(_)))
+fn emit_branch(ops: &[IrOp], code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
+    if ops.is_empty() {
+        code.push(NativeInstr::PushUnit);
+        return Ok(());
+    }
+    for (index, op) in ops.iter().enumerate() {
+        let is_last = index + 1 == ops.len();
+        if is_last {
+            match op {
+                IrOp::Expr(value) => emit_value(value, code)?,
+                IrOp::Return(_) => emit_op(op, code)?,
+                _ => {
+                    emit_op(op, code)?;
+                    code.push(NativeInstr::PushUnit);
+                }
+            }
+        } else {
+            emit_op(op, code)?;
+        }
+    }
+    Ok(())
 }
 
 fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
@@ -226,21 +245,11 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
             emit_value(condition, code)?;
             let jump_if = code.len();
             code.push(NativeInstr::JumpIfFalse(usize::MAX));
-            for op in then_ops {
-                emit_op(op, code)?;
-            }
-            if !block_terminates(then_ops) {
-                code.push(NativeInstr::PushUnit);
-            }
+            emit_branch(then_ops, code)?;
             let jump_end = code.len();
             code.push(NativeInstr::Jump(usize::MAX));
             let else_start = code.len();
-            for op in else_ops {
-                emit_op(op, code)?;
-            }
-            if !block_terminates(else_ops) {
-                code.push(NativeInstr::PushUnit);
-            }
+            emit_branch(else_ops, code)?;
             let end = code.len();
             code[jump_if] = NativeInstr::JumpIfFalse(else_start);
             code[jump_end] = NativeInstr::Jump(end);
