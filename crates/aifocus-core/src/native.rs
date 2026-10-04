@@ -17,6 +17,7 @@ pub enum NativeInstr {
     Sub,
     Mul,
     Div,
+    Mod,
     Equal,
     NotEqual,
     Less,
@@ -195,6 +196,7 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
                 crate::BinaryOp::Sub => NativeInstr::Sub,
                 crate::BinaryOp::Mul => NativeInstr::Mul,
                 crate::BinaryOp::Div => NativeInstr::Div,
+                crate::BinaryOp::Mod => NativeInstr::Mod,
                 crate::BinaryOp::Equal => NativeInstr::Equal,
                 crate::BinaryOp::NotEqual => NativeInstr::NotEqual,
                 crate::BinaryOp::Less => NativeInstr::Less,
@@ -338,6 +340,12 @@ pub fn run(
                             return Err(NativeError::Type("division by zero".into()));
                         }
                         left / right
+                    }
+                    NativeInstr::Mod => {
+                        if right == 0 {
+                            return Err(NativeError::Type("modulo by zero".into()));
+                        }
+                        left % right
                     }
                     _ => unreachable!(),
                 };
@@ -512,7 +520,7 @@ fn run_function(
                     .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
                 stack.push(add_values(left, right)?);
             }
-            NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div => {
+            NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div | NativeInstr::Mod => {
                 let right = pop_int(&mut stack)?;
                 let left = pop_int(&mut stack)?;
                 let value = match instr {
