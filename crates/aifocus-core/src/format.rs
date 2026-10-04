@@ -153,6 +153,7 @@ fn format_expr(expr: &Expr, indent: usize, out: &mut String) {
                 BinaryOp::Sub => "-",
                 BinaryOp::Mul => "*",
                 BinaryOp::Div => "/",
+                BinaryOp::Mod => "%",
                 BinaryOp::Equal => "==",
                 BinaryOp::NotEqual => "!=",
                 BinaryOp::Less => "<",
