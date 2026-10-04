@@ -248,11 +248,13 @@ mod tests {
 
     #[test]
     fn compiles_and_runs_arithmetic_without_rust() {
-        let module =
-            crate::parse("module x
+        let module = crate::parse(
+            "module x
 fn main(a: Int, b: Int) -> Int
   a + b * 2
-").unwrap();
+",
+        )
+        .unwrap();
         crate::sema::check(&module).unwrap();
         let ir = crate::ir::lower(&module);
         let code = compile(&ir).unwrap();
@@ -287,10 +289,13 @@ fn main(a: Int) -> Int
 
     #[test]
     fn rejects_unsupported_calls() {
-        let module = crate::parse("module x
+        let module = crate::parse(
+            "module x
 fn main() -> Int
   helper()
-").unwrap();
+",
+        )
+        .unwrap();
         let ir = crate::ir::lower(&module);
         assert!(matches!(compile(&ir), Err(NativeError::Unsupported(_))));
     }
