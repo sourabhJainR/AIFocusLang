@@ -388,7 +388,6 @@ fn verification_requirements() -> Vec<VerificationRequirement> {
 pub const MAX_STDIO_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
 /// Encode one protocol payload using Content-Length framing.
-/// The header is ASCII and the length is measured in bytes, not characters.
 pub fn encode_stdio_frame(payload: &[u8]) -> Result<Vec<u8>, ProtocolError> {
     if payload.len() > MAX_STDIO_FRAME_BYTES {
         return Err(ProtocolError::Edit("stdio payload exceeds 8 MiB limit".into()));
@@ -398,14 +397,15 @@ pub fn encode_stdio_frame(payload: &[u8]) -> Result<Vec<u8>, ProtocolError> {
     Ok(frame)
 }
 
-/// Decode exactly one complete Content-Length frame and return any trailing bytes.
+/// Decode one complete Content-Length frame and return trailing bytes.
 pub fn decode_stdio_frame(input: &[u8]) -> Result<(Vec<u8>, &[u8]), ProtocolError> {
     const HEADER_END: &[u8] = b"\r\n\r\n";
-    let Some(header_end) = input
+    let header_end = match input
         .windows(HEADER_END.len())
         .position(|window| window == HEADER_END)
-    else {
-        return Err(ProtocolError::Edit("incomplete stdio header".into()));
+    {
+        Some(position) => position,
+        None => return Err(ProtocolError::Edit("incomplete stdio header".into())),
     };
     let header = &input[..header_end];
     let prefix = b"Content-Length: ";
