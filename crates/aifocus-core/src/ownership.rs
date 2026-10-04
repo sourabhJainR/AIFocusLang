@@ -151,8 +151,11 @@ impl Checker {
     fn check_block(&mut self, block: &Block, locals: &mut HashMap<String, (Type, State)>) {
         for stmt in &block.stmts {
             match &stmt.kind {
-                StmtKind::Set { value, .. } => {
+                StmtKind::Set { name, value } => {
                     self.check_expr(value, locals, AccessMode::Move);
+                    if let Some((_, state)) = locals.get_mut(name) {
+                        *state = State::Available;
+                    }
                 }
                 StmtKind::SetIndex {
                     collection,
