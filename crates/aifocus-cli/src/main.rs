@@ -27,6 +27,13 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
+        Some("run") => match args.next() {
+            Some(path) => run_file(&path, args.collect()),
+            None => {
+                eprintln!("error: run requires a source file");
+                ExitCode::from(2)
+            }
+        },
         Some("fmt") => match args.next() {
             Some(path) => format_file(&path),
             None => {
@@ -39,6 +46,9 @@ fn main() -> ExitCode {
             println!("  Parse, type-check, and validate an Ardisa source file.");
             println!("ardisa build <file>");
             println!("  Lower Ardisa to readable Rust.");
+            println!("ardisa run <file> [args...]");
+            println!("  Compile and execute the module natively without Rust.");
+            println!("  The entry function is 'main'; arguments are typed from its signature.");
             println!("ardisa fmt <file>");
             println!("  Print canonical Ardisa source.");
             ExitCode::SUCCESS
@@ -72,6 +82,112 @@ fn build_file(path: &str) -> ExitCode {
             Err(errors) => emit_diagnostics(path, &source, false, errors),
         },
         Err(errors) => emit_diagnostics(path, &source, false, errors),
+    }
+}
+
+fn run_file(path: &str, raw_args: Vec<String>) -> ExitCode {
+    require_ardisa_extension(path);
+    let source = match fs::read_to_string(path) {
+        Ok(source) => source,
+        Err(error) => {
+            eprintln!("{path}: error[AIF000]: {error}");
+            return ExitCode::from(1);
+        }
+    };
+
+    let module = match ardisa_core::parse(&source) {
+        Ok(module) => module,
+        Err(errors) => return emit_diagnostics(path, &source, false, errors),
+    };
+    if let Err(errors) = ardisa_core::sema::check(&module) {
+        return emit_diagnostics(path, &source, false, errors);
+    }
+    if let Err(errors) = ardisa_core::ownership::infer(&module) {
+        return emit_diagnostics(path, &source, false, errors);
+    }
+
+    let Some(main) = module.items.iter().find_map(|item| match item {
+        ardisa_core::Item::Function(function) if function.name == "main" => Some(function),
+        _ => None,
+    }) else {
+        eprintln!("{path}: error[AIF600]: entry function 'main' was not found");
+        return ExitCode::from(1);
+    };
+
+    let mut values = Vec::with_capacity(main.params.len());
+    if raw_args.len() != main.params.len() {
+        eprintln!(
+            "{path}: error[AIF601]: main expects {} argument(s), got {}",
+            main.params.len(),
+            raw_args.len()
+        );
+        return ExitCode::from(1);
+    }
+
+    for (raw, parameter) in raw_args.iter().zip(&main.params) {
+        match parse_value(raw, &parameter.ty.kind) {
+            Ok(value) => values.push(value),
+            Err(message) => {
+                eprintln!(
+                    "{path}: error[AIF602]: argument '{}' for '{}' {}",
+                    raw, parameter.name, message
+                );
+                return ExitCode::from(1);
+            }
+        }
+    }
+
+    let ir = ardisa_core::ir::lower(&module);
+    let program = match ardisa_core::native::compile_program(&ir) {
+        Ok(program) => program,
+        Err(error) => {
+            eprintln!("{path}: error[AIF603]: native compilation failed: {error:?}");
+            return ExitCode::from(1);
+        }
+    };
+    match ardisa_core::native::run_program(&program, "main", &values) {
+        Ok(value) => {
+            println!("{}", display_value(&value));
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("{path}: error[AIF604]: native execution failed: {error:?}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn parse_value(
+    raw: &str,
+    ty: &ardisa_core::TypeKind,
+) -> Result<ardisa_core::NativeValue, &'static str> {
+    match ty {
+        ardisa_core::TypeKind::Int => raw
+            .parse::<i64>()
+            .map(ardisa_core::NativeValue::Int)
+            .map_err(|_| "must be an Int"),
+        ardisa_core::TypeKind::Bool => match raw {
+            "true" => Ok(ardisa_core::NativeValue::Bool(true)),
+            "false" => Ok(ardisa_core::NativeValue::Bool(false)),
+            _ => Err("must be true or false"),
+        },
+        ardisa_core::TypeKind::String => Ok(ardisa_core::NativeValue::String(raw.to_owned())),
+        _ => Err("has a type not supported by the native CLI yet"),
+    }
+}
+
+fn display_value(value: &ardisa_core::NativeValue) -> String {
+    match value {
+        ardisa_core::NativeValue::Int(value) => value.to_string(),
+        ardisa_core::NativeValue::Bool(value) => value.to_string(),
+        ardisa_core::NativeValue::String(value) => value.clone(),
+        ardisa_core::NativeValue::List(values) => {
+            let rendered = values.iter().map(display_value).collect::<Vec<_>>();
+            format!("[{}]", rendered.join(", "))
+        }
+        ardisa_core::NativeValue::ResultOk(value) => format!("Ok({})", display_value(value)),
+        ardisa_core::NativeValue::ResultErr(value) => format!("Err({})", display_value(value)),
+        ardisa_core::NativeValue::Unit => "()".into(),
     }
 }
 
