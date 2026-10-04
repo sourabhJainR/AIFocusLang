@@ -88,7 +88,6 @@ impl ModuleGraph {
             }
         }
 
-        order.reverse();
         Ok(order)
     }
 
