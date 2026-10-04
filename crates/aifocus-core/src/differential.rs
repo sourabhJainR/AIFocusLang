@@ -31,6 +31,22 @@ fn main() -> String
   "hello " + "ardisa"
 "#,
     },
+    DifferentialCase {
+        name: "result",
+        source: "module x\nfn main() -> Int\n  unwrap(ok(9))\n",
+    },
+    DifferentialCase {
+        name: "while",
+        source: "module x\nfn main() -> Int\n  let x = 0\n  while x < 3\n    set x = x + 1\n  x\n",
+    },
+    DifferentialCase {
+        name: "call",
+        source: "module x\nfn add(a: Int, b: Int) -> Int\n  a + b\nfn main() -> Int\n  add(2, 5)\n",
+    },
+    DifferentialCase {
+        name: "nested-list",
+        source: "module x\nfn main() -> Int\n  let items = [[1, 2], [3, 4]]\n  len(items)\n",
+    },
 ];
 
 pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
@@ -51,7 +67,7 @@ pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
     let args = match case.name {
         "arithmetic" => vec![native::NativeValue::Int(3), native::NativeValue::Int(4)],
         "conditional" => vec![native::NativeValue::Int(0)],
-        "list" | "string" => Vec::new(),
+        "list" | "string" | "result" | "while" | "call" | "nested-list" => Vec::new(),
         _ => return Err(format!("{}: unknown differential case", case.name)),
     };
     let native_result = native::run_program(&program, "main", &args)
@@ -374,7 +390,7 @@ mod tests {
 
     #[test]
     fn corpus_is_non_empty() {
-        assert!(CORPUS.len() >= 4);
+        assert!(CORPUS.len() >= 8);
     }
 
     #[test]
