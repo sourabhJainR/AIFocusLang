@@ -311,6 +311,31 @@ mod tests {
         let mut verified = memory.clone();
         verified.record_verified_repair("project-a", "compiler-edit", &diagnostic);
         assert!(verified.is_verified(&key));
+        verified.link_replay(
+            "replay-1",
+            "repair:AIF304:2",
+            vec!["stage2:fingerprint".into()],
+        );
+        verified.link_regression(
+            "regression-1",
+            "replay-1",
+            "AIF304",
+            vec!["ci:red".into()],
+        );
+        verified.record_promotion(
+            "promotion-1",
+            "ownership",
+            vec!["holdout:100".into()],
+        );
+        verified.record_rollback(
+            "rollback-1",
+            "ownership",
+            vec!["regression-1".into()],
+        );
+        verified.save(&path).unwrap();
+        let restored = PersistentCompilerLearning::load(&path).unwrap();
+        assert_eq!(restored.provenance().len(), 5);
+        assert!(restored.provenance().iter().any(|item| item.id == "replay-1"));
         let _ = fs::remove_file(path);
     }
 }
