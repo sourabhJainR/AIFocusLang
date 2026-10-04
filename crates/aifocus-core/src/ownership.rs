@@ -153,7 +153,11 @@ impl Checker {
             match &stmt.kind {
                 StmtKind::Set { name, value } => {
                     if !locals.contains_key(name) {
-                        self.error("AIF316", format!("unknown mutable binding '{name}'"), stmt.span);
+                        self.error(
+                            "AIF316",
+                            format!("unknown mutable binding '{name}'"),
+                            stmt.span,
+                        );
                     } else {
                         self.check_expr(value, locals, AccessMode::Move);
                     }
