@@ -240,6 +240,8 @@ fn main(a: Int) -> Int
         _ => return Err("self-hosted semantic analysis returned non-string result"),
     };
     if semantic_value != "Ok" {
+        eprintln!("self-hosted semantic result: {semantic_value:?}");
+        eprintln!("self-hosted AST: {ast_value:?}");
         return Err("self-hosted semantic analysis rejected its own AST");
     }
     let lowered_value = native::run_program(
