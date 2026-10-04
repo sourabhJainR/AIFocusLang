@@ -229,14 +229,14 @@ fn emit_value(value: &IrValue, code: &mut Vec<NativeInstr>) -> Result<(), Native
             for op in then_ops {
                 emit_op(op, code)?;
             }
+            if !block_terminates(then_ops) {
+                code.push(NativeInstr::PushUnit);
+            }
             let jump_end = code.len();
             code.push(NativeInstr::Jump(usize::MAX));
             let else_start = code.len();
             for op in else_ops {
                 emit_op(op, code)?;
-            }
-            if !block_terminates(then_ops) {
-                code.insert(else_start, NativeInstr::PushUnit);
             }
             if !block_terminates(else_ops) {
                 code.push(NativeInstr::PushUnit);
