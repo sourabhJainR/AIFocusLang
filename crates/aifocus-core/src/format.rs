@@ -154,6 +154,11 @@ fn format_expr(expr: &Expr, indent: usize, out: &mut String) {
                 BinaryOp::Mul => "*",
                 BinaryOp::Div => "/",
                 BinaryOp::Equal => "==",
+                BinaryOp::NotEqual => "!=",
+                BinaryOp::Less => "<",
+                BinaryOp::LessEqual => "<=",
+                BinaryOp::Greater => ">",
+                BinaryOp::GreaterEqual => ">=",
             });
             out.push(' ');
             format_expr(right, indent, out);
