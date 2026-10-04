@@ -287,6 +287,35 @@ fn emit_error(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_typed_cli_arguments() {
+        assert_eq!(
+            parse_value("42", &ardisa_core::TypeKind::Int).unwrap(),
+            ardisa_core::NativeValue::Int(42)
+        );
+        assert_eq!(
+            parse_value("true", &ardisa_core::TypeKind::Bool).unwrap(),
+            ardisa_core::NativeValue::Bool(true)
+        );
+        assert!(parse_value("wat", &ardisa_core::TypeKind::Bool).is_err());
+    }
+
+    #[test]
+    fn renders_native_values_deterministically() {
+        let value = ardisa_core::NativeValue::ResultOk(Box::new(
+            ardisa_core::NativeValue::List(vec![
+                ardisa_core::NativeValue::Int(1),
+                ardisa_core::NativeValue::Int(2),
+            ]),
+        ));
+        assert_eq!(display_value(&value), "Ok([1, 2])");
+    }
+}
+
 fn require_ardisa_extension(path: &str) {
     if !path.ends_with(".ardisa") {
         eprintln!("{path}: error[AIF002]: Ardisa source files must use the .ardisa extension");
