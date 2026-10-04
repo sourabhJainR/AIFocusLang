@@ -44,8 +44,8 @@ fn main() -> String
         source: "module x\nfn add(a: Int, b: Int) -> Int\n  a + b\nfn main() -> Int\n  add(2, 5)\n",
     },
     DifferentialCase {
-        name: "nested-list",
-        source: "module x\nfn main() -> Int\n  let items = [[1, 2], [3, 4]]\n  len(items)\n",
+        name: "list-index",
+        source: "module x\nfn main() -> Int\n  let items = [2, 3]\n  items[1] + 4\n",
     },
 ];
 
@@ -67,7 +67,7 @@ pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
     let args = match case.name {
         "arithmetic" => vec![native::NativeValue::Int(3), native::NativeValue::Int(4)],
         "conditional" => vec![native::NativeValue::Int(0)],
-        "list" | "string" | "result" | "while" | "call" | "nested-list" => Vec::new(),
+        "list" | "string" | "result" | "while" | "call" | "list-index" => Vec::new(),
         _ => return Err(format!("{}: unknown differential case", case.name)),
     };
     let native_result = native::run_program(&program, "main", &args)
