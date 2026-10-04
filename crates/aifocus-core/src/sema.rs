@@ -379,6 +379,23 @@ impl Checker {
                     );
                     return None;
                 };
+                if name == "push" {
+                    if args.len() != 2 {
+                        self.error("AIF324", "push expects a List<T> and one value", expr.span);
+                        return None;
+                    }
+                    let list_type = self.check_expr(&args[0], locals)?;
+                    let value_type = self.check_expr(&args[1], locals)?;
+                    let TypeKind::List(element) = &list_type.kind else {
+                        self.error("AIF325", "push requires List<T> as its first argument", args[0].span);
+                        return None;
+                    };
+                    if !same_type(element, &value_type) {
+                        self.error("AIF326", "push value must match the list element type", args[1].span);
+                        return None;
+                    }
+                    return Some(type_node(TypeKind::Unit, expr.span));
+                }
                 if name == "len" {
                     if args.len() != 1 {
                         self.error("AIF322", "len expects exactly one argument", expr.span);
