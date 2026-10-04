@@ -3,21 +3,46 @@ use crate::{Item, format, lower, ownership, parse, sema};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedCase {
     pub seed: u64,
+    pub kind: &'static str,
     pub source: String,
 }
 
 pub fn generate(seed: u64) -> GeneratedCase {
     let mut rng = Rng(seed);
-    let a = rng.next_i64();
-    let b = rng.next_i64();
-    let c = rng.next_i64();
-    let source = format!(
-        "module generated\nfn main(a: Int, b: Int) -> Int\n  let x = a + {}\n  let y = x * {}\n  y + b + {}\n",
-        a.rem_euclid(97),
-        b.rem_euclid(17),
-        c.rem_euclid(53),
-    );
-    GeneratedCase { seed, source }
+    let a = rng.next_i64().rem_euclid(97);
+    let b = rng.next_i64().rem_euclid(53);
+    let kind = match seed % 4 {
+        0 => "arithmetic",
+        1 => "conditional",
+        2 => "list",
+        _ => "string",
+    };
+    let source = match kind {
+        "arithmetic" => format!(
+            "module generated\nfn main(a: Int, b: Int) -> Int\n  let x = a + {a}\n  let y = x * {b}\n  y + b\n"
+        ),
+        "conditional" => "module generated
+fn main(a: Int, b: Int) -> Int
+  if a == 0
+    return b
+  else
+    return a + b
+"
+        .into(),
+        "list" => "module generated
+fn main(a: Int, b: Int) -> Int
+  let xs = [a, b]
+  len(xs) + a
+"
+        .into(),
+        _ => r#"module generated
+fn main(a: Int, b: Int) -> Int
+  let text = "ardisa"
+  len(text) + a
+"#
+        .into(),
+    };
+    GeneratedCase { seed, kind, source }
 }
 
 pub fn verify(case: &GeneratedCase) -> Result<(), String> {
@@ -65,6 +90,10 @@ mod tests {
     fn generated_cases_are_deterministic() {
         assert_eq!(generate(42), generate(42));
         assert_ne!(generate(42), generate(43));
+        assert_eq!(generate(0).kind, "arithmetic");
+        assert_eq!(generate(1).kind, "conditional");
+        assert_eq!(generate(2).kind, "list");
+        assert_eq!(generate(3).kind, "string");
     }
 
     #[test]
