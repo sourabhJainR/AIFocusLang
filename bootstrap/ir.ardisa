@@ -1,0 +1,20 @@
+module ir
+
+fn op(kind: String, value: String) -> String
+  kind + "(" + value + ")"
+
+fn lower(ast: String) -> String
+  let result = "IR["
+  let index = 0
+  let token = ""
+  while index < len(ast)
+    if ast[index] == 40
+      set result = result + "BEGIN,"
+    else
+      if ast[index] == 41
+        set result = result + "END,"
+      else
+        set token = chr(ast[index])
+        set result = result + op("ATOM", token) + ","
+    set index = index + 1
+  result + "]"
