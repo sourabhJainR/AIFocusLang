@@ -190,6 +190,7 @@ fn {name}({safe_params}) -> {ret} {{
             symbol = f.symbol,
             name = f.name,
             extern_params = extern_params,
+            safe_params = safe_params,
             ret = f.return_type.rust_name(),
             args = args,
         )
