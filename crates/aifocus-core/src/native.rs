@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::thread::{self, JoinHandle};
 
 use crate::TypeKind;
@@ -37,12 +40,23 @@ pub enum NativeInstr {
     Jump(usize),
     Return,
     Pop,
-    Call { callee: String, argc: usize },
+    Call {
+        callee: String,
+        argc: usize,
+    },
     ScopeStart,
     ScopeEnd,
-    Spawn { name: String, callee: String, argc: usize },
-    Join { name: String },
-    Cancel { name: String },
+    Spawn {
+        name: String,
+        callee: String,
+        argc: usize,
+    },
+    Join {
+        name: String,
+    },
+    Cancel {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,7 +201,9 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
         }
         IrOp::Spawn { name, call } => {
             let IrValue::Call { callee, args } = call else {
-                return Err(NativeError::Unsupported("spawn requires a function call".into()));
+                return Err(NativeError::Unsupported(
+                    "spawn requires a function call".into(),
+                ));
             };
             for arg in args {
                 emit_value(arg, code)?;
@@ -647,15 +663,21 @@ fn run_function(
                     })?;
                     run_function(&child_program, function, &call_args, Some(child_token))
                 });
-                scope.insert(name, NativeTask { cancel: token, join: Some(join) });
+                scope.insert(
+                    name,
+                    NativeTask {
+                        cancel: token,
+                        join: Some(join),
+                    },
+                );
             }
             NativeInstr::Join { name } => {
                 let scope = scopes.last_mut().ok_or_else(|| {
                     NativeError::InvalidProgram("join must occur inside a scope".into())
                 })?;
-                let mut task = scope.remove(&name).ok_or_else(|| {
-                    NativeError::InvalidProgram(format!("unknown task '{name}'"))
-                })?;
+                let mut task = scope
+                    .remove(&name)
+                    .ok_or_else(|| NativeError::InvalidProgram(format!("unknown task '{name}'")))?;
                 let result = task
                     .join
                     .take()
@@ -676,9 +698,9 @@ fn run_function(
                 let scope = scopes.last_mut().ok_or_else(|| {
                     NativeError::InvalidProgram("cancel must occur inside a scope".into())
                 })?;
-                let task = scope.get(&name).ok_or_else(|| {
-                    NativeError::InvalidProgram(format!("unknown task '{name}'"))
-                })?;
+                let task = scope
+                    .get(&name)
+                    .ok_or_else(|| NativeError::InvalidProgram(format!("unknown task '{name}'")))?;
                 task.cancel();
             }
             NativeInstr::Call { callee, argc } => {
@@ -701,23 +723,43 @@ fn run_function(
             NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::PushList(len) => {
                 if stack.len() < len {
-                    return Err(NativeError::InvalidProgram("list has insufficient stack values".into()));
+                    return Err(NativeError::InvalidProgram(
+                        "list has insufficient stack values".into(),
+                    ));
                 }
                 let start = stack.len() - len;
                 stack.push(NativeValue::List(stack.drain(start..).collect()));
             }
             NativeInstr::Index => {
                 let index = pop_int(&mut stack)?;
-                let collection = stack.pop().ok_or_else(|| NativeError::InvalidProgram("index from empty stack".into()))?;
-                let index = usize::try_from(index).map_err(|_| NativeError::Type("negative index".into()))?;
+                let collection = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("index from empty stack".into()))?;
+                let index = usize::try_from(index)
+                    .map_err(|_| NativeError::Type("negative index".into()))?;
                 match collection {
-                    NativeValue::List(values) => stack.push(values.get(index).cloned().ok_or_else(|| NativeError::Type("list index out of bounds".into()))?),
-                    NativeValue::String(value) => stack.push(NativeValue::Int(i64::from(value.as_bytes().get(index).copied().ok_or_else(|| NativeError::Type("string index out of bounds".into()))?))),
-                    _ => return Err(NativeError::Type("indexing requires a list or String".into())),
+                    NativeValue::List(values) => stack.push(
+                        values
+                            .get(index)
+                            .cloned()
+                            .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?,
+                    ),
+                    NativeValue::String(value) => stack.push(NativeValue::Int(i64::from(
+                        value.as_bytes().get(index).copied().ok_or_else(|| {
+                            NativeError::Type("string index out of bounds".into())
+                        })?,
+                    ))),
+                    _ => {
+                        return Err(NativeError::Type(
+                            "indexing requires a list or String".into(),
+                        ));
+                    }
                 }
             }
             NativeInstr::Len => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("len from empty stack".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("len from empty stack".into()))?;
                 let length = match value {
                     NativeValue::String(value) => value.len(),
                     NativeValue::List(values) => values.len(),
@@ -726,7 +768,9 @@ fn run_function(
                 stack.push(NativeValue::Int(length as i64));
             }
             NativeInstr::Append(name) => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("push value missing".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("push value missing".into()))?;
                 let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
                     return Err(NativeError::Type("push requires a List binding".into()));
                 };
@@ -735,45 +779,72 @@ fn run_function(
             }
             NativeInstr::Chr => {
                 let value = pop_int(&mut stack)?;
-                let byte = u8::try_from(value).map_err(|_| NativeError::Type("chr requires a byte in 0..=255".into()))?;
+                let byte = u8::try_from(value)
+                    .map_err(|_| NativeError::Type("chr requires a byte in 0..=255".into()))?;
                 stack.push(NativeValue::String(char::from(byte).to_string()));
             }
             NativeInstr::MakeOk => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
                 stack.push(NativeValue::ResultOk(Box::new(value)));
             }
             NativeInstr::MakeErr => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
                 stack.push(NativeValue::ResultErr(Box::new(value)));
             }
             NativeInstr::Unwrap => {
-                match stack.pop().ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))? {
+                match stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("unwrap value missing".into()))?
+                {
                     NativeValue::ResultOk(value) => stack.push(*value),
-                    NativeValue::ResultErr(_) => return Err(NativeError::Type("unwrap on Err".into())),
+                    NativeValue::ResultErr(_) => {
+                        return Err(NativeError::Type("unwrap on Err".into()));
+                    }
                     _ => return Err(NativeError::Type("unwrap requires Result".into())),
                 }
             }
             NativeInstr::Load(name) => {
-                stack.push(locals.get(&name).cloned().ok_or_else(|| NativeError::InvalidProgram(format!("unknown local '{name}'")))?);
+                stack.push(locals.get(&name).cloned().ok_or_else(|| {
+                    NativeError::InvalidProgram(format!("unknown local '{name}'"))
+                })?);
             }
             NativeInstr::Store(name) => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
                 locals.insert(name, value);
             }
             NativeInstr::StoreIndex(name) => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("indexed store value missing".into()))?;
+                let value = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("indexed store value missing".into())
+                })?;
                 let index = pop_int(&mut stack)?;
-                let collection = stack.pop().ok_or_else(|| NativeError::InvalidProgram("indexed store collection missing".into()))?;
+                let collection = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("indexed store collection missing".into())
+                })?;
                 let NativeValue::List(mut items) = collection else {
-                    return Err(NativeError::Type("indexed assignment requires a list".into()));
+                    return Err(NativeError::Type(
+                        "indexed assignment requires a list".into(),
+                    ));
                 };
-                let index = usize::try_from(index).map_err(|_| NativeError::Type("negative list index".into()))?;
-                *items.get_mut(index).ok_or_else(|| NativeError::Type("list index out of bounds".into()))? = value;
+                let index = usize::try_from(index)
+                    .map_err(|_| NativeError::Type("negative list index".into()))?;
+                *items
+                    .get_mut(index)
+                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))? = value;
                 locals.insert(name, NativeValue::List(items));
             }
             NativeInstr::Add => {
-                let right = stack.pop().ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
-                let left = stack.pop().ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let right = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let left = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
                 stack.push(add_values(left, right)?);
             }
             NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div | NativeInstr::Mod => {
@@ -782,36 +853,67 @@ fn run_function(
                 let value = match instr {
                     NativeInstr::Sub => left - right,
                     NativeInstr::Mul => left * right,
-                    NativeInstr::Div => if right == 0 { return Err(NativeError::Type("division by zero".into())); } else { left / right },
-                    NativeInstr::Mod => if right == 0 { return Err(NativeError::Type("modulo by zero".into())); } else { left % right },
+                    NativeInstr::Div => {
+                        if right == 0 {
+                            return Err(NativeError::Type("division by zero".into()));
+                        } else {
+                            left / right
+                        }
+                    }
+                    NativeInstr::Mod => {
+                        if right == 0 {
+                            return Err(NativeError::Type("modulo by zero".into()));
+                        } else {
+                            left % right
+                        }
+                    }
                     _ => unreachable!(),
                 };
                 stack.push(NativeValue::Int(value));
             }
-            NativeInstr::Equal | NativeInstr::NotEqual | NativeInstr::Less | NativeInstr::LessEqual | NativeInstr::Greater | NativeInstr::GreaterEqual => {
-                let right = stack.pop().ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
-                let left = stack.pop().ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+            NativeInstr::Equal
+            | NativeInstr::NotEqual
+            | NativeInstr::Less
+            | NativeInstr::LessEqual
+            | NativeInstr::Greater
+            | NativeInstr::GreaterEqual => {
+                let right = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let left = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
                 let result = match instr {
                     NativeInstr::Equal => left == right,
                     NativeInstr::NotEqual => left != right,
-                    NativeInstr::Less => compare_ints(&left, &right, |a,b| a < b)?,
-                    NativeInstr::LessEqual => compare_ints(&left, &right, |a,b| a <= b)?,
-                    NativeInstr::Greater => compare_ints(&left, &right, |a,b| a > b)?,
-                    NativeInstr::GreaterEqual => compare_ints(&left, &right, |a,b| a >= b)?,
+                    NativeInstr::Less => compare_ints(&left, &right, |a, b| a < b)?,
+                    NativeInstr::LessEqual => compare_ints(&left, &right, |a, b| a <= b)?,
+                    NativeInstr::Greater => compare_ints(&left, &right, |a, b| a > b)?,
+                    NativeInstr::GreaterEqual => compare_ints(&left, &right, |a, b| a >= b)?,
                     _ => unreachable!(),
                 };
                 stack.push(NativeValue::Bool(result));
             }
             NativeInstr::JumpIfFalse(target) => {
-                let value = stack.pop().ok_or_else(|| NativeError::InvalidProgram("empty condition stack".into()))?;
-                if value != NativeValue::Bool(true) { pc = target; }
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty condition stack".into()))?;
+                if value != NativeValue::Bool(true) {
+                    pc = target;
+                }
             }
             NativeInstr::Jump(target) => pc = target,
             NativeInstr::Return => return Ok(stack.pop().unwrap_or(NativeValue::Unit)),
-            NativeInstr::Pop => { stack.pop().ok_or_else(|| NativeError::InvalidProgram("pop from empty stack"))?; }
+            NativeInstr::Pop => {
+                stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack"))?;
+            }
         }
     }
-    Err(NativeError::InvalidProgram("program terminated without return".into()))
+    Err(NativeError::InvalidProgram(
+        "program terminated without return".into(),
+    ))
 }
 
 fn compare_ints(
@@ -1028,7 +1130,6 @@ fn main() -> Int
         );
     }
 
-
     #[test]
     fn compiles_and_runs_recursive_calls() {
         let module = crate::parse(
@@ -1048,3 +1149,4 @@ fn fact(n: Int) -> Int
         assert_eq!(result, NativeValue::Int(120));
     }
 }
+FORMAT_END
