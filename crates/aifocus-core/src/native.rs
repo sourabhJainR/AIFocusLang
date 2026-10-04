@@ -236,7 +236,8 @@ pub fn run(
                     ));
                 }
                 let start = stack.len() - len;
-                stack.push(NativeValue::List(stack.drain(start..).collect()));
+                let values = stack.drain(start..).collect();
+                stack.push(NativeValue::List(values));
             }
             NativeInstr::Index => {
                 let index = pop_int(&mut stack)?;
@@ -370,6 +371,32 @@ fn run_function(
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
             NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
+            NativeInstr::PushList(len) => {
+                if stack.len() < len {
+                    return Err(NativeError::InvalidProgram(
+                        "list has insufficient stack values".into(),
+                    ));
+                }
+                let start = stack.len() - len;
+                let values = stack.drain(start..).collect();
+                stack.push(NativeValue::List(values));
+            }
+            NativeInstr::Index => {
+                let index = pop_int(&mut stack)?;
+                let collection = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("index from empty stack".into()))?;
+                let NativeValue::List(values) = collection else {
+                    return Err(NativeError::Type("indexing requires a list".into()));
+                };
+                let index = usize::try_from(index)
+                    .map_err(|_| NativeError::Type("negative list index".into()))?;
+                let value = values
+                    .get(index)
+                    .cloned()
+                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
+                stack.push(value);
+            }
             NativeInstr::Load(name) => {
                 stack.push(locals.get(&name).cloned().ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown local '{name}'"))
