@@ -145,14 +145,16 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
     for (name, source) in SELF_HOSTED_SOURCES {
         let module = match parse(source) {
             Ok(module) => module,
-            Err(_) => {
-                return Err(match *name {
+            Err(errors) => {
+                let code = errors.first().map(|error| error.code).unwrap_or("AIF000");
+                return Err(match code {
                     "lexer" => "self-hosted lexer does not parse",
                     "parser" => "self-hosted parser does not parse",
                     "ast" => "self-hosted AST source does not parse",
                     "semantic" => "self-hosted semantic source does not parse",
                     "ir" => "self-hosted IR source does not parse",
-                    _ => "unknown self-hosted source does not parse",
+                    "AIF000" => "self-hosted source parse failed (AIF000)",
+                    _ => "self-hosted source parse failed with diagnostic",
                 });
             }
         };
