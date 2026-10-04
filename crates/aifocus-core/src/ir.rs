@@ -17,8 +17,14 @@ pub struct IrFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Backend-independent operations include mutable assignment for compiler state.
 pub enum IrOp {
-    Let { name: String, value: IrValue },
-    Set { name: String, value: IrValue },
+    Let {
+        name: String,
+        value: IrValue,
+    },
+    Set {
+        name: String,
+        value: IrValue,
+    },
     SetIndex {
         collection: IrValue,
         index: IrValue,
@@ -26,11 +32,23 @@ pub enum IrOp {
     },
     Return(Option<IrValue>),
     Expr(IrValue),
-    Scope { ops: Vec<IrOp> },
-    Spawn { name: String, call: IrValue },
-    Join { name: String },
-    Cancel { name: String },
-    While { condition: IrValue, ops: Vec<IrOp> },
+    Scope {
+        ops: Vec<IrOp>,
+    },
+    Spawn {
+        name: String,
+        call: IrValue,
+    },
+    Join {
+        name: String,
+    },
+    Cancel {
+        name: String,
+    },
+    While {
+        condition: IrValue,
+        ops: Vec<IrOp>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
