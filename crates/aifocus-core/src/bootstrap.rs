@@ -168,9 +168,17 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
         })?;
         ownership::infer(&module).map_err(|errors| {
             let code = errors.first().map(|error| error.code).unwrap_or("AIF000");
-            match code {
-                "AIF400" => "self-hosted source has a use-after-move",
-                "AIF403" => "self-hosted source has an ownership conflict",
+            match (*name, code) {
+                ("lexer", "AIF400") => "self-hosted lexer has a use-after-move",
+                ("lexer", "AIF403") => "self-hosted lexer has an ownership conflict",
+                ("parser", "AIF400") => "self-hosted parser has a use-after-move",
+                ("parser", "AIF403") => "self-hosted parser has an ownership conflict",
+                ("ast", "AIF400") => "self-hosted AST has a use-after-move",
+                ("ast", "AIF403") => "self-hosted AST has an ownership conflict",
+                ("semantic", "AIF400") => "self-hosted semantic stage has a use-after-move",
+                ("semantic", "AIF403") => "self-hosted semantic stage has an ownership conflict",
+                ("ir", "AIF400") => "self-hosted IR has a use-after-move",
+                ("ir", "AIF403") => "self-hosted IR has an ownership conflict",
                 _ => "self-hosted source fails ownership validation",
             }
         })?;
