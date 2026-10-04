@@ -21,7 +21,12 @@ pub enum NativeInstr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeProgram {\n    pub functions: BTreeMap<String, Vec<NativeInstr>>,\n}\n\n#[derive(Debug, Clone, PartialEq, Eq)]\npub enum NativeValue {
+pub struct NativeProgram {
+    pub functions: BTreeMap<String, Vec<NativeInstr>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeValue {
     Int(i64),
     Bool(bool),
     Unit,
@@ -42,7 +47,15 @@ pub fn compile(module: &IrModule) -> Result<Vec<NativeInstr>, NativeError> {
     compile_function(function)
 }
 
-pub fn compile_program(module: &IrModule) -> Result<NativeProgram, NativeError> {\n    let mut functions = BTreeMap::new();\n    for function in &module.functions {\n        functions.insert(function.name.clone(), compile_function(function)?);\n    }\n    Ok(NativeProgram { functions })\n}\n\npub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, NativeError> {
+pub fn compile_program(module: &IrModule) -> Result<NativeProgram, NativeError> {
+    let mut functions = BTreeMap::new();
+    for function in &module.functions {
+        functions.insert(function.name.clone(), compile_function(function)?);
+    }
+    Ok(NativeProgram { functions })
+}
+
+pub fn compile_function(function: &IrFunction) -> Result<Vec<NativeInstr>, NativeError> {
     if function
         .params
         .iter()
@@ -236,7 +249,10 @@ mod tests {
     #[test]
     fn compiles_and_runs_arithmetic_without_rust() {
         let module =
-            crate::parse("module x\nfn main(a: Int, b: Int) -> Int\n  a + b * 2\n").unwrap();
+            crate::parse("module x
+fn main(a: Int, b: Int) -> Int
+  a + b * 2
+").unwrap();
         crate::sema::check(&module).unwrap();
         let ir = crate::ir::lower(&module);
         let code = compile(&ir).unwrap();
@@ -254,7 +270,13 @@ mod tests {
     #[test]
     fn compiles_and_runs_conditionals_without_rust() {
         let module = crate::parse(
-            "module x\nfn main(a: Int) -> Int\n  if a == 0\n    return 1\n  else\n    return 2\n",
+            "module x
+fn main(a: Int) -> Int
+  if a == 0
+    return 1
+  else
+    return 2
+",
         )
         .unwrap();
         let ir = crate::ir::lower(&module);
@@ -265,7 +287,10 @@ mod tests {
 
     #[test]
     fn rejects_unsupported_calls() {
-        let module = crate::parse("module x\nfn main() -> Int\n  helper()\n").unwrap();
+        let module = crate::parse("module x
+fn main() -> Int
+  helper()
+").unwrap();
         let ir = crate::ir::lower(&module);
         assert!(matches!(compile(&ir), Err(NativeError::Unsupported(_))));
     }
