@@ -255,9 +255,67 @@ fn main(a: Int) -> Int
         _ => return Err("self-hosted IR lowering returned non-string IR"),
     };
 
+    let mut replay_fingerprint = fingerprint(&format!("{tokens}:{lowered_value}"));
+    for (name, source) in SELF_HOSTED_SOURCES {
+        let replay_tokens = match native::run_program(
+            lexer,
+            "lex",
+            &[native::NativeValue::String((*source).into())],
+        )
+        .map_err(|_| "self-hosted compiler source lexer replay failed")?
+        {
+            native::NativeValue::String(value) => value,
+            _ => return Err("self-hosted compiler source lexer returned non-string"),
+        };
+        let replay_parsed = match native::run_program(
+            parser,
+            "parse",
+            &[native::NativeValue::String(replay_tokens.clone())],
+        )
+        .map_err(|_| "self-hosted compiler source parser replay failed")?
+        {
+            native::NativeValue::String(value) => value,
+            _ => return Err("self-hosted compiler source parser returned non-string"),
+        };
+        let replay_ast = match native::run_program(
+            ast,
+            "build",
+            &[native::NativeValue::String(replay_parsed)],
+        )
+        .map_err(|_| "self-hosted compiler source AST replay failed")?
+        {
+            native::NativeValue::String(value) => value,
+            _ => return Err("self-hosted compiler source AST returned non-string"),
+        };
+        let replay_semantic = match native::run_program(
+            semantic,
+            "check",
+            &[native::NativeValue::String(replay_ast.clone())],
+        )
+        .map_err(|_| "self-hosted compiler source semantic replay failed")?
+        {
+            native::NativeValue::String(value) => value,
+            _ => return Err("self-hosted compiler source semantic result was non-string"),
+        };
+        if replay_semantic != "Ok" {
+            return Err("self-hosted compiler source failed semantic replay");
+        }
+        let replay_ir = match native::run_program(
+            ir_program,
+            "lower",
+            &[native::NativeValue::String(replay_ast)],
+        )
+        .map_err(|_| "self-hosted compiler source IR replay failed")?
+        {
+            native::NativeValue::String(value) => value,
+            _ => return Err("self-hosted compiler source IR result was non-string"),
+        };
+        replay_fingerprint ^= fingerprint(&format!("{name}:{replay_tokens}:{replay_ir}"));
+    }
+
     Ok(BootstrapArtifact {
         stage: 2,
-        source_fingerprint: fingerprint(&format!("{fingerprints}:{tokens}:{lowered_value}")),
+        source_fingerprint: fingerprint(&format!("{fingerprints}:{replay_fingerprint}")),
         instruction_count: total_instructions,
         functions: programs
             .values()
