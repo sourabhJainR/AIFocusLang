@@ -109,8 +109,6 @@ pub fn verify() -> BootstrapReport {
     }
 }
 
-
-
 const SELF_HOSTED_SOURCES: &[(&str, &str)] = &[
     ("lexer", include_str!("../../../bootstrap/lexer.ardisa")),
     ("parser", include_str!("../../../bootstrap/parser.ardisa")),
@@ -153,32 +151,20 @@ fn main(a: Int) -> Int
     let semantic = programs.get("semantic").ok_or("missing semantic program")?;
     let ir_program = programs.get("ir").ok_or("missing ir program")?;
 
-    let tokens = native::run_program(
-        lexer,
-        "lex",
-        &[native::NativeValue::String(source.into())],
-    )
-    .map_err(|_| "self-hosted lexer execution failed")?;
+    let tokens = native::run_program(lexer, "lex", &[native::NativeValue::String(source.into())])
+        .map_err(|_| "self-hosted lexer execution failed")?;
     let tokens = match tokens {
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted lexer returned non-string tokens"),
     };
-    let parsed = native::run_program(
-        parser,
-        "parse",
-        &[native::NativeValue::String(tokens)],
-    )
-    .map_err(|_| "self-hosted parser execution failed")?;
+    let parsed = native::run_program(parser, "parse", &[native::NativeValue::String(tokens)])
+        .map_err(|_| "self-hosted parser execution failed")?;
     let parsed = match parsed {
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted parser returned non-string AST"),
     };
-    let ast_value = native::run_program(
-        ast,
-        "build",
-        &[native::NativeValue::String(parsed)],
-    )
-    .map_err(|_| "self-hosted AST construction failed")?;
+    let ast_value = native::run_program(ast, "build", &[native::NativeValue::String(parsed)])
+        .map_err(|_| "self-hosted AST construction failed")?;
     let ast_value = match ast_value {
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted AST returned non-string representation"),
