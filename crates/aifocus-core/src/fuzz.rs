@@ -14,7 +14,6 @@ pub struct MutationCase {
     pub seed: u64,
     pub mutation: &'static str,
     pub source: String,
-    pub expected_valid: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,12 +67,7 @@ fn main(a: Int, b: Int) -> Int
 "#
         .into(),
     };
-    GeneratedCase {
-        seed,
-        kind,
-        source,
-        expected_valid: true,
-    }
+    GeneratedCase { seed, kind, source }
 }
 
 pub fn mutate(case: &GeneratedCase, seed: u64) -> MutationCase {
@@ -119,7 +113,6 @@ pub fn verify_mutation(case: &MutationCase) -> Result<MutationVerification, Stri
             seed: case.seed,
             kind: "mutation",
             source: case.source.clone(),
-            expected_valid: case.expected_valid,
         })
     }));
     match result {
