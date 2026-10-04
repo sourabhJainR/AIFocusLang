@@ -165,6 +165,7 @@ struct Checker {
     accesses: HashMap<crate::NodeId, AccessKind>,
     transitions: Vec<(crate::NodeId, OwnershipTransition)>,
     borrow_regions: Vec<BorrowRegion>,
+    scope_depth: usize,
 }
 
 impl Checker {
@@ -560,6 +561,45 @@ fn reuse(source: String) -> String
                 .accesses
                 .values()
                 .any(|access| *access == AccessKind::MutableBorrow)
+        );
+    }
+
+    #[test]
+    fn records_borrow_regions_with_scope_depth() {
+        let module = parse(
+            "module x
+fn f(value: String) -> String
+  let same = value == value
+  value
+",
+        )
+        .unwrap();
+        let model = analyze(&module).unwrap();
+        assert_eq!(model.borrow_regions.len(), 2);
+        assert!(model.borrow_regions.iter().all(|region| region.scope_depth == 0));
+        assert!(model.borrow_regions.iter().all(|region| region.contains(region.span.start)));
+    }
+
+    #[test]
+    fn rejects_overlapping_shared_and_mutable_regions() {
+        let span = Span::new(10, 20);
+        let regions = [
+            BorrowRegion {
+                local: "value".into(),
+                kind: BorrowKind::Shared,
+                span,
+                scope_depth: 0,
+            },
+            BorrowRegion {
+                local: "value".into(),
+                kind: BorrowKind::Mutable,
+                span: Span::new(15, 25),
+                scope_depth: 0,
+            },
+        ];
+        assert_eq!(
+            validate_borrow_regions(&regions),
+            Err("overlapping borrow regions conflict")
         );
     }
 
