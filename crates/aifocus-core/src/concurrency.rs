@@ -141,6 +141,108 @@ impl<T: Send + 'static> TaskHandle<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScopeEvent {
+    Spawned(String),
+    Joined(String),
+    Cancelled(String),
+}
+
+pub struct StructuredScope {
+    tasks: HashMap<String, (TaskHandle<()>, TaskState)>,
+    events: Vec<ScopeEvent>,
+}
+
+impl StructuredScope {
+    pub fn new() -> Self {
+        Self {
+            tasks: HashMap::new(),
+            events: Vec::new(),
+        }
+    }
+
+    pub fn spawn<F>(&mut self, name: impl Into<String>, task: F) -> Result<(), String>
+    where
+        F: FnOnce(CancellationToken) + Send + 'static,
+    {
+        let name = name.into();
+        if self.tasks.contains_key(&name) {
+            return Err(format!("AIF501: duplicate task '{name}'"));
+        }
+        self.tasks
+            .insert(name.clone(), (spawn(task), TaskState::Running));
+        self.events.push(ScopeEvent::Spawned(name));
+        Ok(())
+    }
+
+    pub fn join(&mut self, name: &str) -> Result<(), String> {
+        let Some((handle, state)) = self.tasks.remove(name) else {
+            return Err(format!("AIF502: unknown task '{name}'"));
+        };
+        if state != TaskState::Running {
+            return Err(format!("AIF504: task '{name}' is already terminal"));
+        }
+        match handle.join() {
+            Ok(()) => {
+                self.events.push(ScopeEvent::Joined(name.into()));
+                Ok(())
+            }
+            Err(_) => Err(format!("AIF505: task '{name}' panicked")),
+        }
+    }
+
+    pub fn cancel(&mut self, name: &str) -> Result<(), String> {
+        let Some((handle, state)) = self.tasks.get_mut(name) else {
+            return Err(format!("AIF502: unknown task '{name}'"));
+        };
+        if *state != TaskState::Running {
+            return Err(format!("AIF504: task '{name}' is already terminal"));
+        }
+        handle.cancel();
+        *state = TaskState::Cancelled;
+        self.events.push(ScopeEvent::Cancelled(name.into()));
+        Ok(())
+    }
+
+    pub fn finish(mut self) -> Result<Vec<ScopeEvent>, String> {
+        let names = self.tasks.keys().cloned().collect::<Vec<_>>();
+        for name in names {
+            let (handle, state) = self.tasks.remove(&name).expect("task disappeared");
+            if handle.join().is_err() {
+                return Err(format!("AIF505: task '{name}' panicked"));
+            }
+            if state == TaskState::Running {
+                self.events.push(ScopeEvent::Joined(name));
+            }
+        }
+        Ok(self.events.clone())
+    }
+
+    pub fn events(&self) -> &[ScopeEvent] {
+        &self.events
+    }
+}
+
+impl Default for StructuredScope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for StructuredScope {
+    fn drop(&mut self) {
+        for (handle, state) in self.tasks.values_mut() {
+            if *state == TaskState::Running {
+                handle.cancel();
+                *state = TaskState::Cancelled;
+            }
+        }
+        for (_, (handle, _)) in self.tasks.drain() {
+            let _ = handle.join();
+        }
+    }
+}
+
 pub fn spawn<T, F>(task: F) -> TaskHandle<T>
 where
     T: Send + 'static,
@@ -193,6 +295,60 @@ fn main()
         .unwrap();
         let errors = analyze(&module).unwrap_err();
         assert!(errors.iter().any(|e| e.starts_with("AIF504")));
+    }
+
+    #[test]
+    fn structured_scope_cleans_up_unfinished_tasks_on_drop() {
+        let mut scope = StructuredScope::new();
+        scope
+            .spawn("worker", |token| {
+                while !token.is_cancelled() {
+                    thread::yield_now();
+                }
+            })
+            .unwrap();
+        assert_eq!(scope.events(), &[ScopeEvent::Spawned("worker".into())]);
+    }
+
+    #[test]
+    fn structured_scope_requires_explicit_terminal_state() {
+        let mut scope = StructuredScope::new();
+        scope.spawn("worker", |_token| {}).unwrap();
+        assert!(scope.join("worker").is_ok());
+        assert_eq!(
+            scope.events(),
+            &[
+                ScopeEvent::Spawned("worker".into()),
+                ScopeEvent::Joined("worker".into())
+            ]
+        );
+    }
+    #[test]
+    fn structured_scope_cancellation_is_followed_by_scope_cleanup() {
+        let mut scope = StructuredScope::new();
+        scope
+            .spawn("worker", |token| {
+                while !token.is_cancelled() {
+                    thread::yield_now();
+                }
+            })
+            .unwrap();
+        scope.cancel("worker").unwrap();
+        let events = scope.finish().unwrap();
+        assert_eq!(
+            events,
+            vec![
+                ScopeEvent::Spawned("worker".into()),
+                ScopeEvent::Cancelled("worker".into())
+            ]
+        );
+    }
+
+    #[test]
+    fn structured_scope_rejects_duplicate_tasks() {
+        let mut scope = StructuredScope::new();
+        scope.spawn("worker", |_token| {}).unwrap();
+        assert!(scope.spawn("worker", |_token| {}).is_err());
     }
 
     #[test]
