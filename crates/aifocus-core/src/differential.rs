@@ -118,7 +118,7 @@ fn reference_block(
                 };
                 let index = expect_int(reference_expr(module, index, locals)?)?;
                 let value = reference_expr(module, value, locals)?;
-                let NativeValue::List(mut items) = locals
+                let native::NativeValue::List(mut items) = locals
                     .get(name)
                     .cloned()
                     .ok_or_else(|| format!("unknown list binding '{name}'"))?
@@ -130,13 +130,13 @@ fn reference_block(
                     .get_mut(slot)
                     .ok_or_else(|| "list index out of bounds".to_string())?;
                 *item = value;
-                locals.insert(name.clone(), NativeValue::List(items));
+                locals.insert(name.clone(), native::NativeValue::List(items));
                 last = None;
             }
             StmtKind::Return(value) => {
                 let value = match value {
                     Some(value) => reference_expr(module, value, locals)?,
-                    None => NativeValue::Unit,
+                    None => native::NativeValue::Unit,
                 };
                 return Ok(Control::Return(value));
             }
