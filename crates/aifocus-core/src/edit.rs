@@ -19,6 +19,19 @@ pub struct EditResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransactionResult {
+    pub source: String,
+    pub changed_nodes: Vec<NodeId>,
+    pub module: Module,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeQuery {
+    pub node: NodeId,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EditError {
     pub message: String,
 }
@@ -30,6 +43,81 @@ impl std::fmt::Display for EditError {
 }
 
 impl std::error::Error for EditError {}
+
+pub fn query(module: &Module, node: NodeId) -> Result<NodeQuery, EditError> {
+    let span = find_span(module, node).ok_or_else(|| missing(node))?;
+    Ok(NodeQuery { node, span })
+}
+
+pub fn apply_transaction(
+    source: &str,
+    module: &Module,
+    edits: &[StructuralEdit],
+) -> Result<TransactionResult, EditError> {
+    if edits.is_empty() {
+        return Ok(TransactionResult {
+            source: source.into(),
+            changed_nodes: Vec::new(),
+            module: module.clone(),
+        });
+    }
+
+    let mut operations = edits
+        .iter()
+        .map(|edit| {
+            let (node, span, replacement) = match edit {
+                StructuralEdit::Replace { node, source } => {
+                    (*node, find_span(module, *node).ok_or_else(|| missing(*node))?, source.clone())
+                }
+                StructuralEdit::InsertBefore { node, source } => {
+                    (*node, {
+                        let span = find_span(module, *node).ok_or_else(|| missing(*node))?;
+                        Span::new(span.start, span.start)
+                    }, source.clone())
+                }
+                StructuralEdit::Delete { node } => {
+                    (*node, find_span(module, *node).ok_or_else(|| missing(*node))?, String::new())
+                }
+            };
+            Ok((node, span, replacement))
+        })
+        .collect::<Result<Vec<_>, EditError>>()?;
+
+    operations.sort_by_key(|(_, span, _)| std::cmp::Reverse((span.start, span.end)));
+    for pair in operations.windows(2) {
+        let (_, left, _) = &pair[0];
+        let (_, right, _) = &pair[1];
+        if right.end > left.start {
+            return Err(EditError {
+                message: "structural edit transaction contains overlapping nodes".into(),
+            });
+        }
+    }
+
+    let mut next = source.to_string();
+    for (_, span, replacement) in &operations {
+        if span.start > span.end || span.end > next.len() {
+            return Err(EditError {
+                message: "node span is outside the source".into(),
+            });
+        }
+        next.replace_range(span.start..span.end, replacement);
+    }
+
+    let parsed = crate::parse(&next).map_err(|errors| EditError {
+        message: errors
+            .into_iter()
+            .map(|e| format!("{}: {}", e.code, e.message))
+            .collect::<Vec<_>>()
+            .join("; "),
+    })?;
+
+    Ok(TransactionResult {
+        source: next,
+        changed_nodes: operations.into_iter().map(|(node, _, _)| node).collect(),
+        module: parsed,
+    })
+}
 
 pub fn apply(source: &str, module: &Module, edit: StructuralEdit) -> Result<EditResult, EditError> {
     let (node, span, replacement) = match edit {
@@ -207,6 +295,78 @@ fn f() -> Int
             panic!("expected expression")
         };
         assert_eq!(updated_expr.id, expr.id);
+    }
+
+    #[test]
+    #[test]
+    fn transaction_applies_non_overlapping_edits_atomically() {
+        let source = "module x
+fn f() -> Int
+  let a = 1
+  let b = 2
+  a + b
+";
+        let module = crate::parse(source).unwrap();
+        let Item::Function(function) = &module.items[0];
+        let first = &function.body.stmts[0];
+        let second = &function.body.stmts[1];
+        let result = apply_transaction(
+            source,
+            &module,
+            &[
+                StructuralEdit::Replace {
+                    node: first.id,
+                    source: "let a = 3".into(),
+                },
+                StructuralEdit::Replace {
+                    node: second.id,
+                    source: "let b = 4".into(),
+                },
+            ],
+        )
+        .unwrap();
+        assert_eq!(result.changed_nodes.len(), 2);
+        assert!(result.source.contains("let a = 3"));
+        assert!(result.source.contains("let b = 4"));
+    }
+
+    #[test]
+    fn transaction_rejects_overlapping_edits() {
+        let source = "module x
+fn f() -> Int
+  1
+";
+        let module = crate::parse(source).unwrap();
+        let Item::Function(function) = &module.items[0];
+        let StmtKind::Expr(expr) = &function.body.stmts[0].kind else {
+            panic!("expected expression")
+        };
+        let result = apply_transaction(
+            source,
+            &module,
+            &[
+                StructuralEdit::Replace {
+                    node: function.body.id,
+                    source: "bad".into(),
+                },
+                StructuralEdit::Replace {
+                    node: expr.id,
+                    source: "2".into(),
+                },
+            ],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn query_returns_stable_node_span() {
+        let source = "module x
+fn f() -> Int
+  1
+";
+        let module = crate::parse(source).unwrap();
+        let Item::Function(function) = &module.items[0];
+        assert_eq!(query(&module, function.id).unwrap().node, function.id);
     }
 
     #[test]
