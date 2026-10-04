@@ -23,7 +23,16 @@ pub struct RustFunction {
     pub return_type: InteropType,
 }
 
+#[allow(dead_code)]
+pub const ABI_VERSION: &str = "ardisa-c-abi-v1";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InteropContract {
+    pub abi_version: &'static str,
+    pub function: RustFunction,
+    pub unsafe_call_isolated: bool,
+}
+
 pub struct SafeRustBoundary {
     function: RustFunction,
 }
@@ -39,7 +48,26 @@ impl SafeRustBoundary {
         if function.params.iter().any(|(name, _)| name.is_empty()) {
             return Err("Rust interop parameter names must be non-empty".into());
         }
+        if function
+            .params
+            .iter()
+            .any(|(_, ty)| !matches!(ty, InteropType::Int | InteropType::Bool | InteropType::Unit))
+            || !matches!(
+                function.return_type,
+                InteropType::Int | InteropType::Bool | InteropType::Unit
+            )
+        {
+            return Err("Rust interop exposes only ABI-safe scalar types".into());
+        }
         Ok(Self { function })
+    }
+
+    pub fn contract(&self) -> InteropContract {
+        InteropContract {
+            abi_version: ABI_VERSION,
+            function: self.function.clone(),
+            unsafe_call_isolated: true,
+        }
     }
 
     pub fn function(&self) -> &RustFunction {
@@ -124,6 +152,30 @@ mod tests {
             return_type: InteropType::Int,
         };
         assert!(validate(&function).is_err());
+    }
+
+    #[test]
+    fn contract_declares_abi_and_unsafe_isolation() {
+        let function = RustFunction {
+            symbol: "native_flag".into(),
+            name: "flag".into(),
+            params: vec![],
+            return_type: InteropType::Bool,
+        };
+        let contract = SafeRustBoundary::new(function).unwrap().contract();
+        assert_eq!(contract.abi_version, ABI_VERSION);
+        assert!(contract.unsafe_call_isolated);
+    }
+
+    #[test]
+    fn accepts_only_explicit_scalar_types() {
+        let function = RustFunction {
+            symbol: "native_text".into(),
+            name: "text".into(),
+            params: vec![("value".into(), InteropType::Unit)],
+            return_type: InteropType::Unit,
+        };
+        assert!(SafeRustBoundary::new(function).is_ok());
     }
 
     #[test]
