@@ -26,7 +26,12 @@ pub struct ScopeReport {
 
 pub fn analyze(module: &Module) -> Result<Vec<ScopeReport>, Vec<String>> {
     analyze_with_diagnostics(module)
-        .map_err(|errors| errors.into_iter().map(|error| error.message).collect())
+        .map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| format!("{}: {}", error.code, error.message))
+                .collect()
+        })
 }
 
 pub fn analyze_with_diagnostics(module: &Module) -> Result<Vec<ScopeReport>, Vec<Diagnostic>> {
