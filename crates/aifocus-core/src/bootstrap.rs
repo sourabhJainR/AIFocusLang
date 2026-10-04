@@ -90,7 +90,24 @@ pub fn verify() -> BootstrapReport {
         && stage0.instruction_count == stage1.instruction_count
         && stage0.functions == stage1.functions;
 
-    let stage2 = self_hosted_pipeline_artifact().ok();
+    let stage2 = match self_hosted_pipeline_artifact() {
+        Ok(artifact) => Some(artifact),
+        Err(blocker) => {
+            return BootstrapReport {
+                parsed: true,
+                semantically_valid: true,
+                ownership_valid: true,
+                native_compiled: true,
+                native_result,
+                stage0: Some(stage0),
+                stage1: Some(stage1),
+                stage2: None,
+                reproducible: false,
+                self_hosting_ready: false,
+                blocker: Some(blocker),
+            };
+        }
+    };
 
     BootstrapReport {
         parsed: true,
