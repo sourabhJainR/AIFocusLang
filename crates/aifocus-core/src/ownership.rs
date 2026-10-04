@@ -316,7 +316,7 @@ impl Checker {
                     return None;
                 };
                 let Some(function) = self.functions.get(name).cloned() else {
-                    for arg in args {
+                    for (index, arg) in args.iter().enumerate() {
                         let mode = if name == "len" || name == "unwrap" {
                             AccessMode::SharedBorrow
                         } else if name == "push" && index == 0 {
