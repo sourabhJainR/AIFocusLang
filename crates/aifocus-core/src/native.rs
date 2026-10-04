@@ -1106,6 +1106,38 @@ fn pop_int(stack: &mut Vec<NativeValue>) -> Result<i64, NativeError> {
 }
 
 #[cfg(test)]
+mod artifact_tests {
+    use super::*;
+
+    #[test]
+    fn executable_artifact_round_trips_deterministically() {
+        let module = crate::parse(
+            "module artifact\nfn main(a: String) -> String\n  a + "!"\n",
+        ).unwrap();
+        crate::sema::check(&module).unwrap();
+        crate::ownership::infer(&module).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        let encoded = encode_program(&program);
+        assert!(encoded.starts_with(ARTIFACT_MAGIC));
+        let decoded = decode_program(&encoded).unwrap();
+        assert_eq!(decoded, program);
+        assert_eq!(encode_program(&decoded), encoded);
+        assert_eq!(
+            run_program(&decoded, "main", &[NativeValue::String("Ardisa".into())]).unwrap(),
+            NativeValue::String("Ardisa!".into())
+        );
+    }
+
+    #[test]
+    fn malformed_executable_is_rejected() {
+        assert!(matches!(
+            decode_program("ARDISA-EXEC-V1\nI|Return\n"),
+            Err(NativeError::InvalidProgram(_))
+        ));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
