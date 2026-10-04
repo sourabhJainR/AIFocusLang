@@ -1,0 +1,30 @@
+module parser
+
+fn token_at(stream: String, start: Int) -> String
+  let end = start
+  while end < len(stream)
+    if stream[end] == 124
+      set end = len(stream)
+    else
+      set end = end + 1
+  if end > start
+    stream
+  else
+    ""
+
+fn parse(stream: String) -> String
+  let ast = "(module "
+  let cursor = 0
+  let current = ""
+  while cursor < len(stream)
+    let end = cursor
+    while end < len(stream)
+      if stream[end] == 124
+        set end = len(stream)
+      else
+        set end = end + 1
+    set current = token_at(stream, cursor)
+    if len(current) > 0
+      set ast = ast + current + " "
+    set cursor = end + 1
+  ast + ")"
