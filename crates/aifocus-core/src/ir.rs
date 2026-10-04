@@ -33,6 +33,8 @@ pub enum IrValue {
     Int(i64),
     Bool(bool),
     String(String),
+    List(Vec<IrValue>),
+    Index { collection: Box<IrValue>, index: Box<IrValue> },
     Name(String),
     Binary {
         op: BinaryOp,
@@ -140,6 +142,11 @@ fn value_to_ir(expr: &Expr) -> IrValue {
         ExprKind::Int(value) => IrValue::Int(*value),
         ExprKind::Bool(value) => IrValue::Bool(*value),
         ExprKind::String(value) => IrValue::String(value.clone()),
+        ExprKind::List(values) => IrValue::List(values.iter().map(value_to_ir).collect()),
+        ExprKind::Index { collection, index } => IrValue::Index {
+            collection: Box::new(value_to_ir(collection)),
+            index: Box::new(value_to_ir(index)),
+        },
         ExprKind::Name(name) => IrValue::Name(name.clone()),
         ExprKind::Group(inner) => value_to_ir(inner),
         ExprKind::Binary { op, left, right } => IrValue::Binary {
