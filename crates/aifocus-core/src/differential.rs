@@ -18,7 +18,7 @@ pub const CORPUS: &[DifferentialCase] = &[
 ];
 
 pub fn verify_case(case: &DifferentialCase) -> Result<(), String> {
-    let module = parse(case.source).map_err(|errors| format!("{}: parse failed", case.name))?;
+    let module = parse(case.source).map_err(|errors| format!("{}: parse failed: {errors:?}", case.name))?;
     sema::check(&module)
         .map_err(|errors| format!("{}: semantic check failed: {errors:?}", case.name))?;
     ownership::infer(&module)
