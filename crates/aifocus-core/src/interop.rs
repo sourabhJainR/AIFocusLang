@@ -21,9 +21,7 @@ impl InteropType {
 
     fn ownership(&self, is_return: bool) -> OwnershipContract {
         match self {
-            Self::Int | Self::Bool | Self::Unit | Self::ResultIntInt => {
-                OwnershipContract::Copy
-            }
+            Self::Int | Self::Bool | Self::Unit | Self::ResultIntInt => OwnershipContract::Copy,
             Self::IntSliceRef | Self::ListIntRef => OwnershipContract::SharedBorrow,
         }
         .for_position(is_return)
@@ -225,11 +223,7 @@ fn is_c_identifier(value: &str) -> bool {
 }
 
 fn is_rust_identifier(value: &str) -> bool {
-    is_c_identifier(value)
-        && !matches!(
-            value,
-            "fn" | "struct" | "enum" | "type" | "mod" | "unsafe"
-        )
+    is_c_identifier(value) && !matches!(value, "fn" | "struct" | "enum" | "type" | "mod" | "unsafe")
 }
 
 #[cfg(test)]
@@ -264,7 +258,10 @@ mod tests {
         };
         let contract = SafeRustBoundary::new(function).unwrap().contract();
         assert_eq!(contract.abi_version, ABI_VERSION);
-        assert_eq!(contract.parameters[0].ownership, OwnershipContract::SharedBorrow);
+        assert_eq!(
+            contract.parameters[0].ownership,
+            OwnershipContract::SharedBorrow
+        );
         assert_eq!(contract.return_ownership, OwnershipContract::Copy);
         assert_eq!(contract.function.return_type, InteropType::ResultIntInt);
     }
@@ -278,10 +275,8 @@ mod tests {
             return_type: InteropType::ResultIntInt,
         };
         let wrapper = SafeRustBoundary::new(function).unwrap().wrapper();
-        let base = std::env::temp_dir().join(format!(
-            "ardisa-list-result-abi-{}",
-            std::process::id()
-        ));
+        let base =
+            std::env::temp_dir().join(format!("ardisa-list-result-abi-{}", std::process::id()));
         let source = base.with_extension("rs");
         std::fs::write(&source, wrapper).unwrap();
         let status = std::process::Command::new("rustc")
@@ -314,7 +309,10 @@ mod tests {
         let boundary = SafeRustBoundary::new(function_with(InteropType::Int)).unwrap();
         assert!(boundary.unsafe_escape_block("", "native_value()").is_err());
         let block = boundary
-            .unsafe_escape_block("FFI contract guarantees the symbol and ABI", "native_value()")
+            .unsafe_escape_block(
+                "FFI contract guarantees the symbol and ABI",
+                "native_value()",
+            )
             .unwrap();
         assert!(block.contains("// SAFETY: FFI contract guarantees"));
     }
