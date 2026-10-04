@@ -205,7 +205,11 @@ fn main(a: Int) -> Int
     let ir_program = programs.get("ir").ok_or("missing ir program")?;
 
     let tokens = native::run_program(lexer, "lex", &[native::NativeValue::String(source.into())])
-        .map_err(|_| "self-hosted lexer execution failed")?;
+        .map_err(|error| match error {
+            native::NativeError::Type(_) => "self-hosted lexer runtime type error",
+            native::NativeError::InvalidProgram(_) => "self-hosted lexer invalid native program",
+            native::NativeError::Unsupported(_) => "self-hosted lexer uses unsupported native operation",
+        })?;
     let tokens = match tokens {
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted lexer returned non-string tokens"),
