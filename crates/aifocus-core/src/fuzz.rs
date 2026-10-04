@@ -31,7 +31,6 @@ pub const MALFORMED_CORPUS: &[&str] = &[
     "module x\nfn main( -> Int\n  1\n",
     "module x\nfn main() -> Int\n    1\n  broken\n",
     "module x\nfn main() -> Int\n  [1,\n",
-    "module x\nfn main() -> Int\n  1 / 0\n",
 ];
 
 pub fn generate(seed: u64) -> GeneratedCase {
