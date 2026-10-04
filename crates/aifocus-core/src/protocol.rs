@@ -44,6 +44,8 @@ pub struct CompilerSnapshot {
 pub enum CompilerRequest {
     Inspect,
     QueryNode(NodeId),
+    QueryType(NodeId),
+    QueryEffects(String),
     ApplyEdit(StructuralEdit),
     ApplyEdits(Vec<StructuralEdit>),
 }
@@ -54,6 +56,16 @@ pub struct CompilerResponse {
     pub changed_node: Option<NodeId>,
     pub changed_nodes: Vec<NodeId>,
     pub queried_node: Option<NodeQuery>,
+    pub queried_type: Option<String>,
+    pub queried_effects: Option<crate::effects::FunctionEffects>,
+    pub source_evidence: Vec<SourceEvidence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceEvidence {
+    pub node: NodeId,
+    pub span: crate::source::Span,
+    pub evidence: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +102,9 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 changed_node: None,
                 changed_nodes: Vec::new(),
                 queried_node: None,
+                queried_type: None,
+                queried_effects: None,
+                source_evidence: Vec::new(),
             })
         }
         CompilerRequest::QueryNode(node) => {
@@ -100,6 +115,43 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 changed_node: None,
                 changed_nodes: Vec::new(),
                 queried_node: Some(queried_node),
+                queried_type: None,
+                queried_effects: None,
+                source_evidence: vec![source_evidence(source, node, "ast:queried")?],
+            })
+        }
+        CompilerRequest::QueryType(node) => {
+            let model = sema::analyze(&module).map_err(ProtocolError::Semantic)?;
+            let ty = model
+                .inferred_types
+                .get(&node)
+                .ok_or_else(|| ProtocolError::Edit("node has no inferred type".into()))?
+                .display_name();
+            snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
+                snapshot,
+                changed_node: None,
+                changed_nodes: Vec::new(),
+                queried_node: None,
+                queried_type: Some(ty),
+                queried_effects: None,
+                source_evidence: vec![source_evidence(source, node, "type:verified")?],
+            })
+        }
+        CompilerRequest::QueryEffects(function) => {
+            let effects_model = effects::analyze(&module);
+            let effects = effects_model
+                .functions
+                .get(&function)
+                .cloned()
+                .ok_or_else(|| ProtocolError::Edit("function has no effect model".into()))?;
+            snapshot(source, module, parse_ns).map(|snapshot| CompilerResponse {
+                snapshot,
+                changed_node: None,
+                changed_nodes: Vec::new(),
+                queried_node: None,
+                queried_type: None,
+                queried_effects: Some(effects),
+                source_evidence: Vec::new(),
             })
         }
         CompilerRequest::ApplyEdit(edit_request) => {
@@ -111,6 +163,9 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
                 changed_node,
                 changed_nodes: vec![changed_node.unwrap()],
                 queried_node: None,
+                queried_type: None,
+                queried_effects: None,
+                source_evidence: vec![source_evidence(&result.source, changed_node.unwrap(), "edit:applied")?],
             })
         }
         CompilerRequest::ApplyEdits(edits) => {
@@ -119,8 +174,15 @@ pub fn execute(source: &str, request: CompilerRequest) -> Result<CompilerRespons
             snapshot(&result.source, result.module, parse_ns).map(|snapshot| CompilerResponse {
                 snapshot,
                 changed_node: result.changed_nodes.first().copied(),
-                changed_nodes: result.changed_nodes,
+                changed_nodes: result.changed_nodes.clone(),
                 queried_node: None,
+                queried_type: None,
+                queried_effects: None,
+                source_evidence: result
+                    .changed_nodes
+                    .iter()
+                    .filter_map(|node| source_evidence(&result.source, *node, "transaction:applied").ok())
+                    .collect(),
             })
         }
     }
@@ -136,6 +198,12 @@ pub fn encode_request(request: &CompilerRequest) -> String {
         CompilerRequest::Inspect => out.push_str("INSPECT\n"),
         CompilerRequest::QueryNode(node) => {
             out.push_str(&format!("QUERY\n{}\n", node.0));
+        }
+        CompilerRequest::QueryType(node) => {
+            out.push_str(&format!("TYPE\n{}\n", node.0));
+        }
+        CompilerRequest::QueryEffects(function) => {
+            out.push_str(&format!("EFFECTS\n{}\n", hex(function.as_bytes())));
         }
         CompilerRequest::ApplyEdit(edit) => {
             out.push_str("EDIT\n");
@@ -167,6 +235,22 @@ pub fn decode_request(wire: &str) -> Result<CompilerRequest, ProtocolError> {
                 .parse::<u64>()
                 .map_err(|_| ProtocolError::Edit("query node id is not an integer".into()))?;
             Ok(CompilerRequest::QueryNode(NodeId(node)))
+        }
+        Some("TYPE") => {
+            let node = lines
+                .next()
+                .ok_or_else(|| ProtocolError::Edit("type query is missing a node id".into()))?
+                .parse::<u64>()
+                .map_err(|_| ProtocolError::Edit("type query node id is not an integer".into()))?;
+            Ok(CompilerRequest::QueryType(NodeId(node)))
+        }
+        Some("EFFECTS") => {
+            let encoded = lines
+                .next()
+                .ok_or_else(|| ProtocolError::Edit("effects query is missing a function".into()))?;
+            let function = String::from_utf8(decode_hex(encoded)?)
+                .map_err(|_| ProtocolError::Edit("effects function is not valid UTF-8".into()))?;
+            Ok(CompilerRequest::QueryEffects(function))
         }
         Some("EDIT") => decode_edit(&mut lines).map(CompilerRequest::ApplyEdit),
         Some("TRANSACTION") => {
@@ -276,6 +360,58 @@ fn hex_digit(value: u8) -> Option<u8> {
         b'A'..=b'F' => Some(value - b'A' + 10),
         _ => None,
     }
+}
+
+pub const RESPONSE_PROTOCOL_VERSION: &str = "ardisa-response-v1";
+
+pub fn encode_response_frame(response: &CompilerResponse) -> Result<Vec<u8>, ProtocolError> {
+    let status = if response.snapshot.diagnostics.is_empty() {
+        "ok"
+    } else {
+        "error"
+    };
+    let changed = response
+        .changed_nodes
+        .iter()
+        .map(|node| node.0.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    let evidence = response
+        .source_evidence
+        .iter()
+        .map(|item| format!("{}:{}:{}", item.node.0, item.span.start, item.span.end))
+        .collect::<Vec<_>>()
+        .join(",");
+    let payload = format!(
+        "{RESPONSE_PROTOCOL_VERSION}\nstatus={status}\nchanged={changed}\ntype={}\nevidence={evidence}\n",
+        response.queried_type.as_deref().unwrap_or("")
+    );
+    encode_stdio_frame(payload.as_bytes())
+}
+
+pub fn decode_response_frame(input: &[u8]) -> Result<(String, &[u8]), ProtocolError> {
+    let (payload, rest) = decode_stdio_frame(input)?;
+    let payload = String::from_utf8(payload)
+        .map_err(|_| ProtocolError::Edit("response payload is not valid UTF-8".into()))?;
+    if !payload.starts_with(&format!("{RESPONSE_PROTOCOL_VERSION}\n")) {
+        return Err(ProtocolError::Edit("unsupported response protocol version".into()));
+    }
+    Ok((payload, rest))
+}
+
+fn source_evidence(
+    source: &str,
+    node: NodeId,
+    evidence: &str,
+) -> Result<SourceEvidence, ProtocolError> {
+    let span = edit::query(&crate::parse(source).map_err(ProtocolError::InvalidSource)?, node)
+        .map_err(|error| ProtocolError::Edit(error.to_string()))?
+        .span;
+    Ok(SourceEvidence {
+        node,
+        span,
+        evidence: vec![evidence.into()],
+    })
 }
 
 pub struct CompilerSession {
