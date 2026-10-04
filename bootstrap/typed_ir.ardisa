@@ -1,0 +1,49 @@
+module typed_ir
+
+fn type_of(atom: String) -> String
+  if atom == "Int"
+    "Int"
+  else
+    if atom == "Bool"
+      "Bool"
+    else
+      if atom == "String"
+        "String"
+      else
+        if atom == "Unit"
+          "()"
+        else
+          if atom == "List"
+            "List"
+          else
+            if atom == "Result"
+              "Result"
+            else
+              "Unknown"
+
+fn value(kind: String, payload: String) -> String
+  "Value(" + kind + "," + payload + ")"
+
+fn instruction(kind: String, payload: String) -> String
+  "Instr(" + kind + "," + payload + ")"
+
+fn lower_atom(atom: String) -> String
+  if atom == "true"
+    value("Bool", "true")
+  else
+    if atom == "false"
+      value("Bool", "false")
+    else
+      if atom == "Int"
+        value("Int", atom)
+      else
+        value("Name", atom)
+
+fn validate(ir: String) -> String
+  if len(ir) == 0
+    "Err:empty-ir"
+  else
+    if ir[0] == 73
+      "Ok"
+    else
+      "Err:invalid-ir"
