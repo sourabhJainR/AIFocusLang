@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -146,17 +146,18 @@ pub enum ScopeEvent {
     Spawned(String),
     Joined(String),
     Cancelled(String),
+    Failed(String),
 }
 
 pub struct StructuredScope {
-    tasks: HashMap<String, (TaskHandle<()>, TaskState)>,
+    tasks: BTreeMap<String, (TaskHandle<()>, TaskState)>,
     events: Vec<ScopeEvent>,
 }
 
 impl StructuredScope {
     pub fn new() -> Self {
         Self {
-            tasks: HashMap::new(),
+            tasks: BTreeMap::new(),
             events: Vec::new(),
         }
     }
@@ -187,7 +188,13 @@ impl StructuredScope {
                 self.events.push(ScopeEvent::Joined(name.into()));
                 Ok(())
             }
-            Err(_) => Err(format!("AIF505: task '{name}' panicked")),
+            Err(_) => {
+                self.events.push(ScopeEvent::Failed(name.into()));
+                self.cancel_running_siblings();
+                Err(format!(
+                    "AIF505: task '{name}' panicked; siblings cancelled"
+                ))
+            }
         }
     }
 
@@ -221,6 +228,21 @@ impl StructuredScope {
     pub fn events(&self) -> &[ScopeEvent] {
         &self.events
     }
+
+    fn cancel_running_siblings(&mut self) {
+        let names = self
+            .tasks
+            .iter()
+            .filter_map(|(name, (_, state))| (*state == TaskState::Running).then_some(name.clone()))
+            .collect::<Vec<_>>();
+        for name in names {
+            if let Some((handle, state)) = self.tasks.get_mut(&name) {
+                handle.cancel();
+                *state = TaskState::Cancelled;
+                self.events.push(ScopeEvent::Cancelled(name));
+            }
+        }
+    }
 }
 
 impl Default for StructuredScope {
@@ -237,7 +259,7 @@ impl Drop for StructuredScope {
                 *state = TaskState::Cancelled;
             }
         }
-        for (_, (handle, _)) in self.tasks.drain() {
+        for (_, (handle, _)) in std::mem::take(&mut self.tasks) {
             let _ = handle.join();
         }
     }
@@ -340,6 +362,44 @@ fn main()
             vec![
                 ScopeEvent::Spawned("worker".into()),
                 ScopeEvent::Cancelled("worker".into())
+            ]
+        );
+    }
+
+    #[test]
+    fn child_failure_cancels_running_siblings() {
+        let mut scope = StructuredScope::new();
+        scope
+            .spawn("a", |_token| {
+                panic!("boom");
+            })
+            .unwrap();
+        scope
+            .spawn("b", |token| {
+                while !token.is_cancelled() {
+                    thread::yield_now();
+                }
+            })
+            .unwrap();
+        let result = scope.join("a");
+        assert!(result.is_err());
+        assert!(scope.events().contains(&ScopeEvent::Failed("a".into())));
+        assert!(scope.events().contains(&ScopeEvent::Cancelled("b".into())));
+    }
+
+    #[test]
+    fn scope_event_order_is_deterministic_for_cleanup() {
+        let mut scope = StructuredScope::new();
+        scope.spawn("z", |_token| {}).unwrap();
+        scope.spawn("a", |_token| {}).unwrap();
+        let events = scope.finish().unwrap();
+        assert_eq!(
+            events,
+            vec![
+                ScopeEvent::Spawned("z".into()),
+                ScopeEvent::Spawned("a".into()),
+                ScopeEvent::Joined("a".into()),
+                ScopeEvent::Joined("z".into()),
             ]
         );
     }
