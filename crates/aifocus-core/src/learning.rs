@@ -128,7 +128,10 @@ impl PersistentCompilerLearning {
         let text = fs::read_to_string(path).map_err(|error| error.to_string())?;
         let mut lines = text.lines();
         let version = lines.next();
-        if !matches!(version, Some("ARDISA-LEARNING-V1") | Some("ARDISA-LEARNING-V2")) {
+        if !matches!(
+            version,
+            Some("ARDISA-LEARNING-V1") | Some("ARDISA-LEARNING-V2")
+        ) {
             return Err("unsupported Ardisa learning format".into());
         }
         let v2 = version == Some("ARDISA-LEARNING-V2");
