@@ -48,8 +48,14 @@ impl SafeRustBoundary {
         if function.params.iter().any(|(name, _)| name.is_empty()) {
             return Err("Rust interop parameter names must be non-empty".into());
         }
-        if function.params.iter().any(|(_, ty)| !matches!(ty, InteropType::Int | InteropType::Bool | InteropType::Unit))
-            || !matches!(function.return_type, InteropType::Int | InteropType::Bool | InteropType::Unit)
+        if function
+            .params
+            .iter()
+            .any(|(_, ty)| !matches!(ty, InteropType::Int | InteropType::Bool | InteropType::Unit))
+            || !matches!(
+                function.return_type,
+                InteropType::Int | InteropType::Bool | InteropType::Unit
+            )
         {
             return Err("Rust interop exposes only ABI-safe scalar types".into());
         }
@@ -162,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unsupported_aggregate_types() {
+    fn accepts_only_explicit_scalar_types() {
         let function = RustFunction {
             symbol: "native_text".into(),
             name: "text".into(),
