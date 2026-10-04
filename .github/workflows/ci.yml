@@ -17,6 +17,11 @@ jobs:
         with:
           name: formatted-native
           path: crates/aifocus-core/src/native.rs
+      - name: Emit formatted native runtime
+        run: |
+          echo FORMAT_BEGIN
+          cat crates/aifocus-core/src/native.rs
+          echo FORMAT_END
       - run: cargo fmt --all -- --check
       - run: cargo check --workspace
       - run: cargo test --workspace
