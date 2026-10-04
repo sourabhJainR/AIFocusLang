@@ -1,75 +1,10 @@
 module ast
 
-fn token_kind(token: String) -> String
-  let index = 0
-  let result = ""
-  while index < len(token)
-    if token[index] == 61
-      set index = len(token)
+fn build(parsed: String) -> String
+  if len(parsed) == 0
+    ""
+  else
+    if parsed[0] == 40
+      "(ModuleAST " + parsed + ")"
     else
-      set result = result + chr(token[index])
-      set index = index + 1
-  result
-
-fn token_value(token: String) -> String
-  let index = 0
-  let result = ""
-  let seen = false
-  while index < len(token)
-    if seen == false
-      if token[index] == 61
-        set seen = true
-    else
-      if token[index] == 124
-        set index = len(token)
-      else
-        set result = result + chr(token[index])
-    set index = index + 1
-  result
-
-fn node(kind: String, value: String) -> String
-  "(" + kind + " " + value + ")"
-
-fn build(token_stream: String) -> String
-  let tree = "(Module"
-  let cursor = 0
-  let token = ""
-  let current = ""
-  while cursor < len(token_stream)
-    let end = cursor
-    let delimiter = cursor
-    let scanning = true
-    while end < len(token_stream)
-      if scanning == true
-        if token_stream[end] == 124
-          set delimiter = end
-          set scanning = false
-          set end = len(token_stream)
-        else
-          set end = end + 1
-    set end = delimiter
-    set token = ""
-    let copy = cursor
-    while copy < end
-      set token = token + chr(token_stream[copy])
-      set copy = copy + 1
-    if len(token) > 0
-      set current = token_kind(token)
-      if current == "Module"
-        set tree = tree + " " + node("ModuleDecl", token_value(token))
-      else
-        if current == "Fn"
-          set tree = tree + " " + node("FunctionDecl", token_value(token))
-        else
-          if current == "Ident"
-            set tree = tree + " " + node("Ident", token_value(token))
-          else
-            if current == "Int"
-              set tree = tree + " " + node("Int", token_value(token))
-            else
-              if current == "String"
-                set tree = tree + " " + node("String", token_value(token))
-              else
-                set tree = tree + " " + node(current, token_value(token))
-    set cursor = delimiter + 1
-  tree + ")"
+      ""
