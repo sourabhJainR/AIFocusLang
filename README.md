@@ -19,7 +19,7 @@ Ardisa source files use the `.ardisa` extension. The extension is part of the la
 
 1. Small readable source language.
 2. Stable AST, spans, diagnostics and semantic model.
-3. Rust lowering for the safe subset.
+3. Direct native execution for the supported language subset, with Rust lowering as an interoperability path.
 4. Rust interoperability and escape hatches.
 5. Native compiler work only after semantics are stable.
 6. AI-facing compiler APIs for structural editing and verification.
@@ -58,4 +58,4 @@ See `docs/ROADMAP.md`, `docs/DESIGN.md`, and `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Source files
 
-Use `*.ardisa` for Ardisa programs. The CLI accepts Ardisa source files and treats `.ardisa` as the canonical source extension.
+Use `*.ardisa` for Ardisa programs. The CLI accepts Ardisa source files and treats `.ardisa` as the canonical source extension. `ardisa run` executes the supported subset directly through the dependency-free native backend; `ardisa build` emits readable Rust when a Rust artifact is required.
