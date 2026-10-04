@@ -137,7 +137,11 @@ impl Checker {
             match &stmt.kind {
                 StmtKind::Set { name, value } => {
                     let Some(expected) = locals.get(name).cloned() else {
-                        self.error("AIF314", format!("unknown mutable binding '{name}'"), stmt.span);
+                        self.error(
+                            "AIF314",
+                            format!("unknown mutable binding '{name}'"),
+                            stmt.span,
+                        );
                         last = None;
                         continue;
                     };
