@@ -315,9 +315,7 @@ fn main()
     #[test]
     fn structured_scope_requires_explicit_terminal_state() {
         let mut scope = StructuredScope::new();
-        scope
-            .spawn("worker", |_token| {})
-            .unwrap();
+        scope.spawn("worker", |_token| {}).unwrap();
         assert!(scope.join("worker").is_ok());
         assert_eq!(
             scope.events(),
@@ -327,7 +325,6 @@ fn main()
             ]
         );
     }
-
     #[test]
     fn structured_scope_cancellation_is_followed_by_scope_cleanup() {
         let mut scope = StructuredScope::new();
