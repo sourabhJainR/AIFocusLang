@@ -218,7 +218,11 @@ impl Checker {
                     if let Some(actual) = self.check_expr(element, locals) {
                         if let Some(expected) = &element_type {
                             if !same_type(&actual, expected) {
-                                self.error("AIF317", "list elements must have the same type", element.span);
+                                self.error(
+                                    "AIF317",
+                                    "list elements must have the same type",
+                                    element.span,
+                                );
                             }
                         } else {
                             element_type = Some(actual);
@@ -226,7 +230,9 @@ impl Checker {
                     }
                 }
                 Some(type_node(
-                    TypeKind::List(Box::new(element_type.unwrap_or_else(|| type_node(TypeKind::Unit, expr.span)))),
+                    TypeKind::List(Box::new(
+                        element_type.unwrap_or_else(|| type_node(TypeKind::Unit, expr.span)),
+                    )),
                     expr.span,
                 ))
             }
