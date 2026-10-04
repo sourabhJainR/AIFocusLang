@@ -83,12 +83,14 @@ fn lex(source: String) -> String
   while index < len(source)
     if line_start
       let spaces = 0
+      let scanning_spaces = true
       while index < len(source)
-        if source[index] == 32
-          set spaces = spaces + 1
-          set index = index + 1
-        else
-          set index = index
+        if scanning_spaces == true
+          if source[index] == 32
+            set spaces = spaces + 1
+            set index = index + 1
+          else
+            set scanning_spaces = false
       if spaces > indent
         set indent = spaces
         set output = output + token("Indent", chr(spaces))
@@ -112,34 +114,40 @@ fn lex(source: String) -> String
           set index = index + 1
         else
           if c == 35
+            let scanning_comment = true
             while index < len(source)
-              if source[index] == 10
-                set index = index
-              else
-                set index = index + 1
+              if scanning_comment == true
+                if source[index] == 10
+                  set scanning_comment = false
+                else
+                  set index = index + 1
           else
             if is_letter(c)
               let word = ""
+              let scanning_word = true
               while index < len(source)
-                if is_letter(source[index])
-                  set word = word + chr(source[index])
-                  set index = index + 1
-                else
-                  if is_digit(source[index])
+                if scanning_word == true
+                  if is_letter(source[index])
                     set word = word + chr(source[index])
                     set index = index + 1
                   else
-                    set index = index
+                    if is_digit(source[index])
+                      set word = word + chr(source[index])
+                      set index = index + 1
+                    else
+                      set scanning_word = false
               set output = output + token(keyword(word), word)
             else
               if is_digit(c)
                 let number = ""
+                let scanning_number = true
                 while index < len(source)
-                  if is_digit(source[index])
-                    set number = number + chr(source[index])
-                    set index = index + 1
-                  else
-                    set index = index
+                  if scanning_number == true
+                    if is_digit(source[index])
+                      set number = number + chr(source[index])
+                      set index = index + 1
+                    else
+                      set scanning_number = false
                 set output = output + token("Int", number)
               else
                 if c == 34
