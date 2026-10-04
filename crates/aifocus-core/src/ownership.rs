@@ -304,7 +304,12 @@ impl Checker {
                 };
                 let Some(function) = self.functions.get(name).cloned() else {
                     for arg in args {
-                        self.check_expr(arg, locals, AccessMode::Move);
+                        let mode = if name == "len" || name == "unwrap" {
+                            AccessMode::SharedBorrow
+                        } else {
+                            AccessMode::Move
+                        };
+                        self.check_expr(arg, locals, mode);
                     }
                     return None;
                 };
