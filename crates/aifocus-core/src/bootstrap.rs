@@ -1,7 +1,12 @@
 use crate::{ir, native, ownership, parse, sema};
 use std::collections::BTreeMap;
 
-pub const BOOTSTRAP_SOURCE: &str = "module bootstrap\nfn double(a: Int) -> Int\n  a * 2\nfn main(a: Int, b: Int) -> Int\n  a * 2 + b\n";
+pub const BOOTSTRAP_SOURCE: &str = "module bootstrap
+fn double(a: Int) -> Int
+  a * 2
+fn main(a: Int, b: Int) -> Int
+  a * 2 + b
+";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BootstrapArtifact {
@@ -48,7 +53,9 @@ pub fn verify() -> BootstrapReport {
         &stage1_code,
         &[("a".into(), native::NativeValue::Int(3)), ("b".into(), native::NativeValue::Int(4))],
     ).ok();
-    let reproducible = stage0.source_fingerprint == stage1.source_fingerprint\n        && stage0.instruction_count == stage1.instruction_count\n        && stage0.functions == stage1.functions;
+    let reproducible = stage0.source_fingerprint == stage1.source_fingerprint
+        && stage0.instruction_count == stage1.instruction_count
+        && stage0.functions == stage1.functions;
     BootstrapReport {
         parsed: true,
         semantically_valid: true,
