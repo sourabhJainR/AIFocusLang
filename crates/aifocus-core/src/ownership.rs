@@ -262,7 +262,7 @@ impl Checker {
             }
             ExprKind::Group(inner) => self.check_expr(inner, locals, mode),
             ExprKind::Binary { op, left, right } => {
-                let operand_mode = if *op == BinaryOp::Equal {
+                let operand_mode = if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual | BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual) {
                     AccessMode::SharedBorrow
                 } else {
                     AccessMode::Move
