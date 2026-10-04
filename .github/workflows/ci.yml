@@ -2,14 +2,56 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ardisa-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
+    name: Rust compiler, runtime, and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo fmt --all -- --check
-      - run: cargo check --workspace
-      - run: cargo test --workspace
+      - run: cargo check --workspace --all-targets
+      - run: cargo test --workspace --all-targets
+
+  bootstrap:
+    name: Stage-2/stage-3 reproducibility gate
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: chmod +x bootstrap/verify_self_hosting.sh
+      - run: ./bootstrap/verify_self_hosting.sh
+
+  generated:
+    name: Generated differential and holdout corpus
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p aifocus-core fuzz --all-targets -- --nocapture
+      - run: cargo test -p aifocus-core differential --all-targets -- --nocapture
+      - run: cargo test -p aifocus-core benchmark --all-targets -- --nocapture
+
+  self-hosting-status:
+    name: True self-hosting evidence contract
+    runs-on: ubuntu-latest
+    needs: [bootstrap, generated]
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          test -f bootstrap/compiler.ardisa
+          grep -q 'ARDISA-EXEC-V1' bootstrap/native_codegen.ardisa
+          echo "Bootstrap source and native artifact contract present."
