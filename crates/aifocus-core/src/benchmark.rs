@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::{fuzz, native, parse, sema, ownership, ir};
+use crate::{fuzz, ir, native, ownership, parse, sema};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BenchmarkResult {
@@ -15,7 +15,11 @@ pub struct BenchmarkResult {
 
 impl BenchmarkResult {
     pub fn generation_success_rate(&self) -> f64 {
-        if self.cases == 0 { 0.0 } else { self.native_executed as f64 / self.cases as f64 }
+        if self.cases == 0 {
+            0.0
+        } else {
+            self.native_executed as f64 / self.cases as f64
+        }
     }
 
     pub fn within_budget(&self, budget: Duration) -> bool {
@@ -37,18 +41,32 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
 
     for offset in 0..cases {
         let case = fuzz::generate(seed_start.wrapping_add(offset as u64));
-        let Ok(module) = parse(&case.source) else { continue };
+        let Ok(module) = parse(&case.source) else {
+            continue;
+        };
         result.parsed += 1;
-        if sema::check(&module).is_err() { continue }
+        if sema::check(&module).is_err() {
+            continue;
+        }
         result.semantically_valid += 1;
-        if ownership::infer(&module).is_err() { continue }
+        if ownership::infer(&module).is_err() {
+            continue;
+        }
         result.ownership_valid += 1;
         let code = match native::compile(&ir::lower(&module)) {
             Ok(code) => code,
             Err(_) => continue,
         };
         result.native_compiled += 1;
-        if native::run(&code, &[("a".into(), native::NativeValue::Int(3)), ("b".into(), native::NativeValue::Int(4))]).is_ok() {
+        if native::run(
+            &code,
+            &[
+                ("a".into(), native::NativeValue::Int(3)),
+                ("b".into(), native::NativeValue::Int(4)),
+            ],
+        )
+        .is_ok()
+        {
             result.native_executed += 1;
         }
     }
