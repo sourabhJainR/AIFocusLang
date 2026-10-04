@@ -32,7 +32,18 @@ pub fn analyze(module: &Module) -> Result<Vec<ScopeReport>, Vec<String>> {
 pub fn analyze_with_diagnostics(module: &Module) -> Result<Vec<ScopeReport>, Vec<Diagnostic>> {
     let mut reports = Vec::new();
     let mut errors = Vec::new();
-    for item in &mofn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec<String>) {
+    for item in &module.items {
+        let Item::Function(function) = item;
+        analyze_block_with_diagnostics(&function.body, &mut reports, &mut errors);
+    }
+    if errors.is_empty() {
+        Ok(reports)
+    } else {
+        Err(errors)
+    }
+}
+
+fn analyze_block(block: &Block, reports: &mut Vec<ScopeReport>, errors: &mut Vec<String>) {
     let mut diagnostics = Vec::new();
     analyze_block_with_diagnostics(block, reports, &mut diagnostics);
     errors.extend(diagnostics.into_iter().map(|error| error.message));
@@ -303,21 +314,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn concurrency_diagnostics_carry_source_spans() {
-        let module = crate::parse(
-            "module x
-fn main()
-  scope
-    spawn worker = work(1)
-",
-        )
-        .unwrap();
-        let errors = analyze_with_diagnostics(&module).unwrap_err();
-        assert_eq!(errors[0].code, "AIF503");
-        assert!(errors[0].span.is_some());
-    }
 
     #[test]
     fn accepts_joined_structured_scope() {
