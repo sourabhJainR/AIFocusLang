@@ -422,7 +422,9 @@ pub fn decode_stdio_frame(input: &[u8]) -> Result<(Vec<u8>, &[u8]), ProtocolErro
         .and_then(|value| value.parse::<usize>().ok())
         .ok_or_else(|| ProtocolError::Edit("invalid Content-Length".into()))?;
     if length > MAX_STDIO_FRAME_BYTES {
-        return Err(ProtocolError::Edit("stdio payload exceeds 8 MiB limit".into()));
+        return Err(ProtocolError::Edit(
+            "stdio payload exceeds 8 MiB limit".into(),
+        ));
     }
     let payload_start = header_end + HEADER_END.len();
     let payload_end = payload_start
