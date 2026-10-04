@@ -49,6 +49,10 @@ fn main() -> ExitCode {
             println!("ardisa run <file> [args...]");
             println!("  Compile and execute the module natively without Rust.");
             println!("  The entry function is 'main'; arguments are typed from its signature.");
+            println!("ardisa bootstrap compile <source.ardisa> <output.aexe>");
+            println!("  Produce a deterministic native executable artifact without invoking Rust at run time.");
+            println!("ardisa bootstrap run <output.aexe> [args...]");
+            println!("  Execute a previously produced Ardisa executable artifact.");
             println!("ardisa fmt <file>");
             println!("  Print canonical Ardisa source.");
             ExitCode::SUCCESS
@@ -57,6 +61,58 @@ fn main() -> ExitCode {
             eprintln!("error: unknown command '{command}'");
             ExitCode::from(2)
         }
+    }
+}
+
+fn bootstrap_compile(path: &str, output: &str) -> ExitCode {
+    require_ardisa_extension(path);
+    let source = match fs::read_to_string(path) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{path}: error[AIF000]: {error}"); return ExitCode::from(1); }
+    };
+    let module = match ardisa_core::parse(&source) {
+        Ok(value) => value,
+        Err(errors) => return emit_diagnostics(path, &source, false, errors),
+    };
+    if let Err(errors) = ardisa_core::sema::check(&module) {
+        return emit_diagnostics(path, &source, false, errors);
+    }
+    if let Err(errors) = ardisa_core::ownership::infer(&module) {
+        return emit_diagnostics(path, &source, false, errors);
+    }
+    let ir = ardisa_core::ir::lower(&module);
+    let program = match ardisa_core::native::compile_program(&ir) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{path}: error[AIF603]: native compilation failed: {error:?}"); return ExitCode::from(1); }
+    };
+    let artifact = ardisa_core::native::encode_program(&program);
+    match fs::write(output, artifact) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => { eprintln!("{output}: error[AIF000]: {error}"); ExitCode::from(1) }
+    }
+}
+
+fn bootstrap_run(path: &str, raw_args: Vec<String>) -> ExitCode {
+    let artifact = match fs::read_to_string(path) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{path}: error[AIF000]: {error}"); return ExitCode::from(1); }
+    };
+    let program = match ardisa_core::native::decode_program(&artifact) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{path}: error[AIF603]: invalid executable: {error:?}"); return ExitCode::from(1); }
+    };
+    let Some(main) = program.functions.get("main") else {
+        eprintln!("{path}: error[AIF600]: entry function 'main' was not found");
+        return ExitCode::from(1);
+    };
+    if raw_args.len() != main.params.len() {
+        eprintln!("{path}: error[AIF601]: main expects {} argument(s), got {}", main.params.len(), raw_args.len());
+        return ExitCode::from(1);
+    }
+    let values = raw_args.into_iter().map(|raw| ardisa_core::NativeValue::String(raw)).collect::<Vec<_>>();
+    match ardisa_core::native::run_program(&program, "main", &values) {
+        Ok(value) => { println!("{}", display_value(&value)); ExitCode::SUCCESS }
+        Err(error) => { eprintln!("{path}: error[AIF604]: native execution failed: {error:?}"); ExitCode::from(1) }
     }
 }
 
