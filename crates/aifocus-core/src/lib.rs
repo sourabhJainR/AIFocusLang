@@ -21,6 +21,7 @@ pub mod lower;
 pub mod module_graph;
 pub mod native;
 pub mod ownership;
+pub mod optimizer;
 pub mod protocol;
 pub mod sema;
 pub mod source;
@@ -53,6 +54,7 @@ pub use learning::{
 pub use module_graph::{ModuleGraph, ModuleGraphError, ModuleNode};
 pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
+pub use optimizer::optimize;
 pub use protocol::{
     CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, CompilerTrace,
     PROTOCOL_VERSION, ProtocolError, VerificationRequirement,
