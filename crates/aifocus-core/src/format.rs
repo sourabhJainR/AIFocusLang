@@ -1,5 +1,6 @@
 use crate::ast::*;
 
+/// Canonical formatter for the growing control-flow surface.
 pub fn format_module(module: &Module) -> String {
     let mut out = format!("module {}\n", module.name);
     for item in &module.items {
@@ -83,6 +84,12 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             out.push_str("cancel ");
             out.push_str(name);
             out.push('\n');
+        }
+        StmtKind::While { condition, body } => {
+            out.push_str("while ");
+            format_expr(condition, indent, out);
+            out.push('\n');
+            format_block(body, indent + 2, out);
         }
     }
 }

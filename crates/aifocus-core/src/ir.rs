@@ -23,6 +23,7 @@ pub enum IrOp {
     Spawn { name: String, call: IrValue },
     Join { name: String },
     Cancel { name: String },
+    While { condition: IrValue, ops: Vec<IrOp> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,6 +76,10 @@ pub fn lower(module: &Module) -> IrModule {
                         }),
                         StmtKind::Join { name } => ops.push(IrOp::Join { name: name.clone() }),
                         StmtKind::Cancel { name } => ops.push(IrOp::Cancel { name: name.clone() }),
+                        StmtKind::While { condition, body } => ops.push(IrOp::While {
+                            condition: value_to_ir(condition),
+                            ops: block_to_ops(body),
+                        }),
                     }
                 }
                 IrFunction {
@@ -112,6 +117,10 @@ fn block_to_ops(block: &crate::Block) -> Vec<IrOp> {
             },
             StmtKind::Join { name } => IrOp::Join { name: name.clone() },
             StmtKind::Cancel { name } => IrOp::Cancel { name: name.clone() },
+            StmtKind::While { condition, body } => IrOp::While {
+                condition: value_to_ir(condition),
+                ops: block_to_ops(body),
+            },
         })
         .collect()
 }

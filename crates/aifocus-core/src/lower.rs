@@ -111,6 +111,15 @@ impl Lowerer {
                     self.out
                         .push_str("; // cooperative cancellation is runtime-defined\n");
                 }
+                StmtKind::While { condition, body } => {
+                    self.record(stmt.id, stmt.span);
+                    self.out.push_str("while ");
+                    self.expr(condition, indent);
+                    self.out.push_str(" {\n");
+                    self.block(body, indent + 1, false);
+                    self.indent(indent);
+                    self.out.push_str("}\n");
+                }
                 StmtKind::Expr(expr) => {
                     self.record(stmt.id, stmt.span);
                     self.expr(expr, indent);

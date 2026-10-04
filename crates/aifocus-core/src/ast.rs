@@ -95,6 +95,7 @@ pub enum StmtKind {
     Spawn { name: String, call: Expr },
     Join { name: String },
     Cancel { name: String },
+    While { condition: Expr, body: Block },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

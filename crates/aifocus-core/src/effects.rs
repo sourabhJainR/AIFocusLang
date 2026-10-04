@@ -99,6 +99,10 @@ fn collect_block(block: &Block, effects: &mut FunctionEffects) {
                 effects.effects.insert(EffectKind::Call);
                 collect_expr(call, effects);
             }
+            StmtKind::While { condition, body } => {
+                collect_expr(condition, effects);
+                collect_block(body, effects);
+            }
             StmtKind::Join { .. } | StmtKind::Cancel { .. } => {}
         }
     }

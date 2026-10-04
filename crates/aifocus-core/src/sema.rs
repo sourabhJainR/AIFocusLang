@@ -166,6 +166,16 @@ impl Checker {
                 StmtKind::Join { .. } | StmtKind::Cancel { .. } => {
                     last = None;
                 }
+                StmtKind::While { condition, body } => {
+                    if let Some(condition_type) = self.check_expr(condition, locals) {
+                        if !is_kind(&condition_type, &TypeKind::Bool) {
+                            self.error("AIF313", "while condition must be Bool", condition.span);
+                        }
+                    }
+                    let mut scoped = locals.clone();
+                    self.check_block(body, &mut scoped);
+                    last = None;
+                }
             }
         }
         last

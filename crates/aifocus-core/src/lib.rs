@@ -313,6 +313,18 @@ impl Parser {
             });
         }
 
+        if self.eat(TokenKind::While) {
+            let condition = self.parse_expr(0)?;
+            self.expect(TokenKind::Newline, "end of while condition")?;
+            let body = self.parse_block("while body")?;
+            let end = body.span.end;
+            return Some(Stmt {
+                id: self.id("while", &start.to_string()),
+                span: source::Span::new(start, end),
+                kind: StmtKind::While { condition, body },
+            });
+        }
+
         let expr = self.parse_expr(0)?;
         let end = expr.span.end;
         if !matches!(expr.kind, ExprKind::If { .. }) {
