@@ -23,9 +23,7 @@ pub enum TokenKind {
     Equal,
     EqualEqual,
     NotEqual,
-    Less,
     LessEqual,
-    Greater,
     GreaterEqual,
     Plus,
     Minus,
@@ -221,8 +219,8 @@ pub fn lex(input: &str) -> Result<Vec<Token>, Vec<Diagnostic>> {
                     ']' => (TokenKind::RBracket, 1),
                     '(' => (TokenKind::LParen, 1),
                     ')' => (TokenKind::RParen, 1),
-                    '<' => (TokenKind::Less, 1),
-                    '>' => (TokenKind::Greater, 1),
+                    '<' => (TokenKind::LAngle, 1),
+                    '>' => (TokenKind::RAngle, 1),
                     _ => {
                         errors.push(Diagnostic::error(
                             "AIF103",
