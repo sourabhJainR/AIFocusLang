@@ -248,7 +248,10 @@ pub fn run(
                 };
                 let index = usize::try_from(index)
                     .map_err(|_| NativeError::Type("negative list index".into()))?;
-                let value = values.get(index).cloned().ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
+                let value = values
+                    .get(index)
+                    .cloned()
+                    .ok_or_else(|| NativeError::Type("list index out of bounds".into()))?;
                 stack.push(value);
             }
             NativeInstr::Load(name) => {
