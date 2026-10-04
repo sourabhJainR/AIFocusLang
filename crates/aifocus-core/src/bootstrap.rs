@@ -18,6 +18,14 @@ pub struct BootstrapArtifact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BootstrapEvidence {
+    pub stage2_native_replay_verified: bool,
+    pub stage2_deterministic: bool,
+    pub rust_host_required: bool,
+    pub independently_verified: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BootstrapReport {
     pub parsed: bool,
     pub semantically_valid: bool,
@@ -29,6 +37,7 @@ pub struct BootstrapReport {
     pub stage2: Option<BootstrapArtifact>,
     pub reproducible: bool,
     pub self_hosting_ready: bool,
+    pub evidence: BootstrapEvidence,
     pub blocker: Option<&'static str>,
 }
 
@@ -104,6 +113,12 @@ pub fn verify() -> BootstrapReport {
                 stage2: None,
                 reproducible: false,
                 self_hosting_ready: false,
+                evidence: BootstrapEvidence {
+                    stage2_native_replay_verified: false,
+                    stage2_deterministic: false,
+                    rust_host_required: true,
+                    independently_verified: false,
+                },
                 blocker: Some(blocker),
             };
         }
@@ -122,6 +137,12 @@ pub fn verify() -> BootstrapReport {
                 stage2: Some(stage2),
                 reproducible: false,
                 self_hosting_ready: false,
+                evidence: BootstrapEvidence {
+                    stage2_native_replay_verified: true,
+                    stage2_deterministic: false,
+                    rust_host_required: true,
+                    independently_verified: false,
+                },
                 blocker: Some(blocker),
             };
         }
@@ -139,6 +160,12 @@ pub fn verify() -> BootstrapReport {
         stage2: Some(stage2),
         reproducible: reproducible && stage2_reproducible,
         self_hosting_ready: false,
+        evidence: BootstrapEvidence {
+            stage2_native_replay_verified: true,
+            stage2_deterministic: stage2_reproducible,
+            rust_host_required: true,
+            independently_verified: stage2_reproducible,
+        },
         blocker: Some(
             "stage2 is now a deterministic Ardisa-authored compiler-pipeline replay; true self-hosting still requires the Ardisa compiler to compile and recompile itself without the Rust host",
         ),
@@ -432,6 +459,12 @@ fn failed(blocker: &'static str) -> BootstrapReport {
         stage2: None,
         reproducible: false,
         self_hosting_ready: false,
+        evidence: BootstrapEvidence {
+            stage2_native_replay_verified: false,
+            stage2_deterministic: false,
+            rust_host_required: true,
+            independently_verified: false,
+        },
         blocker: Some(blocker),
     }
 }
@@ -496,6 +529,10 @@ mod tests {
         );
         assert!(!report.self_hosting_ready);
         assert!(report.stage2.is_some());
+        assert!(report.evidence.stage2_native_replay_verified);
+        assert!(report.evidence.stage2_deterministic);
+        assert!(report.evidence.rust_host_required);
+        assert!(report.evidence.independently_verified);
     }
 
     #[test]
