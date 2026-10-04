@@ -35,11 +35,11 @@ fn main(a: Int, b: Int) -> Int
   len(xs) + a
 "
         .into(),
-        _ => "module generated
+        _ => r#"module generated
 fn main(a: Int, b: Int) -> Int
   let text = "ardisa"
   len(text) + a
-"
+"#
         .into(),
     };
     GeneratedCase { seed, kind, source }
