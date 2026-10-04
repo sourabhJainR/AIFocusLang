@@ -243,7 +243,7 @@ impl Checker {
                     self.error("AIF318", "list index must be Int", index.span);
                 }
                 match collection_type.kind {
-                    TypeKind::List(element) => Some(type_node(*element, expr.span)),
+                    TypeKind::List(element) => Some((*element).clone()),
                     _ => {
                         self.error("AIF319", "indexing requires List<T>", collection.span);
                         None
