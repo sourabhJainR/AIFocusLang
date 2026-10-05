@@ -749,16 +749,16 @@ fn validate_semantics(stream: String) -> Bool
   let functions = ","
   let function_seen = false
   let body_seen = false
+  let valid = true
   while cursor < len(stream)
     let token = token_at(stream, cursor)
     let kind = token_kind(token)
-    let value = token_value(token)
     if kind == "Unknown"
-      return false
+      set valid = false
     else
       if kind == "Module"
         if function_seen == true
-          return false
+          set valid = false
       else
         if kind == "Fn"
           set function_seen = true
@@ -766,11 +766,13 @@ fn validate_semantics(stream: String) -> Bool
           let name_cursor = next_cursor(stream, cursor) + 1
           let name_token = token_at(stream, name_cursor)
           if token_kind(name_token) != "Ident"
-            return false
-          let name = token_value(name_token)
-          if contains_exact(functions, name)
-            return false
-          set functions = functions + name + ","
+            set valid = false
+          else
+            let name = token_value(name_token)
+            if contains_exact(functions, name)
+              set valid = false
+            else
+              set functions = functions + name + ","
         else
           if kind == "Indent"
             set depth = depth + 1
@@ -780,31 +782,31 @@ fn validate_semantics(stream: String) -> Bool
             if kind == "Dedent"
               if depth > 0
                 set depth = depth - 1
+              else
+                set valid = false
             else
               if kind == "Let"
                 let name_cursor = next_cursor(stream, cursor) + 1
                 if token_kind(token_at(stream, name_cursor)) != "Ident"
-                  return false
+                  set valid = false
               else
                 if kind == "Set"
                   let name_cursor = next_cursor(stream, cursor) + 1
                   if token_kind(token_at(stream, name_cursor)) != "Ident"
-                    return false
+                    set valid = false
                 else
                   if kind == "Return"
                     if function_seen == false
-                      return false
+                      set valid = false
     set cursor = next_cursor(stream, cursor) + 1
-  if function_seen == true
-    if body_seen == true
-      if depth == 0
-        true
-      else
-        false
-    else
-      false
+  if function_seen == false
+    set valid = false
   else
-    false
+    if body_seen == false
+      set valid = false
+  if depth != 0
+    set valid = false
+  valid
 
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
