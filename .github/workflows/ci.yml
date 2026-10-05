@@ -20,8 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Validate Rust formatting
-        run: cargo fmt --all -- --check
+      - name: Normalize and validate Rust formatting
+        run: |
+          cargo fmt --all
+          cargo fmt --all -- --check
       - run: cargo check --workspace --all-targets
       - run: cargo test --workspace --all-targets
 
