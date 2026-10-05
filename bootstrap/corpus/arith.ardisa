@@ -1,0 +1,3 @@
+module corpus_arith
+fn main(a: Int, b: Int) -> Int
+  a + b * 2
