@@ -151,7 +151,11 @@ fn bootstrap_compile(path: &str, output: &str) -> ExitCode {
     if let Err(errors) = ardisa_core::ownership::infer(&module) {
         return emit_diagnostics(path, &source, false, errors);
     }
-    let ir = ardisa_core::ir::lower(&module);
+    if let Err(errors) = ardisa_core::typed_ir::lower(&module) {
+        for error in errors { eprintln!("{path}: error[AIF500]: {error}"); }
+        return ExitCode::from(1);
+    }
+    let ir = ardisa_core::optimize(ardisa_core::ir::lower(&module));
     let program = match ardisa_core::native::compile_program(&ir) {
         Ok(value) => value,
         Err(error) => { eprintln!("{path}: error[AIF603]: native compilation failed: {error:?}"); return ExitCode::from(1); }

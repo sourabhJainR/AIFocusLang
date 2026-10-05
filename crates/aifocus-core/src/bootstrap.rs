@@ -551,7 +551,7 @@ pub fn stage_manifest() -> BTreeMap<&'static str, &'static str> {
         ),
         (
             "stage2",
-            "Deterministic Ardisa-authored compiler-pipeline replay over compiler sources",
+            "Ardisa-native compiler executable compiling compiler.ardisa without the Rust host",
         ),
     ])
 }
