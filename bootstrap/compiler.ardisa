@@ -1007,18 +1007,20 @@ fn compile_native(source: String) -> String
               else
                 set code = code + "PushUnit" + chr(10)
             else
-              if kind != "Newline" and kind != "Module" and kind != "Eof"
-                if kind == "If"
-                  set code = code + compile_statement(tokens, cursor, labels)
-                  set block_stack = push_context(block_stack, "I", labels)
-                  set labels = labels + 1
-                else
-                  if kind == "While"
-                    set code = code + compile_statement(tokens, cursor, labels)
-                    set block_stack = push_context(block_stack, "W", labels)
-                    set labels = labels + 1
-                  else
-                    set code = code + compile_statement(tokens, cursor, labels)
+              if kind != "Newline"
+                if kind != "Module"
+                  if kind != "Eof"
+                    if kind == "If"
+                      set code = code + compile_statement(tokens, cursor, labels)
+                      set block_stack = push_context(block_stack, "I", labels)
+                      set labels = labels + 1
+                    else
+                      if kind == "While"
+                        set code = code + compile_statement(tokens, cursor, labels)
+                        set block_stack = push_context(block_stack, "W", labels)
+                        set labels = labels + 1
+                      else
+                        set code = code + compile_statement(tokens, cursor, labels)
     set cursor = next_cursor(tokens, cursor) + 1
   if in_function == true
     set code = code + "Return" + chr(10)
