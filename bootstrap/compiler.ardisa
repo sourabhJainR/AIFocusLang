@@ -725,8 +725,87 @@ fn context_label(context: String) -> Int
     set index = index + 1
   result
 
+fn contains_exact(list: String, name: String) -> Bool
+  let cursor = 0
+  let target = "," + name + ","
+  while cursor < len(list)
+    let same = true
+    let offset = 0
+    while offset < len(target)
+      if cursor + offset >= len(list)
+        set same = false
+      else
+        if list[cursor + offset] != target[offset]
+          set same = false
+      set offset = offset + 1
+    if same == true
+      return true
+    set cursor = cursor + 1
+  false
+
+fn validate_semantics(stream: String) -> Bool
+  let cursor = 0
+  let depth = 0
+  let functions = ","
+  let function_seen = false
+  let body_seen = false
+  while cursor < len(stream)
+    let token = token_at(stream, cursor)
+    let kind = token_kind(token)
+    let value = token_value(token)
+    if kind == "Unknown"
+      return false
+    else
+      if kind == "Module"
+        if function_seen == true
+          return false
+      else
+        if kind == "Fn"
+          set function_seen = true
+          set body_seen = false
+          let name_cursor = next_cursor(stream, cursor) + 1
+          let name_token = token_at(stream, name_cursor)
+          if token_kind(name_token) != "Ident"
+            return false
+          let name = token_value(name_token)
+          if contains_exact(functions, name)
+            return false
+          set functions = functions + name + ","
+        else
+          if kind == "Indent"
+            set depth = depth + 1
+            if function_seen == true
+              set body_seen = true
+          else
+            if kind == "Dedent"
+              if depth > 0
+                set depth = depth - 1
+            else
+              if kind == "Let" or kind == "Set"
+                let name_cursor = next_cursor(stream, cursor) + 1
+                if token_kind(token_at(stream, name_cursor)) != "Ident"
+                  return false
+              else
+                if kind == "Return"
+                  if function_seen == false
+                    return false
+    set cursor = next_cursor(stream, cursor) + 1
+  if function_seen == true
+    if body_seen == true
+      if depth == 0
+        true
+      else
+        false
+    else
+      false
+  else
+    false
+
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
+  if validate_semantics(tokens) == false
+    return ""
+
   let cursor = 0
   let program = ""
   let function_name = ""
