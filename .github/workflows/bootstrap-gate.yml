@@ -1,0 +1,41 @@
+name: Ardisa Native Bootstrap Gate
+
+on:
+  push:
+    branches: [feature/native-self-hosting]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - name: Native bootstrap chain
+        run: |
+          rm -rf evidence
+          mkdir -p evidence
+          cargo run -q -p ardisa -- bootstrap chain bootstrap/compiler.ardisa evidence
+          cmp -s evidence/stage2.aexe evidence/stage3.aexe
+          test -s evidence/corpus-arith.aexe
+          test -s evidence/corpus-conditional.aexe
+          echo "native bootstrap fixed point verified"
+      - name: Host fallback guard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("crates/aifocus-cli/src/main.rs").read_text()
+          start = text.index("fn bootstrap_compile(")
+          end = text.index("fn bootstrap_run(")
+          section = text[start:end]
+          forbidden = ("compile_source", "ardisa_core::parse", "sema::check", "ir::lower", "lower(&module)")
+          hits = [x for x in forbidden if x in section]
+          if hits:
+              raise SystemExit("host fallback detected: " + ", ".join(hits))
+          PY
