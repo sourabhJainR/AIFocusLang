@@ -48,8 +48,8 @@ fn binary(kind: String) -> String
 fn ret() -> String
   "I|Return\n"
 
-fn artifact(function_name: String, parameters: String, code: String) -> String
-  "ARDISA-EXEC-V1\nFN|" + escape(function_name) + "|" + len(parameters) + "|" + parameters + "\n" + code + "END\n"
+fn artifact(function_name: String, parameter_count: Int, parameters: String, code: String) -> String
+  "ARDISA-EXEC-V1\nFN|" + escape(function_name) + "|" + chr(48 + parameter_count) + "|" + parameters + "\n" + code + "END\n
 
 fn validate(artifact_text: String) -> String
   if len(artifact_text) >= 14
