@@ -2,9 +2,54 @@ use crate::ir::{IrModule, IrOp, IrValue};
 
 pub fn optimize(mut module: IrModule) -> IrModule {
     for function in &mut module.functions {
-        function.ops = std::mem::take(&mut function.ops).into_iter().filter_map(fold_op).collect();
+        let folded = std::mem::take(&mut function.ops).into_iter().filter_map(fold_op).collect::<Vec<_>>();
+        function.ops = eliminate_dead_ops(simplify_branches(folded));
     }
     module
+}
+
+fn eliminate_dead_ops(ops: Vec<IrOp>) -> Vec<IrOp> {
+    let mut out = Vec::with_capacity(ops.len());
+    for op in ops {
+        let terminal = matches!(op, IrOp::Return(_));
+        if !terminal && is_pure_expr(&op) && !out.is_empty() {
+            continue;
+        }
+        out.push(op);
+        if terminal { break; }
+    }
+    out
+}
+
+fn is_pure_expr(op: &IrOp) -> bool {
+    match op {
+        IrOp::Expr(v) => is_pure_value(v),
+        IrOp::Scope { ops } => ops.iter().all(is_pure_expr),
+        _ => false,
+    }
+}
+
+fn is_pure_value(v: &IrValue) -> bool {
+    match v {
+        IrValue::Int(_) | IrValue::Bool(_) | IrValue::String(_) | IrValue::Name(_) => true,
+        IrValue::List(xs) => xs.iter().all(is_pure_value),
+        IrValue::Index { collection, index } => is_pure_value(collection) && is_pure_value(index),
+        IrValue::Binary { left, right, .. } => is_pure_value(left) && is_pure_value(right),
+        IrValue::If { condition, then_ops, else_ops } =>
+            is_pure_value(condition) && then_ops.iter().all(is_pure_expr) && else_ops.iter().all(is_pure_expr),
+        IrValue::Call { .. } => false,
+    }
+}
+
+fn simplify_branches(ops: Vec<IrOp>) -> Vec<IrOp> {
+    ops.into_iter().filter_map(|op| match op {
+        IrOp::While { condition, ops } => match condition {
+            IrValue::Bool(false) => None,
+            condition => Some(IrOp::While { condition, ops: simplify_branches(ops) }),
+        },
+        IrOp::Scope { ops } => Some(IrOp::Scope { ops: simplify_branches(ops) }),
+        other => Some(other),
+    }).collect()
 }
 
 fn fold_op(op: IrOp) -> Option<IrOp> {
@@ -74,6 +119,29 @@ mod tests {
         let optimized = optimize(crate::ir::lower(&module));
         assert!(matches!(optimized.functions[0].ops[0], IrOp::Expr(IrValue::Int(14))));
     }
+    #[test]
+    fn removes_dead_pure_expression_but_keeps_calls() {
+        let module = crate::parse("module x
+fn main(a: Int) -> Int
+  1 + 2
+  a + 1
+").unwrap();
+        let optimized = optimize(crate::ir::lower(&module));
+        assert_eq!(optimized.functions[0].ops.len(), 1);
+    }
+
+    #[test]
+    fn removes_constant_false_loop() {
+        let module = crate::parse("module x
+fn main() -> Int
+  while false
+    1 + 2
+  7
+").unwrap();
+        let optimized = optimize(crate::ir::lower(&module));
+        assert!(optimized.functions[0].ops.iter().all(|op| !matches!(op, IrOp::While { .. })));
+    }
+
     #[test]
     fn preserves_non_constant_expression() {
         let module = crate::parse("module x\nfn main(a: Int) -> Int\n  a + 1\n").unwrap();
