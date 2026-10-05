@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     name: Ardisa compile, tests, and native bootstrap
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
