@@ -176,12 +176,13 @@ pub fn verify_native_roundtrip(case: &GeneratedCase) -> Result<(), String> {
             _ => native::NativeValue::Unit,
         })
         .collect::<Vec<_>>();
-    let left = native::run_program(&program, "main", &args)
-        .map_err(|e| format!("native execution {:?}: {e:?}", case.seed))?;
-    let right = native::run_program(&decoded, "main", &args)
-        .map_err(|e| format!("decoded execution {:?}: {e:?}", case.seed))?;
+    let left = native::run_program(&program, "main", &args);
+    let right = native::run_program(&decoded, "main", &args);
     if left != right {
-        return Err(format!("native/artifact execution mismatch for seed {}", case.seed));
+        return Err(format!(
+            "native/artifact execution mismatch for seed {}: left={left:?}, right={right:?}",
+            case.seed
+        ));
     }
     Ok(())
 }
