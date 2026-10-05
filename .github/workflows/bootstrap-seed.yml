@@ -1,5 +1,7 @@
 name: Ardisa Bootstrap Seed
 
+# The one-time root seed is generated from bootstrap/compiler.ardisa; runtime bootstrap never calls the host compiler.
+
 on:
   push:
     branches:
