@@ -987,10 +987,10 @@ fn encode_function(name: String, params: String, code: String) -> String
             if line[2] == 109
               if line[3] == 112
                 if line[4] == 73
-                  let target = suffix(line, 15)
+                  let target = slice(line, 12, len(line))
                   set line = "JumpIfFalse:" + itoa(resolve_target(code, target))
                 else
-                  let target = suffix(line, 5)
+                  let target = slice(line, 5, len(line))
                   set line = "Jump:" + itoa(resolve_target(code, target))
         set result = result + "I|" + line + chr(10)
     set cursor = next_line(code, cursor)
