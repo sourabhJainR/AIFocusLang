@@ -228,6 +228,11 @@ fn bootstrap_chain(source_path: &str, evidence_dir: &str) -> ExitCode {
             }
         }
     }
+    let native_example = format!("{evidence_dir}/corpus-native_hello.aexe");
+    if bootstrap_run(&native_example, Vec::new()) != ExitCode::SUCCESS {
+        eprintln!("bootstrap: error[AIF625]: Ardisa-native compiler output failed to execute");
+        return ExitCode::from(1);
+    }
     println!("bootstrap: Stage 0 -> Stage 1 -> Stage 2 -> Stage 3 verified");
     println!("bootstrap: Stage 2 == Stage 3");
     println!("bootstrap: differential corpus compiled");
