@@ -792,8 +792,8 @@ fn validate_semantics(stream: String) -> Bool
                     return false
                 else
                   if kind == "Return"
-                  if function_seen == false
-                    return false
+                    if function_seen == false
+                      return false
     set cursor = next_cursor(stream, cursor) + 1
   if function_seen == true
     if body_seen == true
