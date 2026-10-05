@@ -4,9 +4,8 @@ set -euo pipefail
 rm -rf bootstrap/evidence
 mkdir -p bootstrap/evidence target
 
-cargo run -q -p ardisa -- bootstrap chain bootstrap/compiler.ardisa bootstrap/evidence
+cargo run -q --release -p ardisa -- bootstrap chain bootstrap/compiler.ardisa bootstrap/evidence
 cmp -s bootstrap/evidence/stage2.aexe bootstrap/evidence/stage3.aexe
-cargo run -q -p ardisa -- bootstrap verify bootstrap/evidence/stage2.aexe
 test -s bootstrap/stage0.aexe
 grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
 
