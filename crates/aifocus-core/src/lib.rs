@@ -21,6 +21,8 @@ pub mod lower;
 pub mod module_graph;
 pub mod native;
 pub mod ownership;
+pub mod optimizer;
+pub mod typed_ir;
 pub mod protocol;
 pub mod sema;
 pub mod source;
@@ -44,6 +46,8 @@ pub use interop::{
     AbiParameterContract, InteropType, OwnershipContract, RustFunction, SafeRustBoundary,
 };
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
+pub use optimizer::optimize;
+pub use typed_ir::{TypedBasicBlock, TypedIrFunction, TypedIrModule, TypedIrOp, TypedTerminator, TypedValue, TypedValueKind};
 pub use learning::{
     LearningEntry, LearningKey, LearningProvenance, LearningStatus, PersistentCompilerLearning,
     ProvenanceKind,
