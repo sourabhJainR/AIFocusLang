@@ -1,0 +1,33 @@
+module optimizer
+
+fn is_digit(c: Int) -> Bool
+  c >= 48
+
+fn fold_add(left: Int, right: Int) -> Int
+  left + right
+
+fn fold_sub(left: Int, right: Int) -> Int
+  left - right
+
+fn fold_mul(left: Int, right: Int) -> Int
+  left * right
+
+fn simplify_boolean(value: Bool) -> String
+  if value
+    "true"
+  else
+    "false"
+
+fn canonical(text: String) -> String
+  let result = ""
+  let index = 0
+  while index < len(text)
+    if text[index] == 32
+      set index = index + 1
+    else
+      set result = result + chr(text[index])
+      set index = index + 1
+  result
+
+fn optimize(text: String) -> String
+  canonical(text)
