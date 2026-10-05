@@ -6,7 +6,7 @@ cd "$root"
 
 seed="bootstrap/stage0.aexe"
 source="bootstrap/compiler.ardisa"
-candidate="bootstrap/evidence/stage0.rebuilt.aexe"
+candidate="bootstrap/stage0.rebuilt.aexe"
 
 rm -rf bootstrap/evidence
 mkdir -p bootstrap/evidence
@@ -25,3 +25,4 @@ grep -q '^ARDISA-EXEC-V1$' "$candidate"
 cp "$candidate" bootstrap/stage0.aexe
 
 ./bootstrap/verify_self_hosting.sh
+rm -f "$candidate"
