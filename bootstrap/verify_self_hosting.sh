@@ -5,12 +5,13 @@ mkdir -p bootstrap/evidence target
 
 ROOT="$(pwd)"
 PROBE="$ROOT/bootstrap/repro_probe.ardisa"
+PAYLOAD="$ROOT/bootstrap/probe_payload.ardisa"
 STAGE1="$ROOT/target/bootstrap-probe-stage1.aexe"
 STAGE2="$ROOT/target/bootstrap-probe-stage2.aexe"
 STAGE3="$ROOT/target/bootstrap-probe-stage3.aexe"
 
-if [[ ! -f "$PROBE" ]]; then
-  echo "BOOTSTRAP-GATE: missing bootstrap/repro_probe.ardisa"
+if [[ ! -f "$PROBE" || ! -f "$PAYLOAD" ]]; then
+  echo "BOOTSTRAP-GATE: missing bootstrap bootstrap probe files"
   exit 70
 fi
 
