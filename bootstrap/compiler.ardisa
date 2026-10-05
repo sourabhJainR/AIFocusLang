@@ -336,7 +336,7 @@ fn token_at(stream: String, start: Int) -> String
       slice(stream, begin, end)
 
 fn next_cursor(stream: String, start: Int) -> Int
-  start
+  start + 1
 
 fn find_delimiter(stream: String, start: Int) -> Int
   let index = start
