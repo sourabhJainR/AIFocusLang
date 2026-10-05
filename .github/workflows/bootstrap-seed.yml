@@ -5,9 +5,19 @@ name: Ardisa Bootstrap Seed
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - 'bootstrap/compiler.ardisa'
+      - 'crates/aifocus-cli/**'
+      - 'crates/aifocus-core/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
 
 permissions:
   contents: write
+
+concurrency:
+  group: ardisa-bootstrap-seed-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   seed:
@@ -19,12 +29,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
       - name: Build native Stage 0 seed from compiler.ardisa
         run: |
-          cargo run -q -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/stage0.aexe
+          cargo run -q --release -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/stage0.aexe
           grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
           test -s bootstrap/stage0.aexe
       - name: Commit deterministic Stage 0 seed
+        if: github.actor != 'github-actions[bot]'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
