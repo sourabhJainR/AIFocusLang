@@ -35,6 +35,10 @@ fn main() -> ExitCode {
             }
         },
         Some("bootstrap") => match args.next().as_deref() {
+            Some("seed") => match (args.next(), args.next()) {
+                (Some(source), Some(output)) => bootstrap_seed(&source, &output),
+                _ => { eprintln!("error: bootstrap seed requires source and output"); ExitCode::from(2) }
+            },
             Some("compile") => match (args.next(), args.next()) {
                 (Some(source), Some(output)) => bootstrap_compile(&source, &output),
                 _ => { eprintln!("error: bootstrap compile requires source and output"); ExitCode::from(2) }
@@ -139,6 +143,36 @@ fn bootstrap_verify(path: &str) -> ExitCode {
         Ok(_) => { eprintln!("{path}: error[AIF605]: executable has no main entry"); ExitCode::from(1) }
         Err(error) => { eprintln!("{path}: error[AIF603]: invalid executable: {error:?}"); ExitCode::from(1) }
     }
+}
+
+#[rustfmt::skip]
+fn bootstrap_seed(path: &str, output: &str) -> ExitCode {
+    require_ardisa_extension(path);
+    let source = match fs::read_to_string(path) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{path}: error[AIF000]: {error}"); return ExitCode::from(1); }
+    };
+    let module = match ardisa_core::parse(&source) {
+        Ok(value) => value,
+        Err(errors) => return emit_diagnostics(path, &source, false, errors),
+    };
+    if let Err(errors) = ardisa_core::sema::check(&module) {
+        return emit_diagnostics(path, &source, false, errors);
+    }
+    if let Err(errors) = ardisa_core::ownership::infer(&module) {
+        return emit_diagnostics(path, &source, false, errors);
+    }
+    let ir = ardisa_core::ir::lower(&module);
+    let program = match ardisa_core::native::compile_program(&ir) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{path}: error[AIF603]: native seed compilation failed: {error:?}"); return ExitCode::from(1); }
+    };
+    let artifact = ardisa_core::native::encode_program(&program);
+    if let Err(error) = fs::write(output, artifact) {
+        eprintln!("{output}: error[AIF000]: {error}");
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
 }
 
 #[rustfmt::skip]
