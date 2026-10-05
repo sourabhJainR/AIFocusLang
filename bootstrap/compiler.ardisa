@@ -901,7 +901,7 @@ fn compile_statement(stream: String, start: Int, label: Int) -> String
           if kind == "While"
             let parsed = parse_expr(stream, next, 0)
             let split = find_hash(parsed)
-            "LABEL:$W" + itoa(label) + chr(10) + suffix(parsed, split) + "JumpIfFalse:$E" + label + chr(10)
+            "LABEL:$W" + itoa(label) + chr(10) + suffix(parsed, split) + "JumpIfFalse:$E" + itoa(label) + chr(10)
           else
             if kind == "Expr"
               let parsed = parse_expr(stream, start, 0)
