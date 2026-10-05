@@ -28,7 +28,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Compile and test
-        run: cargo test --workspace --all-targets
+        run: cargo test --release --workspace --all-targets
 
       - name: Rebuild deterministic Stage 0 seed
         run: |
