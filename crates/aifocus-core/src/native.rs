@@ -395,14 +395,12 @@ pub fn run(
                 }
             }
             NativeInstr::Len => {
-                let value = stack
-                    .pop()
-                    .ok_or_else(|| {
-                        NativeError::InvalidProgram(format!(
-                            "len from empty stack in native function at pc {}",
-                            pc - 1
-                        ))
-                    })?;
+                let value = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram(format!(
+                        "len from empty stack in native function at pc {}",
+                        pc - 1
+                    ))
+                })?;
                 let length = match value {
                     NativeValue::String(value) => value.len(),
                     NativeValue::List(values) => values.len(),
