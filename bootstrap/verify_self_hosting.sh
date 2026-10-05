@@ -1,36 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+rm -rf bootstrap/evidence
 mkdir -p bootstrap/evidence target
 
-ROOT="$(pwd)"
-PROBE="$ROOT/bootstrap/repro_probe.ardisa"
-STAGE1="$ROOT/target/bootstrap-probe-stage1.aexe"
-STAGE2="$ROOT/target/bootstrap-probe-stage2.aexe"
-STAGE3="$ROOT/target/bootstrap-probe-stage3.aexe"
+cargo run -q -p ardisa -- bootstrap chain bootstrap/compiler.ardisa bootstrap/evidence
+cmp -s bootstrap/evidence/stage2.aexe bootstrap/evidence/stage3.aexe
+cargo run -q -p ardisa -- bootstrap verify bootstrap/evidence/stage2.aexe
+test -s bootstrap/stage0.aexe
+grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
 
-if [[ ! -f "$PROBE" ]]; then
-  echo "BOOTSTRAP-GATE: missing bootstrap bootstrap probe files"
-  exit 70
-fi
-
-cargo run -q -p ardisa -- bootstrap compile "$PROBE" "$STAGE1"
-cargo run -q -p ardisa -- bootstrap compile "$PROBE" "$STAGE2"
-cargo run -q -p ardisa -- bootstrap compile "$PROBE" "$STAGE3"
-
-cmp -s "$STAGE2" "$STAGE3" || {
-  echo "BOOTSTRAP-GATE: stage-2/stage-3 mismatch"
-  exit 71
-}
-
-cargo run -q -p ardisa -- bootstrap verify "$STAGE2"
-cargo run -q -p ardisa -- bootstrap verify "$STAGE3"
-{
-  echo "probe_stage2_stage3_byte_identical=true
-probe_replay_mode=host_compiler_deterministic_rebuild"
-  echo "probe_stage2=$STAGE2"
-  echo "probe_stage3=$STAGE3"
-  echo "compiler_self_hosting=false"
-  echo "compiler_self_hosting_requires_native_pipeline=true"
-} > bootstrap/evidence/self-hosting.txt
-echo "BOOTSTRAP-GATE: deterministic executable replay verified for the bootstrap probe."
+echo "BOOTSTRAP-GATE: native stage-0/1/2/3 chain verified."
