@@ -1,6 +1,6 @@
 use crate::ast::{BinaryOp, Expr, ExprKind, Module, StmtKind, TypeKind};
 use crate::source::Span;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypedIrModule {
@@ -97,7 +97,7 @@ pub fn lower(module: &Module) -> Result<TypedIrModule, Vec<String>> {
 
 fn lower_stmt(
     stmt: &crate::ast::Stmt,
-    types: &BTreeMap<crate::NodeId, crate::ast::Type>,
+    types: &HashMap<crate::NodeId, crate::ast::Type>,
     locals: &mut BTreeMap<String, TypeKind>,
     ops: &mut Vec<TypedIrOp>,
     errors: &mut Vec<String>,
@@ -150,7 +150,7 @@ fn lower_stmt(
 
 fn lower_expr(
     expr:&Expr,
-    types:&BTreeMap<crate::NodeId, crate::ast::Type>,
+    types:&HashMap<crate::NodeId, crate::ast::Type>,
     locals:&BTreeMap<String,TypeKind>,
     errors:&mut Vec<String>
 )->Option<TypedValue>{
@@ -164,7 +164,7 @@ fn lower_expr(
         ExprKind::String(v)=>TypedValueKind::String(v.clone()), ExprKind::Name(v)=>TypedValueKind::Name(v.clone()),
         ExprKind::Group(e)=>return lower_expr(e,types,locals,errors),
         ExprKind::List(xs)=>TypedValueKind::List(xs.iter().filter_map(|e|lower_expr(e,types,locals,errors)).collect()),
-        ExprKind::Index(c,i)=>TypedValueKind::Index(Box::new(lower_expr(c,types,locals,errors)?),Box::new(lower_expr(i,types,locals,errors)?)),
+        ExprKind::Index{collection,index}=>TypedValueKind::Index(Box::new(lower_expr(collection,types,locals,errors)?),Box::new(lower_expr(index,types,locals,errors)?)),
         ExprKind::Binary{op,left,right}=>TypedValueKind::Binary{op:*op,left:Box::new(lower_expr(left,types,locals,errors)?),right:Box::new(lower_expr(right,types,locals,errors)?)},
         ExprKind::Call{callee,args}=>{
             let ExprKind::Name(name)=&callee.kind else { errors.push("dynamic call in typed IR".into()); return None; };

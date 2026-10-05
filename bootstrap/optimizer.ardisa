@@ -1,7 +1,13 @@
 module optimizer
 
 fn is_digit(c: Int) -> Bool
-  c >= 48
+  if c >= 48
+    if c <= 57
+      true
+    else
+      false
+  else
+    false
 
 fn fold_add(left: Int, right: Int) -> Int
   left + right
@@ -11,6 +17,12 @@ fn fold_sub(left: Int, right: Int) -> Int
 
 fn fold_mul(left: Int, right: Int) -> Int
   left * right
+
+fn fold_div(left: Int, right: Int) -> Int
+  if right == 0
+    left
+  else
+    left / right
 
 fn simplify_boolean(value: Bool) -> String
   if value

@@ -1,0 +1,4 @@
+module bootstrap_probe
+
+fn main(source: String) -> String
+  source

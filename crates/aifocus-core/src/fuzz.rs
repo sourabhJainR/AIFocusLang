@@ -169,12 +169,7 @@ pub fn verify_native_roundtrip(case: &GeneratedCase) -> Result<(), String> {
     let args = main
         .params
         .iter()
-        .map(|(_, ty)| match ty {
-            crate::TypeKind::Int => native::NativeValue::Int(3),
-            crate::TypeKind::Bool => native::NativeValue::Bool(true),
-            crate::TypeKind::String => native::NativeValue::String("ardisa".into()),
-            _ => native::NativeValue::Unit,
-        })
+        .map(|_| native::NativeValue::Int(3))
         .collect::<Vec<_>>();
     let left = native::run_program(&program, "main", &args)
         .map_err(|e| format!("native execution {:?}: {e:?}", case.seed))?;

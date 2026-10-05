@@ -21,6 +21,18 @@ fn escape(value: String) -> String
     set index = index + 1
   result
 
+fn push_int(value: Int) -> String
+  "I|PushInt:" + value + "\n"
+
+fn push_bool(value: Bool) -> String
+  if value
+    "I|PushBool:true\n"
+  else
+    "I|PushBool:false\n"
+
+fn push_unit() -> String
+  "I|PushUnit\n"
+
 fn push_string(value: String) -> String
   "I|PushString:" + escape(value) + "\n"
 
@@ -33,13 +45,31 @@ fn store(name: String) -> String
 fn binary(kind: String) -> String
   "I|" + kind + "\n"
 
-fn artifact(function_name: String, parameters: String, code: String) -> String
-  "ARDISA-EXEC-V1\nFN|" + escape(function_name) + "|" + parameters + "|" + parameters + "\n" + code + "END\n"
+fn ret() -> String
+  "I|Return\n"
+
+fn artifact(function_name: String, parameter_count: Int, parameters: String, code: String) -> String
+  "ARDISA-EXEC-V1\nFN|" + escape(function_name) + "|" + chr(48 + parameter_count) + "|" + parameters + "\n" + code + "END\n
 
 fn validate(artifact_text: String) -> String
   if len(artifact_text) >= 14
     if artifact_text[0] == 65
-      "Ok"
+      if artifact_text[1] == 82
+        if artifact_text[2] == 68
+          if artifact_text[3] == 73
+            if artifact_text[4] == 83
+              if artifact_text[5] == 65
+                "Ok"
+              else
+                "Err:bad-magic"
+            else
+              "Err:bad-magic"
+          else
+            "Err:bad-magic"
+        else
+          "Err:bad-magic"
+      else
+        "Err:bad-magic"
     else
       "Err:bad-magic"
   else

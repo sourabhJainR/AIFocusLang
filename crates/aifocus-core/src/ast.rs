@@ -1,6 +1,6 @@
 use crate::source::Span;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(pub u64);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

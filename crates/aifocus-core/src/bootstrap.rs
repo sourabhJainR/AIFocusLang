@@ -206,6 +206,13 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
             Ok(module) => module,
             Err(errors) => {
                 let code = errors.first().map(|error| error.code).unwrap_or("AIF000");
+                if let Some(error) = errors.first() {
+                    if let Some(location) = error.location(source) {
+                        eprintln!("self-hosted source {name} parse diagnostic [{}] at {}:{}: {}", error.code, location.line, location.column, error.message);
+                    } else {
+                        eprintln!("self-hosted source {name} parse diagnostic [{}]: {}", error.code, error.message);
+                    }
+                }
                 return Err(match code {
                     "lexer" => "self-hosted lexer does not parse",
                     "parser" => "self-hosted parser does not parse",
@@ -593,7 +600,7 @@ mod tests {
         assert_eq!(manifest.len(), 3);
         assert_eq!(
             manifest["stage2"],
-            "Deterministic Ardisa-authored compiler-pipeline replay over compiler sources"
+            "Ardisa-native compiler executable compiling compiler.ardisa without the Rust host"
         );
     }
 }
