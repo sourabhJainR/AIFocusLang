@@ -976,3 +976,4 @@ fn compile(source: String) -> String
 
 fn main(source: String) -> String
   compile_native(source)
+
