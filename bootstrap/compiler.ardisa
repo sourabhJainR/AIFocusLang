@@ -27,8 +27,14 @@ fn is_digit(c: Int) -> Bool
   else
     false
 
+fn pad_token(value: String) -> String
+  let result = value
+  while len(result) < 96
+    set result = result + " "
+  result + "|"
+
 fn token(kind: String, value: String) -> String
-  kind + "=" + value + "|"
+  pad_token(kind + "=" + value)
 
 fn keyword(word: String) -> String
   if word == "module"
@@ -320,20 +326,11 @@ fn token_at(stream: String, start: Int) -> String
   if start < 0
     ""
   else
-    let cursor = 0
-    let token_index = 0
-    let token_start = 0
-    while cursor < len(stream)
-      if stream[cursor] == 124
-        if token_index == start
-          return slice(stream, token_start, cursor + 1)
-        set token_index = token_index + 1
-        set token_start = cursor + 1
-      set cursor = cursor + 1
-    if token_index == start
-      slice(stream, token_start, len(stream))
-    else
+    let begin = start * 96
+    if begin >= len(stream)
       ""
+    else
+      slice(stream, begin, begin + 96)
 
 fn next_cursor(stream: String, start: Int) -> Int
   start
