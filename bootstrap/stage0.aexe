@@ -3550,8 +3550,9 @@ I|Load:kind
 I|PushString:Unknown
 I|Equal
 I|JumpIfFalse:32
-I|Load:kind
-I|Return
+I|PushBool:false
+I|Store:valid
+I|PushUnit
 I|Jump:189
 I|Load:kind
 I|PushString:Module
