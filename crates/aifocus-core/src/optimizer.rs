@@ -51,7 +51,7 @@ fn fold_value(value: IrValue) -> IrValue {
             }
         }
         IrValue::List(values) => IrValue::List(values.into_iter().map(fold_value).collect()),
-        IrValue::Index(collection, index) => IrValue::Index(Box::new(fold_value(*collection)), Box::new(fold_value(*index))),
+        IrValue::Index { collection, index } => IrValue::Index { collection: Box::new(fold_value(*collection)), index: Box::new(fold_value(*index)) },
         IrValue::Call { callee, args } => IrValue::Call { callee, args: args.into_iter().map(fold_value).collect() },
         other => other,
     }
