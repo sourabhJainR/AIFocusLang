@@ -1,0 +1,4 @@
+ignore = [
+  "crates/aifocus-core/src/compiler_engine.rs",
+  "crates/aifocus-core/src/typed_ir.rs",
+]
