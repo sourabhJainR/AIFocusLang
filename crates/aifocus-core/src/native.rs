@@ -423,9 +423,9 @@ pub fn run(
             NativeInstr::Slice => {
                 let end = pop_int(&mut stack)?;
                 let start = pop_int(&mut stack)?;
-                let value = stack.pop().ok_or_else(|| {
-                    NativeError::InvalidProgram("slice from empty stack".into())
-                })?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("slice from empty stack".into()))?;
                 let NativeValue::String(value) = value else {
                     return Err(NativeError::Type("slice requires String, Int, Int".into()));
                 };
