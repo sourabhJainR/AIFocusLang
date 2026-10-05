@@ -1,0 +1,37 @@
+name: Ardisa Native Phases
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  native-phases:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Workspace tests
+        run: cargo test --workspace --all-targets
+      - name: Native phase contract tests
+        run: cargo test -p ardisa-core compiler_engine
+      - name: Bootstrap artifact
+        run: |
+          mkdir -p evidence
+          cargo run -q -p ardisa -- bootstrap compile bootstrap/compiler.ardisa evidence/compiler.aexe
+          cargo run -q -p ardisa -- bootstrap verify evidence/compiler.aexe
+          sha256sum evidence/compiler.aexe | tee evidence/compiler.aexe.sha256
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ardisa-native-phase-evidence
+          path: evidence/
