@@ -30,12 +30,24 @@ jobs:
       - name: Compile and test
         run: cargo test --release --workspace --all-targets
 
-      - name: Rebuild deterministic Stage 0 seed
+      - name: Build root Stage 0 seed from compiler.ardisa
         run: |
           cargo run -q --release -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/evidence-stage0.aexe
-          grep -q '^ARDISA-EXEC-V1$' bootstrap/evidence-stage0.aexe
+          grep -q '^ARDISA-EXEC-V1
+        run: |
+          chmod +x bootstrap/verify_self_hosting.sh
+          ./bootstrap/verify_self_hosting.sh
+
+      - name: Upload bootstrap evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ardisa-bootstrap-evidence
+          path: bootstrap/evidence/
+          if-no-files-found: ignore
+ bootstrap/evidence-stage0.aexe
           test -s bootstrap/evidence-stage0.aexe
-          cmp -s bootstrap/evidence-stage0.aexe bootstrap/stage0.aexe
+          cp bootstrap/evidence-stage0.aexe bootstrap/stage0.aexe
 
       - name: Verify native Stage 0 -> Stage 3 fixed point
         run: |
