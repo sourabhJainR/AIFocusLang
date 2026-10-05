@@ -571,15 +571,18 @@ fn parse_expr(stream: String, start: Int, minimum: Int) -> String
   let split = find_hash(parsed)
   let cursor = parse_int(prefix(parsed, split))
   let code = suffix(parsed, split)
-  let next = cursor
-  let kind = token_kind(token_at(stream, next))
-  let precedence = op_precedence(kind)
-  if precedence > minimum
-    let right = parse_expr(stream, next_cursor(stream, next) + 1, precedence)
-    let right_split = find_hash(right)
-    let right_cursor = parse_int(prefix(right, right_split))
-    set code = code + suffix(right, right_split) + emit_op(kind) + chr(10)
-    set cursor = right_cursor
+  let scanning = true
+  while scanning == true
+    let kind = token_kind(token_at(stream, cursor))
+    let precedence = op_precedence(kind)
+    if precedence > minimum
+      let right = parse_expr(stream, next_cursor(stream, cursor) + 1, precedence)
+      let right_split = find_hash(right)
+      let right_cursor = parse_int(prefix(right, right_split))
+      set code = code + suffix(right, right_split) + emit_op(kind) + chr(10)
+      set cursor = right_cursor
+    else
+      set scanning = false
   itoa(cursor) + "#" + code
 
 fn line_end(stream: String, start: Int) -> Int
