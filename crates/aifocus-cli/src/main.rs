@@ -155,6 +155,10 @@ fn bootstrap_compile(path: &str, output: &str) -> ExitCode {
             eprintln!("{path}: error[AIF603]: native compilation failed: {error:?}");
             return ExitCode::from(1);
         }
+        Err(ardisa_core::PipelineError::CompilerContract(errors)) => {
+            for error in errors { eprintln!("{path}: error[AIF611]: compiler phase contract failed: {error}"); }
+            return ExitCode::from(1);
+        }
     };
     if let Err(error) = fs::write(output, compiled.artifact) {
         eprintln!("{output}: error[AIF000]: {error}");

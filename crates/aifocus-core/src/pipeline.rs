@@ -33,11 +33,13 @@ pub enum PipelineError {
     Concurrency(Vec<crate::source::Diagnostic>),
     TypedIr(Vec<String>),
     Native(native::NativeError),
+    CompilerContract(Vec<String>),
 }
 
 pub fn compile_source(source: &str) -> Result<CompiledArtifact, PipelineError> {
     let mut phase_order = Vec::new();
 
+    let contract = crate::compiler_engine::validate_source(source).map_err(PipelineError::CompilerContract)?;
     let tokens = crate::token::lex(source).map_err(PipelineError::Parse)?;
     phase_order.push("lexer");
 
@@ -67,6 +69,7 @@ pub fn compile_source(source: &str) -> Result<CompiledArtifact, PipelineError> {
 
     let artifact = native::encode_program(&native_program);
     phase_order.push("ardisa_exec_v1");
+    debug_assert_eq!(contract.artifact_hash, crate::compiler_engine::BackendReport::verify(&native_program).map(|x| x.artifact_hash).unwrap_or_default());
 
     Ok(CompiledArtifact {
         artifact: artifact.clone(),

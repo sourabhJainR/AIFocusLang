@@ -60,6 +60,7 @@ pub enum TypedValueKind {
     Index(Box<TypedValue>, Box<TypedValue>),
     Binary { op: BinaryOp, left: Box<TypedValue>, right: Box<TypedValue> },
     Call { callee: String, args: Vec<TypedValue> },
+    If { condition: Box<TypedValue>, then_ops: Vec<TypedIrOp>, else_ops: Vec<TypedIrOp> },
 }
 
 pub fn lower(module: &Module) -> Result<TypedIrModule, Vec<String>> {
@@ -170,7 +171,14 @@ fn lower_expr(
             let ExprKind::Name(name)=&callee.kind else { errors.push("dynamic call in typed IR".into()); return None; };
             TypedValueKind::Call{callee:name.clone(),args:args.iter().filter_map(|e|lower_expr(e,types,locals,errors)).collect()}
         }
-        ExprKind::If{condition,..}=>return lower_expr(condition,types,locals,errors),
+        ExprKind::If{condition,then_branch,else_branch}=>{
+            let condition=Box::new(lower_expr(condition,types,locals,errors)?);
+            let mut then_ops=Vec::new(); let mut then_locals=locals.clone();
+            for s in &then_branch.stmts { lower_stmt(s,types,&mut then_locals,&mut then_ops,errors); }
+            let mut else_ops=Vec::new(); let mut else_locals=locals.clone();
+            if let Some(branch)=else_branch { for s in &branch.stmts { lower_stmt(s,types,&mut else_locals,&mut else_ops,errors); } }
+            TypedValueKind::If{condition,then_ops,else_ops}
+        },
     };
     Some(TypedValue{ty,span:expr.span,kind})
 }
@@ -424,6 +432,11 @@ fn typed_value_to_legacy(value: &TypedValue) -> crate::ir::IrValue {
         TypedValueKind::Index(c, i) => crate::ir::IrValue::Index { collection: Box::new(typed_value_to_legacy(c)), index: Box::new(typed_value_to_legacy(i)) },
         TypedValueKind::Binary { op, left, right } => crate::ir::IrValue::Binary { op: *op, left: Box::new(typed_value_to_legacy(left)), right: Box::new(typed_value_to_legacy(right)) },
         TypedValueKind::Call { callee, args } => crate::ir::IrValue::Call { callee: callee.clone(), args: args.iter().map(typed_value_to_legacy).collect() },
+        TypedValueKind::If { condition, then_ops, else_ops } => crate::ir::IrValue::If {
+            condition: Box::new(typed_value_to_legacy(condition)),
+            then_ops: then_ops.iter().map(typed_op_to_legacy).collect(),
+            else_ops: else_ops.iter().map(typed_op_to_legacy).collect(),
+        },
     }
 }
 
