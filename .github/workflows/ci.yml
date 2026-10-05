@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/native-self-hosting]
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ardisa-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -16,9 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: dtolnay/rust-toolchain@stable
-
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
@@ -30,31 +28,36 @@ jobs:
       - name: Compile and test
         run: cargo test --release --workspace --all-targets
 
+      # This is the explicit root-of-trust boundary. The generated seed is
+      # immediately handed to the Ardisa-native chain; no host compiler is
+      # used by bootstrap chain after this point.
       - name: Build root Stage 0 seed from compiler.ardisa
         run: |
-          cargo run -q --release -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/evidence-stage0.aexe
-          grep -q '^ARDISA-EXEC-V1
+          mkdir -p bootstrap/evidence
+          cargo run -q --release -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/evidence/stage0.aexe
+          grep -q '^ARDISA-EXEC-V1$' bootstrap/evidence/stage0.aexe
+          test -s bootstrap/evidence/stage0.aexe
+          cp bootstrap/evidence/stage0.aexe bootstrap/stage0.aexe
 
       - name: Verify native Stage 0 -> Stage 3 fixed point
+        timeout-minutes: 15
         run: |
           chmod +x bootstrap/verify_self_hosting.sh
           ./bootstrap/verify_self_hosting.sh
 
-      - name: Upload bootstrap evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ardisa-bootstrap-evidence
-          path: bootstrap/evidence/
-          if-no-files-found: ignore
- bootstrap/evidence-stage0.aexe
-          test -s bootstrap/evidence-stage0.aexe
-          cp bootstrap/evidence-stage0.aexe bootstrap/stage0.aexe
-
-      - name: Verify native Stage 0 -> Stage 3 fixed point
+      - name: Host fallback guard
         run: |
-          chmod +x bootstrap/verify_self_hosting.sh
-          ./bootstrap/verify_self_hosting.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("crates/aifocus-cli/src/main.rs").read_text()
+          start = text.index("fn bootstrap_compile(")
+          end = text.index("fn bootstrap_run(")
+          section = text[start:end]
+          forbidden = ("compile_source", "ardisa_core::parse", "sema::check", "ir::lower", "lower(&module)")
+          hits = [item for item in forbidden if item in section]
+          if hits:
+              raise SystemExit("host fallback detected: " + ", ".join(hits))
+          PY
 
       - name: Upload bootstrap evidence
         if: always()
