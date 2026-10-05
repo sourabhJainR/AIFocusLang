@@ -906,6 +906,49 @@ fn compile_statement(stream: String, start: Int, label: Int) -> String
               let split = find_hash(parsed)
               suffix(parsed, split) + "Pop" + chr(10)
 
+fn push_context(stack: String, kind: String, label: Int) -> String
+  stack + kind + ":" + label + "|"
+
+fn last_context(stack: String) -> String
+  let index = len(stack) - 1
+  while index >= 0
+    if stack[index] == 124
+      let start = index - 1
+      while start >= 0
+        if stack[start] == 124
+          return slice(stack, start + 1, index)
+        set start = start - 1
+      return slice(stack, 0, index)
+    set index = index - 1
+  ""
+
+fn pop_context(stack: String) -> String
+  let index = len(stack) - 1
+  while index >= 0
+    if stack[index] == 124
+      let start = index - 1
+      while start >= 0
+        if stack[start] == 124
+          return slice(stack, 0, start + 1)
+        set start = start - 1
+      return ""
+    set index = index - 1
+  stack
+
+fn context_kind(context: String) -> String
+  if len(context) > 0
+    chr(context[0])
+  else
+    ""
+
+fn context_label(context: String) -> Int
+  let index = 2
+  let result = 0
+  while index < len(context)
+    set result = result * 10 + (context[index] - 48)
+    set index = index + 1
+  result
+
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
   let cursor = 0
@@ -924,13 +967,15 @@ fn compile_native(source: String) -> String
       if in_function == true
         set code = code + "Return" + chr(10)
         set program = program + "FN|" + function_name + "|" + count_params(params) + "|" + params + chr(10) + code + "END" + chr(10)
-      let name_token = token_at(tokens, next_cursor(tokens, cursor) + 1)
+      let name_cursor = next_cursor(tokens, cursor) + 1
+      let name_token = token_at(tokens, name_cursor)
       set function_name = token_value(name_token)
-      set params = ""
-      set code = ""
-      set in_function = true
+      let paren_cursor = next_cursor(tokens, name_cursor) + 1
+      set params = parse_params(tokens, paren_cursor)
+      set cursor = line_end(tokens, cursor)
       set block_stack = ""
       set block_depth = 0
+      set in_function = true
     else
       if in_function == true
         if kind == "Indent"
@@ -938,25 +983,59 @@ fn compile_native(source: String) -> String
         else
           if kind == "Dedent"
             if block_depth > 0
+              let context = last_context(block_stack)
+              set block_stack = pop_context(block_stack)
               set block_depth = block_depth - 1
-              if len(block_stack) > 0
-                let last = block_stack[len(block_stack) - 1]
-                if last == 73
-                  set code = code + "LABEL:$L" + labels + chr(10)
-                  set block_stack = ""
+              if context_kind(context) == "I"
+                set code = code + "LABEL:$E" + context_label(context) + chr(10)
+              else
+                if context_kind(context) == "E"
+                  set code = code + "LABEL:$E" + context_label(context) + chr(10)
                 else
-                  if last == 87
-                    set code = code + "Jump:$W" + labels + chr(10) + "LABEL:$E" + labels + chr(10)
-                    set block_stack = ""
+                  if context_kind(context) == "W"
+                    set code = code + "Jump:$W" + context_label(context) + chr(10)
+                    set code = code + "LABEL:$E" + context_label(context) + chr(10)
+          else
+            if kind == "Else"
+              let context = last_context(block_stack)
+              if context_kind(context) == "I"
+                let label = context_label(context)
+                set code = code + "Jump:$E" + label + chr(10)
+                set code = code + "LABEL:$L" + label + chr(10)
+                set block_stack = pop_context(block_stack)
+                set block_stack = push_context(block_stack, "E", label)
+              else
+                set code = code + "PushUnit" + chr(10)
             else
               if kind != "Newline" and kind != "Module" and kind != "Eof"
-                let statement = compile_statement(tokens, cursor, labels)
-                set code = code + statement
+                if kind == "If"
+                  set code = code + compile_statement(tokens, cursor, labels)
+                  set block_stack = push_context(block_stack, "I", labels)
+                  set labels = labels + 1
+                else
+                  if kind == "While"
+                    set code = code + compile_statement(tokens, cursor, labels)
+                    set block_stack = push_context(block_stack, "W", labels)
+                    set labels = labels + 1
+                  else
+                    set code = code + compile_statement(tokens, cursor, labels)
     set cursor = next_cursor(tokens, cursor) + 1
   if in_function == true
     set code = code + "Return" + chr(10)
     set program = program + "FN|" + function_name + "|" + count_params(params) + "|" + params + chr(10) + code + "END" + chr(10)
   backend(program)
+
+fn count_params(params: String) -> Int
+  let count = 0
+  let index = 0
+  while index < len(params)
+    if params[index] == 44
+      set count = count + 1
+    set index = index + 1
+  if len(params) > 0
+    count + 1
+  else
+    0
 
 fn count_params(params: String) -> Int
   let count = 0
@@ -1031,14 +1110,38 @@ fn slice(text: String, start: Int, end: Int) -> String
 fn encode_instr(line: String) -> String
   "I|" + line + chr(10)
 
+fn resolve_target(code: String, target: String) -> Int
+  let pc = 0
+  let cursor = 0
+  while cursor < len(code)
+    let line = line_at(code, cursor)
+    if line == "LABEL:" + target
+      return pc
+    if len(line) > 0
+      if line[0] != 64
+        if line[0] != 76
+          set pc = pc + 1
+    set cursor = next_line(code, cursor)
+  0
+
 fn encode_function(name: String, params: String, code: String) -> String
   let result = "FN|" + name + "|" + count_params(params) + "|" + params + chr(10)
   let cursor = 0
   while cursor < len(code)
     let line = line_at(code, cursor)
     if len(line) > 0
-      if line[0] != 64
-        set result = result + encode_instr(line)
+      if line[0] != 76
+        if line[0] == 74
+          if line[1] == 117
+            if line[2] == 109
+              if line[3] == 112
+                if line[4] == 73
+                  let target = suffix(line, 15)
+                  set line = "JumpIfFalse:" + resolve_target(code, target)
+                else
+                  let target = suffix(line, 5)
+                  set line = "Jump:" + resolve_target(code, target)
+        set result = result + "I|" + line + chr(10)
     set cursor = next_line(code, cursor)
   result + "END" + chr(10)
 
