@@ -56,7 +56,7 @@ pub fn compile_source(source: &str) -> Result<CompiledArtifact, PipelineError> {
     let effect_model = effects::analyze(&module);
     phase_order.push("effects");
 
-    let typed = typed_ir::lower_cfg(&module).map_err(PipelineError::TypedIr)?;
+    let typed = typed_ir::optimize(typed_ir::lower_cfg(&module).map_err(PipelineError::TypedIr)?);
     phase_order.push("typed_ir");
 
     let ir_module = optimizer::optimize(typed_ir::to_legacy_ir(&typed));

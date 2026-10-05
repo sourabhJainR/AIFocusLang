@@ -282,6 +282,99 @@ fn build_cfg_block(
     current
 }
 
+
+pub fn optimize(module: TypedIrModule) -> TypedIrModule {
+    let functions = module.functions.into_iter().map(|mut function| {
+        for block in &mut function.blocks {
+            for op in &mut block.ops {
+                optimize_op(op);
+            }
+            block.terminator = optimize_terminator(block.terminator.clone());
+        }
+        function
+    }).collect();
+    TypedIrModule { name: module.name, functions }
+}
+
+fn optimize_op(op: &mut TypedIrOp) {
+    match op {
+        TypedIrOp::Bind { value, .. }
+        | TypedIrOp::Assign { value, .. }
+        | TypedIrOp::Expr(value) => optimize_value(value),
+        TypedIrOp::AssignIndex { collection, index, value } => {
+            optimize_value(collection);
+            optimize_value(index);
+            optimize_value(value);
+        }
+        TypedIrOp::Scope(ops) => ops.iter_mut().for_each(optimize_op),
+        TypedIrOp::Spawn { call, .. } => optimize_value(call),
+        TypedIrOp::Join(_) | TypedIrOp::Cancel(_) => {}
+    }
+}
+
+fn optimize_terminator(terminator: TypedTerminator) -> TypedTerminator {
+    match terminator {
+        TypedTerminator::Return(value) => TypedTerminator::Return(value.map(|mut v| {
+            optimize_value(&mut v);
+            v
+        })),
+        TypedTerminator::Branch { condition, then_block, else_block } => {
+            let mut condition = condition;
+            optimize_value(&mut condition);
+            TypedTerminator::Branch { condition, then_block, else_block }
+        }
+        TypedTerminator::Loop { condition, body_block, exit_block } => {
+            let mut condition = condition;
+            optimize_value(&mut condition);
+            TypedTerminator::Loop { condition, body_block, exit_block }
+        }
+        TypedTerminator::Fallthrough => TypedTerminator::Fallthrough,
+    }
+}
+
+fn optimize_value(value: &mut TypedValue) {
+    match &mut value.kind {
+        TypedValueKind::Binary { left, right, op } => {
+            optimize_value(left);
+            optimize_value(right);
+            if let (TypedValueKind::Int(a), TypedValueKind::Int(b)) = (&left.kind, &right.kind) {
+                let folded = match op {
+                    BinaryOp::Add => Some(TypedValueKind::Int(a + b)),
+                    BinaryOp::Sub => Some(TypedValueKind::Int(a - b)),
+                    BinaryOp::Mul => Some(TypedValueKind::Int(a * b)),
+                    BinaryOp::Div if *b != 0 => Some(TypedValueKind::Int(a / b)),
+                    BinaryOp::Mod if *b != 0 => Some(TypedValueKind::Int(a % b)),
+                    BinaryOp::Equal => Some(TypedValueKind::Bool(a == b)),
+                    BinaryOp::NotEqual => Some(TypedValueKind::Bool(a != b)),
+                    BinaryOp::Less => Some(TypedValueKind::Bool(a < b)),
+                    BinaryOp::LessEqual => Some(TypedValueKind::Bool(a <= b)),
+                    BinaryOp::Greater => Some(TypedValueKind::Bool(a > b)),
+                    BinaryOp::GreaterEqual => Some(TypedValueKind::Bool(a >= b)),
+                    _ => None,
+                };
+                if let Some(kind) = folded {
+                    value.kind = kind;
+                    value.ty = match &value.kind {
+                        TypedValueKind::Bool(_) => TypeKind::Bool,
+                        _ => TypeKind::Int,
+                    };
+                }
+            }
+        }
+        TypedValueKind::List(values) => values.iter_mut().for_each(optimize_value),
+        TypedValueKind::Index(collection, index) => {
+            optimize_value(collection);
+            optimize_value(index);
+        }
+        TypedValueKind::Call { args, .. } => args.iter_mut().for_each(optimize_value),
+        TypedValueKind::Int(_)
+        | TypedValueKind::Bool(_)
+        | TypedValueKind::String(_)
+        | TypedValueKind::Name(_) => {}
+    }
+}
+
+
 pub fn to_legacy_ir(module: &TypedIrModule) -> crate::ir::IrModule {
     crate::ir::IrModule {
         name: module.name.clone(),
