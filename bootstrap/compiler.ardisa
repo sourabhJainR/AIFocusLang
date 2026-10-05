@@ -4,28 +4,28 @@ fn is_letter(c: Int) -> Bool
   if c == 95
     true
   else
-    if c >= 65
-      if c <= 90
-        true
-      else
-        if c >= 97
-          if c <= 122
-            true
-          else
-            false
+      if c >= 65
+        if c <= 90
+          true
         else
+            if c >= 97
+              if c <= 122
+                true
+              else
+                  false
+            else
+                false
+      else
           false
-    else
-      false
 
 fn is_digit(c: Int) -> Bool
   if c >= 48
     if c <= 57
       true
     else
-      false
+        false
   else
-    false
+      false
 
 fn token(kind: String, value: String) -> String
   kind + "=" + value + "|"
@@ -34,46 +34,46 @@ fn keyword(word: String) -> String
   if word == "module"
     "Module"
   else
-    if word == "fn"
-      "Fn"
-    else
-      if word == "if"
-        "If"
+      if word == "fn"
+        "Fn"
       else
-        if word == "else"
-          "Else"
-        else
-          if word == "let"
-            "Let"
+          if word == "if"
+            "If"
           else
-            if word == "set"
-              "Set"
-            else
-              if word == "return"
-                "Return"
+              if word == "else"
+                "Else"
               else
-                if word == "scope"
-                  "Scope"
-                else
-                  if word == "spawn"
-                    "Spawn"
+                  if word == "let"
+                    "Let"
                   else
-                    if word == "join"
-                      "Join"
-                    else
-                      if word == "cancel"
-                        "Cancel"
+                      if word == "set"
+                        "Set"
                       else
-                        if word == "while"
-                          "While"
-                        else
-                          if word == "true"
-                            "True"
+                          if word == "return"
+                            "Return"
                           else
-                            if word == "false"
-                              "False"
-                            else
-                              "Ident"
+                              if word == "scope"
+                                "Scope"
+                              else
+                                  if word == "spawn"
+                                    "Spawn"
+                                  else
+                                      if word == "join"
+                                        "Join"
+                                      else
+                                          if word == "cancel"
+                                            "Cancel"
+                                          else
+                                              if word == "while"
+                                                "While"
+                                              else
+                                                  if word == "true"
+                                                    "True"
+                                                  else
+                                                      if word == "false"
+                                                        "False"
+                                                      else
+                                                          "Ident"
 
 fn lex_source(source: String) -> String
   let output = ""
@@ -91,22 +91,22 @@ fn lex_source(source: String) -> String
             set spaces = spaces + 1
             set index = index + 1
           else
-            set pending_index = index
-            set scanning_spaces = false
-            set index = len(source)
+              set pending_index = index
+              set scanning_spaces = false
+              set index = len(source)
       set index = pending_index
       if spaces > indent
         set indent = spaces
         set output = output + token("Indent", chr(spaces))
       else
-        if spaces < indent
-          while indent > spaces
-            if indent > 1
-              set indent = indent - 2
-            else
-              set indent = 0
-            set output = output + token("Dedent", "")
-      set line_start = false
+          if spaces < indent
+            while indent > spaces
+              if indent > 1
+                set indent = indent - 2
+              else
+                  set indent = 0
+                set output = output + token("Dedent", "")
+        set line_start = false
     if index < len(source)
       let c = source[index]
       if c == 10
@@ -114,178 +114,178 @@ fn lex_source(source: String) -> String
         set index = index + 1
         set line_start = true
       else
-        if c == 32
-          set index = index + 1
-        else
-          if c == 35
-            while index < len(source)
-              if source[index] == 10
-                set line_start = true
-                set index = index + 1
-              else
-                set index = index + 1
+          if c == 32
+            set index = index + 1
           else
-            if is_letter(c)
-              let word = ""
-              let scanning_word = true
-              let pending_index = index
-              while index < len(source)
-                if scanning_word == true
-                  if is_letter(source[index])
-                    set word = word + chr(source[index])
+              if c == 35
+                while index < len(source)
+                  if source[index] == 10
+                    set line_start = true
                     set index = index + 1
                   else
-                    if is_digit(source[index])
-                      set word = word + chr(source[index])
                       set index = index + 1
-                    else
-                      set pending_index = index
-                      set scanning_word = false
-                      set index = len(source)
-              set index = pending_index
-              set output = output + token(keyword(word), word)
-            else
-              if is_digit(c)
-                let number = ""
-                let scanning_number = true
-                let pending_index = index
-                while index < len(source)
-                  if scanning_number == true
-                    if is_digit(source[index])
-                      set number = number + chr(source[index])
-                      set index = index + 1
-                    else
-                      set pending_index = index
-                      set scanning_number = false
-                      set index = len(source)
-                set index = pending_index
-                set output = output + token("Int", number)
               else
-                if c == 34
-                  let value = ""
-                  set index = index + 1
-                  let closed = false
-                  let pending_index = index
-                  while index < len(source)
-                    if closed == false
-                      if source[index] == 34
-                        set closed = true
-                        set pending_index = index + 1
-                        set index = len(source)
-                      else
-                        set value = value + chr(source[index])
-                        set index = index + 1
-                  set index = pending_index
-                  set output = output + token("String", value)
-                else
-                  if c == 45
-                    if index + 1 < len(source)
-                      if source[index + 1] == 62
-                        set output = output + token("Arrow", "->")
-                        set index = index + 2
-                      else
-                        set output = output + token("Minus", "-")
-                        set index = index + 1
-                    else
-                      set output = output + token("Minus", "-")
-                      set index = index + 1
+                  if is_letter(c)
+                    let word = ""
+                    let scanning_word = true
+                    let pending_index = index
+                    while index < len(source)
+                      if scanning_word == true
+                        if is_letter(source[index])
+                          set word = word + chr(source[index])
+                          set index = index + 1
+                        else
+                            if is_digit(source[index])
+                              set word = word + chr(source[index])
+                              set index = index + 1
+                            else
+                                set pending_index = index
+                                set scanning_word = false
+                                set index = len(source)
+                    set index = pending_index
+                    set output = output + token(keyword(word), word)
                   else
-                    if c == 61
-                      if index + 1 < len(source)
-                        if source[index + 1] == 61
-                          set output = output + token("EqualEqual", "==")
-                          set index = index + 2
-                        else
-                          set output = output + token("Equal", "=")
-                          set index = index + 1
+                      if is_digit(c)
+                        let number = ""
+                        let scanning_number = true
+                        let pending_index = index
+                        while index < len(source)
+                          if scanning_number == true
+                            if is_digit(source[index])
+                              set number = number + chr(source[index])
+                              set index = index + 1
+                            else
+                                set pending_index = index
+                                set scanning_number = false
+                                set index = len(source)
+                        set index = pending_index
+                        set output = output + token("Int", number)
                       else
-                        set output = output + token("Equal", "=")
-                        set index = index + 1
-                    else
-                      if c == 33
-                        if index + 1 < len(source)
-                          if source[index + 1] == 61
-                            set output = output + token("NotEqual", "!=")
-                            set index = index + 2
-                          else
-                            set output = output + token("NotEqual", "!")
+                          if c == 34
+                            let value = ""
                             set index = index + 1
-                        else
-                          set output = output + token("NotEqual", "!")
-                          set index = index + 1
-                      else
-                        if c == 60
-                          if index + 1 < len(source)
-                            if source[index + 1] == 61
-                              set output = output + token("LessEqual", "<=")
-                              set index = index + 2
-                            else
-                              set output = output + token("Less", "<")
-                              set index = index + 1
-                          else
-                            set output = output + token("Less", "<")
-                            set index = index + 1
-                        else
-                        if c == 62
-                          if index + 1 < len(source)
-                            if source[index + 1] == 61
-                              set output = output + token("GreaterEqual", ">=")
-                              set index = index + 2
-                            else
-                              set output = output + token("Greater", ">")
-                              set index = index + 1
-                          else
-                            set output = output + token("Greater", ">")
-                            set index = index + 1
-                        else
-                          if c == 43
-                            set output = output + token("Plus", "+")
-                            set index = index + 1
-                          else
-                            if c == 42
-                              set output = output + token("Star", "*")
-                              set index = index + 1
-                            else
-                              if c == 47
-                                set output = output + token("Slash", "/")
-                                set index = index + 1
-                              else
-                                if c == 37
-                                  set output = output + token("Percent", "%")
-                                  set index = index + 1
+                            let closed = false
+                            let pending_index = index
+                            while index < len(source)
+                              if closed == false
+                                if source[index] == 34
+                                  set closed = true
+                                  set pending_index = index + 1
+                                  set index = len(source)
                                 else
-                                  if c == 44
-                                    set output = output + token("Comma", ",")
+                                    set value = value + chr(source[index])
                                     set index = index + 1
+                            set index = pending_index
+                            set output = output + token("String", value)
+                          else
+                              if c == 45
+                                if index + 1 < len(source)
+                                  if source[index + 1] == 62
+                                    set output = output + token("Arrow", "->")
+                                    set index = index + 2
                                   else
-                                    if c == 58
-                                      set output = output + token("Colon", ":")
+                                      set output = output + token("Minus", "-")
                                       set index = index + 1
-                                    else
-                                      if c == 91
-                                        set output = output + token("LBracket", "[")
-                                        set index = index + 1
+                                else
+                                    set output = output + token("Minus", "-")
+                                    set index = index + 1
+                              else
+                                  if c == 61
+                                    if index + 1 < len(source)
+                                      if source[index + 1] == 61
+                                        set output = output + token("EqualEqual", "==")
+                                        set index = index + 2
                                       else
-                                        if c == 93
-                                          set output = output + token("RBracket", "]")
+                                          set output = output + token("Equal", "=")
                                           set index = index + 1
-                                        else
-                                          if c == 40
-                                            set output = output + token("LParen", "(")
-                                            set index = index + 1
+                                    else
+                                        set output = output + token("Equal", "=")
+                                        set index = index + 1
+                                  else
+                                      if c == 33
+                                        if index + 1 < len(source)
+                                          if source[index + 1] == 61
+                                            set output = output + token("NotEqual", "!=")
+                                            set index = index + 2
                                           else
-                                            if c == 41
-                                              set output = output + token("RParen", ")")
+                                              set output = output + token("NotEqual", "!")
                                               set index = index + 1
+                                        else
+                                            set output = output + token("NotEqual", "!")
+                                            set index = index + 1
+                                      else
+                                          if c == 60
+                                            if index + 1 < len(source)
+                                              if source[index + 1] == 61
+                                                set output = output + token("LessEqual", "<=")
+                                                set index = index + 2
+                                              else
+                                                  set output = output + token("Less", "<")
+                                                  set index = index + 1
                                             else
-                                              set output = output + token("Unknown", chr(c))
-                                              set index = index + 1
+                                                set output = output + token("Less", "<")
+                                                set index = index + 1
+                                          else
+                                            if c == 62
+                                              if index + 1 < len(source)
+                                                if source[index + 1] == 61
+                                                  set output = output + token("GreaterEqual", ">=")
+                                                  set index = index + 2
+                                                else
+                                                    set output = output + token("Greater", ">")
+                                                    set index = index + 1
+                                              else
+                                                  set output = output + token("Greater", ">")
+                                                  set index = index + 1
+                                          else
+                                              if c == 43
+                                                set output = output + token("Plus", "+")
+                                                set index = index + 1
+                                              else
+                                                  if c == 42
+                                                    set output = output + token("Star", "*")
+                                                    set index = index + 1
+                                                  else
+                                                      if c == 47
+                                                        set output = output + token("Slash", "/")
+                                                        set index = index + 1
+                                                      else
+                                                          if c == 37
+                                                            set output = output + token("Percent", "%")
+                                                            set index = index + 1
+                                                          else
+                                                              if c == 44
+                                                                set output = output + token("Comma", ",")
+                                                                set index = index + 1
+                                                              else
+                                                                  if c == 58
+                                                                    set output = output + token("Colon", ":")
+                                                                    set index = index + 1
+                                                                  else
+                                                                      if c == 91
+                                                                        set output = output + token("LBracket", "[")
+                                                                        set index = index + 1
+                                                                      else
+                                                                          if c == 93
+                                                                            set output = output + token("RBracket", "]")
+                                                                            set index = index + 1
+                                                                          else
+                                                                              if c == 40
+                                                                                set output = output + token("LParen", "(")
+                                                                                set index = index + 1
+                                                                              else
+                                                                                  if c == 41
+                                                                                    set output = output + token("RParen", ")")
+                                                                                    set index = index + 1
+                                                                                  else
+                                                                                      set output = output + token("Unknown", chr(c))
+                                                                                      set index = index + 1
   while indent > 0
     if indent > 1
       set indent = indent - 2
     else
-      set indent = 0
-    set output = output + token("Dedent", "")
+        set indent = 0
+      set output = output + token("Dedent", "")
   set output = output + token("Eof", "")
   output
 
@@ -296,8 +296,8 @@ fn token_kind(token: String) -> String
     if token[index] == 61
       set index = len(token)
     else
-      set result = result + chr(token[index])
-      set index = index + 1
+        set result = result + chr(token[index])
+        set index = index + 1
   result
 
 fn token_value(token: String) -> String
@@ -309,10 +309,10 @@ fn token_value(token: String) -> String
       if token[index] == 61
         set seen = true
       else
-      if token[index] == 124
-        set index = len(token)
+        if token[index] == 124
+          set index = len(token)
       else
-        set result = result + chr(token[index])
+          set result = result + chr(token[index])
     set index = index + 1
   result
 
@@ -327,7 +327,7 @@ fn token_at(stream: String, start: Int) -> String
         set scanning = false
         set end = len(stream)
       else
-        set end = end + 1
+          set end = end + 1
   let result = ""
   let index = start
   while index < delimiter
@@ -346,17 +346,17 @@ fn next_cursor(stream: String, start: Int) -> Int
         set scanning = false
         set index = len(stream)
       else
-        set index = index + 1
+          set index = index + 1
   delimiter
 
 fn node(kind: String, value: String) -> String
   if kind == "String"
     "(String)"
   else
-    if len(value) > 0
-      "(" + kind + " " + value + ")"
-    else
-      "(" + kind + ")"
+      if len(value) > 0
+        "(" + kind + " " + value + ")"
+      else
+          "(" + kind + ")"
 
 fn parse_tokens(stream: String) -> String
   let result = "(Module"
@@ -373,44 +373,44 @@ fn parse_tokens(stream: String) -> String
       set seen_module = true
       set result = result + " " + node("ModuleDecl", value)
     else
-      if kind == "Fn"
-        if in_function == true
-          if in_body == true
-            set result = result + ")"
-            set in_body = false
-            set body_depth = 0
-          set result = result + ")"
-        set result = result + " (Function"
-        set in_function = true
-      else
-        if kind == "Indent"
+        if kind == "Fn"
           if in_function == true
-            if in_body == false
-              set result = result + " (Body"
-              set in_body = true
-            set body_depth = body_depth + 1
-          else
-          if kind == "Dedent"
             if in_body == true
-              if body_depth > 1
-                set body_depth = body_depth - 1
-              else
-                set result = result + ")"
-                set in_body = false
-                set body_depth = 0
-                if in_function == true
-                  set result = result + ")"
-                  set in_function = false
-                else
-            if kind == "Newline"
-              set result = result
-            else
+              set result = result + ")"
+              set in_body = false
+              set body_depth = 0
+            set result = result + ")"
+          set result = result + " (Function"
+          set in_function = true
+        else
+            if kind == "Indent"
               if in_function == true
-                set result = result + " " + node(kind, value)
+                if in_body == false
+                  set result = result + " (Body"
+                  set in_body = true
+                set body_depth = body_depth + 1
               else
-                if seen_module == false
-                  set result = result
-    set cursor = next_cursor(stream, cursor) + 1
+                if kind == "Dedent"
+                  if in_body == true
+                    if body_depth > 1
+                      set body_depth = body_depth - 1
+                    else
+                        set result = result + ")"
+                        set in_body = false
+                        set body_depth = 0
+                        if in_function == true
+                          set result = result + ")"
+                          set in_function = false
+                        else
+                  if kind == "Newline"
+                    set result = result
+                  else
+                      if in_function == true
+                        set result = result + " " + node(kind, value)
+                      else
+                          if seen_module == false
+                            set result = result
+      set cursor = next_cursor(stream, cursor) + 1
   if in_body == true
     set result = result + ")"
   if in_function == true
@@ -421,10 +421,10 @@ fn build_ast(parsed: String) -> String
   if len(parsed) == 0
     ""
   else
-    if parsed[0] == 40
-      "(ModuleAST " + parsed + ")"
-    else
-      ""
+      if parsed[0] == 40
+        "(ModuleAST " + parsed + ")"
+      else
+          ""
 
 fn contains(text: String, needle: String) -> Bool
   let index = 0
@@ -437,9 +437,9 @@ fn contains(text: String, needle: String) -> Bool
         if index + offset >= len(text)
           set same = false
         else
-          if text[index + offset] != needle[offset]
-            set same = false
-        set offset = offset + 1
+            if text[index + offset] != needle[offset]
+              set same = false
+          set offset = offset + 1
       if same == true
         set found = true
     set index = index + 1
@@ -455,79 +455,79 @@ fn balanced(ast: String) -> Bool
       if in_string == true
         set in_string = false
       else
-        set in_string = true
+          set in_string = true
     else
-      if in_string == false
-        if ast[index] == 40
-          set depth = depth + 1
-        else
-          if ast[index] == 41
-            if depth > 0
-              set depth = depth - 1
-            else
-              set valid = false
-    set index = index + 1
+        if in_string == false
+          if ast[index] == 40
+            set depth = depth + 1
+          else
+              if ast[index] == 41
+                if depth > 0
+                  set depth = depth - 1
+                else
+                    set valid = false
+      set index = index + 1
   if depth == 0
     valid
   else
-    false
+      false
 
 fn check_ast(ast: String) -> String
   if len(ast) == 0
     "Err:empty-ast"
   else
-    if contains(ast, "(Module")
-      if contains(ast, "(ModuleDecl")
-        if contains(ast, "(Function")
-          if contains(ast, "(Body")
-            if contains(ast, "(Unknown")
-              "Err:unknown-token"
-            else
-              if balanced(ast)
-                "Ok"
+      if contains(ast, "(Module")
+        if contains(ast, "(ModuleDecl")
+          if contains(ast, "(Function")
+            if contains(ast, "(Body")
+              if contains(ast, "(Unknown")
+                "Err:unknown-token"
               else
-                "Err:unbalanced-ast"
+                  if balanced(ast)
+                    "Ok"
+                  else
+                      "Err:unbalanced-ast"
+            else
+                "Err:missing-function-body"
           else
-            "Err:missing-function-body"
+              "Err:missing-function"
         else
-          "Err:missing-function"
+            "Err:missing-module-name"
       else
-        "Err:missing-module-name"
-    else
-      "Err:missing-module"
+          "Err:missing-module"
 
 fn classify(atom: String) -> String
   if atom == "Module"
     "MODULE"
   else
-    if atom == "ModuleDecl"
-      "MODULE_DECL"
-    else
-      if atom == "Function"
-        "FUNCTION"
+      if atom == "ModuleDecl"
+        "MODULE_DECL"
       else
-        if atom == "Body"
-          "BLOCK"
-        else
-          if atom == "Let"
-            "LET"
+          if atom == "Function"
+            "FUNCTION"
           else
-            if atom == "Set"
-              "SET"
-            else
-              if atom == "Return"
-                "RETURN"
+              if atom == "Body"
+                "BLOCK"
               else
-                if atom == "If"
-                  "IF"
-                else
-                  if atom == "While"
-                    "WHILE"
+                  if atom == "Let"
+                    "LET"
                   else
-                    if atom == "Call"
-                      "CALL"
-                    else
-                      "ATOM"
+                      if atom == "Set"
+                        "SET"
+                      else
+                          if atom == "Return"
+                            "RETURN"
+                          else
+                              if atom == "If"
+                                "IF"
+                              else
+                                  if atom == "While"
+                                    "WHILE"
+                                  else
+                                      if atom == "Call"
+                                        "CALL"
+                                      else
+                                          "ATOM"
 
 fn op(kind: String, value: String) -> String
   kind + "(" + value + ")"
@@ -539,8 +539,8 @@ fn optimize_ir(ir: String) -> String
     if ir[index] == 32
       set index = index + 1
     else
-      set result = result + chr(ir[index])
-      set index = index + 1
+        set result = result + chr(ir[index])
+        set index = index + 1
   result
 
 fn lower_ir(ast: String) -> String
@@ -551,39 +551,39 @@ fn lower_ir(ast: String) -> String
       set result = result + "BEGIN,"
       set index = index + 1
     else
-      if ast[index] == 41
-        set result = result + "END,"
-        set index = index + 1
-      else
-        if ast[index] == 32
+        if ast[index] == 41
+          set result = result + "END,"
           set index = index + 1
         else
-          let atom = ""
-          let pending_index = index
-          let scanning = true
-          while index < len(ast)
-            if scanning == true
-              if ast[index] == 32
-                set pending_index = index
-                set scanning = false
-                set index = len(ast)
-              else
-                if ast[index] == 40
+            if ast[index] == 32
+              set index = index + 1
+            else
+                let atom = ""
+                let pending_index = index
+                let scanning = true
+                while index < len(ast)
+                  if scanning == true
+                    if ast[index] == 32
+                      set pending_index = index
+                      set scanning = false
+                      set index = len(ast)
+                    else
+                        if ast[index] == 40
+                          set pending_index = index
+                          set scanning = false
+                          set index = len(ast)
+                        else
+                            if ast[index] == 41
+                              set pending_index = index
+                              set scanning = false
+                              set index = len(ast)
+                            else
+                                set atom = atom + chr(ast[index])
+                                set index = index + 1
+                if scanning == true
                   set pending_index = index
-                  set scanning = false
-                  set index = len(ast)
-                else
-                  if ast[index] == 41
-                    set pending_index = index
-                    set scanning = false
-                    set index = len(ast)
-                  else
-                    set atom = atom + chr(ast[index])
-                    set index = index + 1
-          if scanning == true
-            set pending_index = index
-          set index = pending_index
-          set result = result + op(classify(atom), atom) + ","
+                set index = pending_index
+                set result = result + op(classify(atom), atom) + ","
   result + "]"
 
 fn compile(source: String) -> String
@@ -595,7 +595,7 @@ fn compile(source: String) -> String
     let ir = lower_ir(ast)
     optimize_ir(ir)
   else
-    "ERROR:" + semantic
+      "ERROR:" + semantic
 
 fn main(source: String) -> String
   compile(source)
