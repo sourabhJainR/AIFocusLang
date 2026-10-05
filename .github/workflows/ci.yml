@@ -52,9 +52,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test -p aifocus-core fuzz --all-targets -- --nocapture
-      - run: cargo test -p aifocus-core differential --all-targets -- --nocapture
-      - run: cargo test -p aifocus-core benchmark --all-targets -- --nocapture
+      - run: cargo test -p ardisa-core fuzz --all-targets -- --nocapture
+      - run: cargo test -p ardisa-core differential --all-targets -- --nocapture
+      - run: cargo test -p ardisa-core benchmark --all-targets -- --nocapture
 
   self-hosting-status:
     name: True self-hosting evidence contract
