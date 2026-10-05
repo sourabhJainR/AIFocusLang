@@ -436,9 +436,6 @@ fn emit_op(kind: String) -> String
                     else
                       "GreaterEqual"
 
-fn clone_text(value: String) -> String
-  value
-
 fn itoa(value: Int) -> String
   if value < 10
     chr(48 + value)
@@ -819,7 +816,7 @@ fn compile_native(source: String) -> String
     return ""
 
   let cursor = 0
-  let program = ""
+  let result = "ARDISA-EXEC-V1" + chr(10)
   let function_name = ""
   let params = ""
   let code = ""
@@ -833,7 +830,7 @@ fn compile_native(source: String) -> String
     if kind == "Fn"
       if in_function == true
         set code = code + "Return" + chr(10)
-        set program = program + "FN|" + function_name + "|" + itoa(count_params(params)) + "|" + params + chr(10) + clone_text(code) + "END" + chr(10)
+        set result = result + encode_function(function_name, params, code)
       let name_cursor = next_cursor(tokens, cursor) + 1
       let name_token = token_at(tokens, name_cursor)
       set function_name = token_value(name_token)
@@ -842,6 +839,7 @@ fn compile_native(source: String) -> String
       set cursor = line_end(tokens, cursor)
       set block_stack = ""
       set block_depth = 0
+      set code = ""
       set in_function = true
     else
       if in_function == true
@@ -891,9 +889,8 @@ fn compile_native(source: String) -> String
     set cursor = next_cursor(tokens, cursor) + 1
   if in_function == true
     set code = code + "Return" + chr(10)
-    set program = program + "FN|" + function_name + "|" + itoa(count_params(params)) + "|" + params + chr(10) + code + "END" + chr(10)
-    set code = ""
-  backend(program)
+    set result = result + encode_function(function_name, params, code)
+  result
 
 fn count_params(params: String) -> Int
   let count = 0
@@ -906,35 +903,6 @@ fn count_params(params: String) -> Int
     count + 1
   else
     0
-
-fn backend(symbolic: String) -> String
-  let result = "ARDISA-EXEC-V1" + chr(10)
-  let cursor = 0
-  let current = ""
-  let code = ""
-  let params = ""
-  let name = ""
-  while cursor < len(symbolic)
-    let line = line_at(symbolic, cursor)
-    if line[0] == 70
-      if len(name) > 0
-        set result = result + encode_function(name, params, code)
-      let first = find_char(line, 124, 0)
-      let second = find_char(line, 124, first + 1)
-      let third = find_char(line, 124, second + 1)
-      set name = slice(line, first + 1, second)
-      set params = slice(line, third + 1, len(line))
-      set code = ""
-    else
-      if line == "END"
-        set result = result + encode_function(name, params, code)
-        set name = ""
-        set params = ""
-        set code = ""
-      else
-        set code = code + line + chr(10)
-    set cursor = next_line(symbolic, cursor)
-  result
 
 fn line_at(stream: String, start: Int) -> String
   let end = start
@@ -967,9 +935,6 @@ fn slice(text: String, start: Int, end: Int) -> String
     set result = result + chr(text[index])
     set index = index + 1
   result
-
-fn encode_instr(line: String) -> String
-  "I|" + line + chr(10)
 
 fn resolve_target(code: String, target: String) -> Int
   let pc = 0
