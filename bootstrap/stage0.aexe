@@ -3747,6 +3747,6 @@ I|PushUnit
 I|Jump:224
 I|PushUnit
 I|Pop
-I|Load:valid
+I|PushBool:true
 I|Return
 END
