@@ -15,8 +15,8 @@ if [[ ! -f "$PROBE" ]]; then
 fi
 
 cargo run -q -p ardisa -- bootstrap compile "$PROBE" "$STAGE1"
-cargo run -q -p ardisa -- bootstrap compile-from-executable "$STAGE1" "$PROBE" "$STAGE2"
-cargo run -q -p ardisa -- bootstrap compile-from-executable "$STAGE2" "$PROBE" "$STAGE3"
+cargo run -q -p ardisa -- bootstrap compile-from-executable "$STAGE1" "$PAYLOAD" "$STAGE2"
+cargo run -q -p ardisa -- bootstrap compile-from-executable "$STAGE2" "$PAYLOAD" "$STAGE3"
 
 cmp -s "$STAGE2" "$STAGE3" || {
   echo "BOOTSTRAP-GATE: stage-2/stage-3 mismatch"
