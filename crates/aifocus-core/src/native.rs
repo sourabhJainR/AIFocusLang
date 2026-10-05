@@ -816,7 +816,8 @@ fn run_function(
             NativeInstr::Len => {
                 let value = stack.pop().ok_or_else(|| {
                     NativeError::InvalidProgram(format!(
-                        "len from empty stack in native function at pc {}",
+                        "len from empty stack in native function (params={:?}) at pc {}",
+                        function.params,
                         pc - 1
                     ))
                 })?;
