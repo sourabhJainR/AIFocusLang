@@ -39,6 +39,10 @@ fn main() -> ExitCode {
                 (Some(source), Some(output)) => bootstrap_compile(&source, &output),
                 _ => { eprintln!("error: bootstrap compile requires source and output"); ExitCode::from(2) }
             },
+            Some("chain") => match (args.next(), args.next()) {
+                (Some(source), Some(evidence_dir)) => bootstrap_chain(&source, &evidence_dir),
+                _ => { eprintln!("error: bootstrap chain requires source and evidence directory"); ExitCode::from(2) }
+            },
             Some("run") => match args.next() {
                 Some(output) => bootstrap_run(&output, args.collect()),
                 None => { eprintln!("error: bootstrap run requires an executable artifact"); ExitCode::from(2) }
@@ -137,34 +141,65 @@ fn bootstrap_verify(path: &str) -> ExitCode {
 
 fn bootstrap_compile(path: &str, output: &str) -> ExitCode {
     require_ardisa_extension(path);
-    let source = match fs::read_to_string(path) {
-        Ok(value) => value,
-        Err(error) => { eprintln!("{path}: error[AIF000]: {error}"); return ExitCode::from(1); }
-    };
-    let compiled = match ardisa_core::compile_source(&source) {
-        Ok(value) => value,
-        Err(ardisa_core::PipelineError::Parse(errors)) => return emit_diagnostics(path, &source, false, errors),
-        Err(ardisa_core::PipelineError::Semantic(errors)) => return emit_diagnostics(path, &source, false, errors),
-        Err(ardisa_core::PipelineError::Ownership(errors)) => return emit_diagnostics(path, &source, false, errors),
-        Err(ardisa_core::PipelineError::Concurrency(errors)) => return emit_diagnostics(path, &source, false, errors),
-        Err(ardisa_core::PipelineError::TypedIr(errors)) => {
-            for error in errors { eprintln!("{path}: error[AIF500]: {error}"); }
-            return ExitCode::from(1);
-        }
-        Err(ardisa_core::PipelineError::Native(error)) => {
-            eprintln!("{path}: error[AIF603]: native compilation failed: {error:?}");
-            return ExitCode::from(1);
-        }
-        Err(ardisa_core::PipelineError::CompilerContract(errors)) => {
-            for error in errors { eprintln!("{path}: error[AIF611]: compiler phase contract failed: {error}"); }
-            return ExitCode::from(1);
-        }
-    };
-    if let Err(error) = fs::write(output, compiled.artifact) {
-        eprintln!("{output}: error[AIF000]: {error}");
+    let seed = "bootstrap/stage0.aexe";
+    bootstrap_compile_from_executable(seed, path, output)
+}
+
+fn bootstrap_chain(source_path: &str, evidence_dir: &str) -> ExitCode {
+    require_ardisa_extension(source_path);
+    let seed = "bootstrap/stage0.aexe";
+    if fs::metadata(seed).is_err() {
+        eprintln!("{seed}: error[AIF620]: native Stage 0 seed compiler is missing");
         return ExitCode::from(1);
     }
+    if let Err(error) = fs::create_dir_all(evidence_dir) {
+        eprintln!("{evidence_dir}: error[AIF000]: {error}");
+        return ExitCode::from(1);
+    }
+    let stage1 = format!("{evidence_dir}/stage1.aexe");
+    let stage2 = format!("{evidence_dir}/stage2.aexe");
+    let stage3 = format!("{evidence_dir}/stage3.aexe");
+    for (compiler, output) in [(seed, stage1.as_str()), (stage1.as_str(), stage2.as_str()), (stage2.as_str(), stage3.as_str())] {
+        if bootstrap_compile_from_executable(compiler, source_path, output) != ExitCode::SUCCESS {
+            eprintln!("bootstrap: error[AIF621]: staged compilation failed using {compiler}");
+            return ExitCode::from(1);
+        }
+    }
+    let second = match fs::read(&stage2) { Ok(v) => v, Err(e) => { eprintln!("{stage2}: error[AIF000]: {e}"); return ExitCode::from(1); } };
+    let third = match fs::read(&stage3) { Ok(v) => v, Err(e) => { eprintln!("{stage3}: error[AIF000]: {e}"); return ExitCode::from(1); } };
+    if second != third {
+        eprintln!("bootstrap: error[AIF622]: Stage 2 and Stage 3 artifacts are not byte-identical");
+        return ExitCode::from(1);
+    }
+    let hash = fnv1a(&second);
+    if fs::write(format!("{evidence_dir}/stage2.sha256"), format!("{hash:016x}\n")).is_err() {
+        eprintln!("bootstrap: error[AIF623]: unable to write deterministic artifact hash");
+        return ExitCode::from(1);
+    }
+    let corpus = "bootstrap/corpus";
+    if let Ok(entries) = fs::read_dir(corpus) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|v| v.to_str()) != Some("ardisa") { continue; }
+            let Some(path_str) = path.to_str() else { continue };
+            let name = path.file_stem().and_then(|v| v.to_str()).unwrap_or("case");
+            let output = format!("{evidence_dir}/corpus-{name}.aexe");
+            if bootstrap_compile_from_executable(&stage2, path_str, &output) != ExitCode::SUCCESS {
+                eprintln!("bootstrap: error[AIF624]: differential corpus case failed: {path_str}");
+                return ExitCode::from(1);
+            }
+        }
+    }
+    println!("bootstrap: Stage 0 -> Stage 1 -> Stage 2 -> Stage 3 verified");
+    println!("bootstrap: Stage 2 == Stage 3");
+    println!("bootstrap: differential corpus compiled");
     ExitCode::SUCCESS
+}
+
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes { hash ^= u64::from(*byte); hash = hash.wrapping_mul(0x100000001b3); }
+    hash
 }
 
 fn bootstrap_run(path: &str, raw_args: Vec<String>) -> ExitCode {
