@@ -1,0 +1,4 @@
+module bootstrap_probe
+
+fn main(source: String) -> String
+  "ARDISA-EXEC-V1\nFN|main|0|\nI|PushInt:1\nI|Return\nEND\n"
