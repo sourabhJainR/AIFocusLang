@@ -22,6 +22,7 @@ jobs:
           workspaces: |
             . -> target
 
+      # Formatting is enforced on every native-bootstrap change.
       - name: Validate formatting
         run: cargo fmt --all -- --check
 
