@@ -593,7 +593,7 @@ mod tests {
         assert_eq!(manifest.len(), 3);
         assert_eq!(
             manifest["stage2"],
-            "Deterministic Ardisa-authored compiler-pipeline replay over compiler sources"
+            "Ardisa-native compiler executable compiling compiler.ardisa without the Rust host"
         );
     }
 }
