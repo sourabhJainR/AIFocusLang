@@ -3,12 +3,14 @@ use std::collections::{BTreeMap,BTreeSet,HashSet};
 use crate::{arena::{Arena,ArenaId},ast::{Expr,ExprKind,Item,Module,StmtKind,TypeKind},effects::{self,EffectModel},ownership::{self,OwnershipModel},source::{Diagnostic,Span},token::{self,Token},typed_ir::{self,TypedIrModule,TypedIrOp,TypedTerminator,TypedValue,TypedValueKind}};
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq,Hash)] pub struct TokenId(pub ArenaId);
-#[derive(Debug,Clone,Default)] pub struct TokenArena{pub tokens:Arena<Token>}
+#[derive(Debug,Clone)] pub struct TokenArena{pub tokens:Arena<Token>}
+impl Default for TokenArena { fn default() -> Self { Self { tokens: Arena::new() } } }
 impl TokenArena{pub fn from_tokens(xs:Vec<Token>)->Self{let mut a=Arena::with_capacity(xs.len());for x in xs{a.alloc(x);}Self{tokens:a}}pub fn len(&self)->usize{self.tokens.len()}}
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq,Hash)] pub struct AstArenaId(pub ArenaId);
 #[derive(Debug,Clone,PartialEq,Eq)] pub struct AstNode{pub id:crate::NodeId,pub span:Span,pub kind:&'static str}
-#[derive(Debug,Clone,Default)] pub struct AstArena{pub nodes:Arena<AstNode>}
+#[derive(Debug,Clone)] pub struct AstArena{pub nodes:Arena<AstNode>}
+impl Default for AstArena { fn default() -> Self { Self { nodes: Arena::new() } } }
 impl AstArena{
  pub fn build(m:&Module)->Self{let mut a=Arena::new();add(&mut a,m.id,m.span,"module");for i in &m.items{let Item::Function(f)=i;add(&mut a,f.id,f.span,"function");for p in &f.params{add(&mut a,p.id,p.span,"parameter")}for s in &f.body.stmts{walk_stmt(s,&mut a)}}Self{nodes:a}}
  pub fn len(&self)->usize{self.nodes.len()}
