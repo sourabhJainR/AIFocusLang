@@ -168,7 +168,7 @@ pub fn verify() -> BootstrapReport {
         stage1: Some(stage1),
         stage2: Some(stage2),
         reproducible: reproducible && stage2_reproducible,
-        self_hosting_ready: stage2_reproducible && !true,
+        self_hosting_ready: false,
         evidence: BootstrapEvidence {
             stage2_native_replay_verified: true,
             stage2_deterministic: stage2_reproducible,
