@@ -27,8 +27,14 @@ fn is_digit(c: Int) -> Bool
   else
     false
 
+fn pad_token(value: String) -> String
+  let result = value
+  while len(result) < 96
+    set result = result + " "
+  result + "|"
+
 fn token(kind: String, value: String) -> String
-  kind + "=" + value + "|"
+  pad_token(kind + "=" + value)
 
 fn keyword(word: String) -> String
   if word == "module"
@@ -317,37 +323,17 @@ fn token_value(token: String) -> String
   result
 
 fn token_at(stream: String, start: Int) -> String
-  let end = start
-  let delimiter = start
-  let scanning = true
-  while end < len(stream)
-    if scanning == true
-      if stream[end] == 124
-        set delimiter = end
-        set scanning = false
-        set end = len(stream)
-      else
-        set end = end + 1
-  let result = ""
-  let index = start
-  while index < delimiter
-    set result = result + chr(stream[index])
-    set index = index + 1
-  result
+  if start < 0
+    ""
+  else
+    let begin = start * 96
+    if begin >= len(stream)
+      ""
+    else
+      slice(stream, begin, begin + 96)
 
 fn next_cursor(stream: String, start: Int) -> Int
-  let index = start
-  let delimiter = start
-  let scanning = true
-  while index < len(stream)
-    if scanning == true
-      if stream[index] == 124
-        set delimiter = index
-        set scanning = false
-        set index = len(stream)
-      else
-        set index = index + 1
-  delimiter
+  start + 1
 
 fn find_delimiter(stream: String, start: Int) -> Int
   let index = start
