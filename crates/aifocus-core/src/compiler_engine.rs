@@ -1,4 +1,3 @@
-#![rustfmt::skip]
 //! Unified native compiler phase verification.
 use std::collections::{BTreeMap,BTreeSet,HashSet};
 use crate::{arena::{Arena,ArenaId},ast::{Expr,ExprKind,Item,Module,StmtKind,TypeKind},effects::{self,EffectModel},ownership::{self,OwnershipModel},source::{Diagnostic,Span},token::{self,Token},typed_ir::{self,TypedIrModule,TypedIrOp,TypedTerminator,TypedValue,TypedValueKind}};
