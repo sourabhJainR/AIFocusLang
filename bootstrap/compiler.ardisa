@@ -700,13 +700,13 @@ fn parse_primary(stream: String, start: Int) -> String
     itoa(next) + "#" + "PushInt:" + value + chr(10)
   else
     if kind == "True"
-      next + "#PushBool:true" + chr(10)
+      itoa(next) + "#PushBool:true" + chr(10)
     else
       if kind == "False"
-        next + "#PushBool:false" + chr(10)
+        itoa(next) + "#PushBool:false" + chr(10)
       else
         if kind == "String"
-          next + "#PushString:" + value + chr(10)
+          itoa(next) + "#PushString:" + value + chr(10)
         else
           if kind == "Ident"
             let after = token_at(stream, next)
@@ -746,7 +746,7 @@ fn parse_primary(stream: String, start: Int) -> String
                 let close = next_cursor(stream, after_expr)
                 itoa(close + 1) + "#" + "Load:" + value + chr(10) + code + "Index" + chr(10)
               else
-                next + "#Load:" + value + chr(10)
+                itoa(next) + "#Load:" + value + chr(10)
           else
             if kind == "LParen"
               let parsed = parse_expr(stream, next, 0)
@@ -778,7 +778,7 @@ fn parse_primary(stream: String, start: Int) -> String
                         set done = true
                 itoa(next_cursor(stream, cursor) + 1) + "#" + code + "PushList:" + itoa(count) + chr(10)
               else
-                next + "#PushUnit" + chr(10)
+                itoa(next) + "#PushUnit" + chr(10)
 
 fn find_hash(value: String) -> Int
   let index = 0
