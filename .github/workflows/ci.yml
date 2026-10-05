@@ -30,16 +30,37 @@ jobs:
       - name: Compile and test
         run: cargo test --release --workspace --all-targets
 
-      # This is the explicit root-of-trust boundary. The generated seed is
-      # immediately handed to the Ardisa-native chain; no host compiler is
-      # used by bootstrap chain after this point.
-      - name: Build root Stage 0 seed from compiler.ardisa
+      # Stage 0 is the checked-in native seed compiler. It is the root artifact;
+      # CI must never construct it through the Rust parser/sema/lowering path.
+      - name: Validate native Stage 0 seed
         run: |
-          mkdir -p bootstrap/evidence
-          cargo run -q --release -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/evidence/stage0.aexe
-          grep -q '^ARDISA-EXEC-V1$' bootstrap/evidence/stage0.aexe
-          test -s bootstrap/evidence/stage0.aexe
-          cp bootstrap/evidence/stage0.aexe bootstrap/stage0.aexe
+          test -s bootstrap/stage0.aexe
+          grep -q '^ARDISA-EXEC-V1
+      - name: Verify native Stage 0 -> Stage 3 fixed point
+        timeout-minutes: 15
+        run: |
+          chmod +x bootstrap/verify_self_hosting.sh
+          ./bootstrap/verify_self_hosting.sh
+
+      - name: Host compiler exclusion guard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("crates/aifocus-cli/src/main.rs").read_text()
+          forbidden = ("fn bootstrap_seed(", "ardisa_core::parse(&source)", "ardisa_core::sema::check(&module)", "ardisa_core::ir::lower(&module)")
+          hits = [item for item in forbidden if item in text]
+          if hits:
+              raise SystemExit("Rust Stage-0 construction path detected: " + ", ".join(hits))
+          PY
+
+      - name: Upload bootstrap evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ardisa-bootstrap-evidence
+          path: bootstrap/evidence/
+          if-no-files-found: ignore
+ bootstrap/stage0.aexe
 
       - name: Verify native Stage 0 -> Stage 3 fixed point
         timeout-minutes: 15
