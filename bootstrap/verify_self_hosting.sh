@@ -12,15 +12,15 @@ if [[ ! -f "$COMPILER" ]]; then
   exit 70
 fi
 
-cargo run -q -p aifocus-cli -- bootstrap compile "$COMPILER" "$STAGE1"
-cargo run -q -p aifocus-cli -- bootstrap compile-from-executable "$STAGE1" "$COMPILER" "$STAGE2"
-cargo run -q -p aifocus-cli -- bootstrap compile-from-executable "$STAGE2" "$COMPILER" "$STAGE3"
+cargo run -q -p ardisa -- bootstrap compile "$COMPILER" "$STAGE1"
+cargo run -q -p ardisa -- bootstrap compile-from-executable "$STAGE1" "$COMPILER" "$STAGE2"
+cargo run -q -p ardisa -- bootstrap compile-from-executable "$STAGE2" "$COMPILER" "$STAGE3"
 
 cmp -s "$STAGE2" "$STAGE3" || {
   echo "SELF-HOSTING-GATE: stage-2/stage-3 mismatch"
   exit 71
 }
 
-cargo run -q -p aifocus-cli -- bootstrap verify "$STAGE2"
-cargo run -q -p aifocus-cli -- bootstrap verify "$STAGE3"
+cargo run -q -p ardisa -- bootstrap verify "$STAGE2"
+cargo run -q -p ardisa -- bootstrap verify "$STAGE3"
 echo "SELF-HOSTING-GATE: deterministic stage-2/stage-3 rebuild verified"
