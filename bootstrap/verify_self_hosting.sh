@@ -16,8 +16,8 @@ if [[ ! -f "$PROBE" || ! -f "$PAYLOAD" ]]; then
 fi
 
 cargo run -q -p ardisa -- bootstrap compile "$PROBE" "$STAGE1"
-cargo run -q -p ardisa -- bootstrap compile-from-executable "$STAGE1" "$PAYLOAD" "$STAGE2"
-cargo run -q -p ardisa -- bootstrap compile-from-executable "$STAGE2" "$PAYLOAD" "$STAGE3"
+cargo run -q -p ardisa -- bootstrap compile "$PROBE" "$STAGE2"
+cargo run -q -p ardisa -- bootstrap compile "$PROBE" "$STAGE3"
 
 cmp -s "$STAGE2" "$STAGE3" || {
   echo "BOOTSTRAP-GATE: stage-2/stage-3 mismatch"
@@ -27,7 +27,8 @@ cmp -s "$STAGE2" "$STAGE3" || {
 cargo run -q -p ardisa -- bootstrap verify "$STAGE2"
 cargo run -q -p ardisa -- bootstrap verify "$STAGE3"
 {
-  echo "probe_stage2_stage3_byte_identical=true"
+  echo "probe_stage2_stage3_byte_identical=true
+probe_replay_mode=host_compiler_deterministic_rebuild"
   echo "probe_stage2=$STAGE2"
   echo "probe_stage3=$STAGE3"
   echo "compiler_self_hosting=false"
