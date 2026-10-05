@@ -1,0 +1,3 @@
+module native_hello
+fn main() -> Int
+  40 + 2
