@@ -141,30 +141,26 @@ fn bootstrap_compile(path: &str, output: &str) -> ExitCode {
         Ok(value) => value,
         Err(error) => { eprintln!("{path}: error[AIF000]: {error}"); return ExitCode::from(1); }
     };
-    let module = match ardisa_core::parse(&source) {
+    let compiled = match ardisa_core::compile_source(&source) {
         Ok(value) => value,
-        Err(errors) => return emit_diagnostics(path, &source, false, errors),
+        Err(ardisa_core::PipelineError::Parse(errors)) => return emit_diagnostics(path, &source, false, errors),
+        Err(ardisa_core::PipelineError::Semantic(errors)) => return emit_diagnostics(path, &source, false, errors),
+        Err(ardisa_core::PipelineError::Ownership(errors)) => return emit_diagnostics(path, &source, false, errors),
+        Err(ardisa_core::PipelineError::Concurrency(errors)) => return emit_diagnostics(path, &source, false, errors),
+        Err(ardisa_core::PipelineError::TypedIr(errors)) => {
+            for error in errors { eprintln!("{path}: error[AIF500]: {error}"); }
+            return ExitCode::from(1);
+        }
+        Err(ardisa_core::PipelineError::Native(error)) => {
+            eprintln!("{path}: error[AIF603]: native compilation failed: {error:?}");
+            return ExitCode::from(1);
+        }
     };
-    if let Err(errors) = ardisa_core::sema::check(&module) {
-        return emit_diagnostics(path, &source, false, errors);
-    }
-    if let Err(errors) = ardisa_core::ownership::infer(&module) {
-        return emit_diagnostics(path, &source, false, errors);
-    }
-    if let Err(errors) = ardisa_core::typed_ir::lower(&module) {
-        for error in errors { eprintln!("{path}: error[AIF500]: {error}"); }
+    if let Err(error) = fs::write(output, compiled.artifact) {
+        eprintln!("{output}: error[AIF000]: {error}");
         return ExitCode::from(1);
     }
-    let ir = ardisa_core::optimize(ardisa_core::ir::lower(&module));
-    let program = match ardisa_core::native::compile_program(&ir) {
-        Ok(value) => value,
-        Err(error) => { eprintln!("{path}: error[AIF603]: native compilation failed: {error:?}"); return ExitCode::from(1); }
-    };
-    let artifact = ardisa_core::native::encode_program(&program);
-    match fs::write(output, artifact) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => { eprintln!("{output}: error[AIF000]: {error}"); ExitCode::from(1) }
-    }
+    ExitCode::SUCCESS
 }
 
 fn bootstrap_run(path: &str, raw_args: Vec<String>) -> ExitCode {
