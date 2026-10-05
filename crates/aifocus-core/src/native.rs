@@ -801,9 +801,9 @@ fn run_function(
                     NativeValue::String(value) => stack.push(NativeValue::Int(i64::from(
                         value.as_bytes().get(index).copied().ok_or_else(|| {
                             NativeError::Type(format!(
-                            "string index out of bounds: {index} >= {}",
-                            value.len()
-                        ))
+                                "string index out of bounds: {index} >= {}",
+                                value.len()
+                            ))
                         })?,
                     ))),
                     _ => {
