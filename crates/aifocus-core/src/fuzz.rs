@@ -169,10 +169,10 @@ pub fn verify_native_roundtrip(case: &GeneratedCase) -> Result<(), String> {
     let args = main
         .params
         .iter()
-        .map(|(_, ty)| match ty {
-            crate::TypeKind::Int => native::NativeValue::Int(3),
-            crate::TypeKind::Bool => native::NativeValue::Bool(true),
-            crate::TypeKind::String => native::NativeValue::String("ardisa".into()),
+        .map(|ty| match ty {
+            name if name == "Int" => native::NativeValue::Int(3),
+            name if name == "Bool" => native::NativeValue::Bool(true),
+            name if name == "String" => native::NativeValue::String("ardisa".into()),
             _ => native::NativeValue::Unit,
         })
         .collect::<Vec<_>>();
