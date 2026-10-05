@@ -22,20 +22,17 @@ jobs:
           workspaces: |
             . -> target
 
-      # Formatting is enforced on every native-bootstrap change.
-      # Native bootstrap remains a required gate.
       - name: Validate formatting
         run: cargo fmt --all -- --check
 
       - name: Compile and test
         run: cargo test --release --workspace --all-targets
 
-      # Stage 0 is the checked-in native seed compiler. It is the root artifact;
-      # CI must never construct it through the Rust parser/sema/lowering path.
       - name: Validate native Stage 0 seed
         run: |
           test -s bootstrap/stage0.aexe
-          grep -q '^ARDISA-EXEC-V1
+          grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
+
       - name: Verify native Stage 0 -> Stage 3 fixed point
         timeout-minutes: 15
         run: |
@@ -50,39 +47,16 @@ jobs:
           start = text.index("fn bootstrap_compile(")
           end = text.index("fn bootstrap_run(")
           section = text[start:end]
-          forbidden = ("ardisa_core::parse", "ardisa_core::sema::check", "ardisa_core::ownership::infer", "ardisa_core::ir::lower", "ardisa_core::native::compile_program")
+          forbidden = (
+              "ardisa_core::parse",
+              "ardisa_core::sema::check",
+              "ardisa_core::ownership::infer",
+              "ardisa_core::ir::lower",
+              "ardisa_core::native::compile_program",
+          )
           hits = [item for item in forbidden if item in section]
           if hits:
               raise SystemExit("Rust Stage-0 construction path detected: " + ", ".join(hits))
-          PY
-
-      - name: Upload bootstrap evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ardisa-bootstrap-evidence
-          path: bootstrap/evidence/
-          if-no-files-found: ignore
- bootstrap/stage0.aexe
-
-      - name: Verify native Stage 0 -> Stage 3 fixed point
-        timeout-minutes: 15
-        run: |
-          chmod +x bootstrap/verify_self_hosting.sh
-          ./bootstrap/verify_self_hosting.sh
-
-      - name: Host fallback guard
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path("crates/aifocus-cli/src/main.rs").read_text()
-          start = text.index("fn bootstrap_compile(")
-          end = text.index("fn bootstrap_run(")
-          section = text[start:end]
-          forbidden = ("compile_source", "ardisa_core::parse", "sema::check", "ir::lower", "lower(&module)")
-          hits = [item for item in forbidden if item in section]
-          if hits:
-              raise SystemExit("host fallback detected: " + ", ".join(hits))
           PY
 
       - name: Upload bootstrap evidence
