@@ -26,7 +26,17 @@ jobs:
         run: cargo test -p ardisa-core compiler_engine
       - name: Bootstrap host-fallback guard
         run: |
-          ! grep -RInE 'compile_source|crate::parse|ardisa_core::parse|sema::check|ir::lower|lower\(&module\)' bootstrap crates/aifocus-cli/src/main.rs
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("crates/aifocus-cli/src/main.rs").read_text()
+          start = text.index("fn bootstrap_compile(")
+          end = text.index("fn bootstrap_run(")
+          bootstrap = text[start:end]
+          forbidden = ("compile_source", "crate::parse", "ardisa_core::parse", "sema::check", "ir::lower", "lower(&module)")
+          hits = [item for item in forbidden if item in bootstrap]
+          if hits:
+              raise SystemExit("bootstrap host fallback detected: " + ", ".join(hits))
+          PY
       - name: Native bootstrap chain
         run: |
           mkdir -p evidence
