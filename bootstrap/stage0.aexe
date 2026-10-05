@@ -138,7 +138,7 @@ I|Call:validate_semantics,1
 I|PushBool:false
 I|Equal
 I|JumpIfFalse:11
-I|PushString:
+I|PushString:ARDISA-COMPILER-ERROR:semantic-validation
 I|Return
 I|Jump:12
 I|PushUnit
