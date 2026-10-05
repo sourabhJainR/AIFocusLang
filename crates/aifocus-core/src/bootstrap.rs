@@ -551,6 +551,10 @@ fn artifact(
     }
 }
 
+fn compiler_source() -> &'static str {
+    include_str!("../../../bootstrap/compiler.ardisa")
+}
+
 fn fingerprint(source: &str) -> u64 {
     source.bytes().fold(0xcbf29ce484222325u64, |hash, byte| {
         hash.wrapping_mul(0x100000001b3)
