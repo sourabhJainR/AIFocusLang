@@ -1,0 +1,36 @@
+name: Ardisa Bootstrap Seed
+
+on:
+  push:
+    branches:
+      - feature/native-self-hosting
+
+permissions:
+  contents: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/native-self-hosting
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - name: Build native Stage 0 seed from compiler.ardisa
+        run: |
+          cargo run -q -p ardisa -- bootstrap compile bootstrap/compiler.ardisa bootstrap/stage0.aexe
+          grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
+          test -s bootstrap/stage0.aexe
+      - name: Commit deterministic Stage 0 seed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bootstrap/stage0.aexe
+          if git diff --cached --quiet; then
+            echo "Stage 0 seed already current"
+          else
+            git commit -m "build: add native Stage 0 bootstrap seed"
+            git push origin HEAD:feature/native-self-hosting
+          fi
