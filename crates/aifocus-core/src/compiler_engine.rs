@@ -1,26 +1,180 @@
 //! Unified native compiler phase verification.
-use std::collections::{BTreeMap,BTreeSet,HashSet};
-use crate::{arena::{Arena,ArenaId},ast::{Expr,ExprKind,Item,Module,StmtKind,TypeKind},effects::{self,EffectModel},ownership::{self,OwnershipModel},source::{Diagnostic,Span},token::{self,Token},typed_ir::{self,TypedIrModule,TypedIrOp,TypedTerminator,TypedValue,TypedValueKind}};
+use crate::{
+    arena::{Arena, ArenaId},
+    ast::{Expr, ExprKind, Item, Module, StmtKind, TypeKind},
+    effects::{self, EffectModel},
+    ownership::{self, OwnershipModel},
+    source::{Diagnostic, Span},
+    token::{self, Token},
+    typed_ir::{self, TypedIrModule, TypedIrOp, TypedTerminator, TypedValue, TypedValueKind},
+};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-#[derive(Debug,Clone,Copy,PartialEq,Eq,Hash)] pub struct TokenId(pub ArenaId);
-#[derive(Debug,Clone)] pub struct TokenArena{pub tokens:Arena<Token>}
-impl Default for TokenArena { fn default() -> Self { Self { tokens: Arena::new() } } }
-impl TokenArena{pub fn from_tokens(xs:Vec<Token>)->Self{let mut a=Arena::with_capacity(xs.len());for x in xs{a.alloc(x);}Self{tokens:a}}pub fn len(&self)->usize{self.tokens.len()}}
-
-#[derive(Debug,Clone,Copy,PartialEq,Eq,Hash)] pub struct AstArenaId(pub ArenaId);
-#[derive(Debug,Clone,PartialEq,Eq)] pub struct AstNode{pub id:crate::NodeId,pub span:Span,pub kind:&'static str}
-#[derive(Debug,Clone)] pub struct AstArena{pub nodes:Arena<AstNode>}
-impl Default for AstArena { fn default() -> Self { Self { nodes: Arena::new() } } }
-impl AstArena{
- pub fn build(m:&Module)->Self{let mut a=Arena::new();add(&mut a,m.id,m.span,"module");for i in &m.items{let Item::Function(f)=i;add(&mut a,f.id,f.span,"function");for p in &f.params{add(&mut a,p.id,p.span,"parameter")}for s in &f.body.stmts{walk_stmt(s,&mut a)}}Self{nodes:a}}
- pub fn len(&self)->usize{self.nodes.len()}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TokenId(pub ArenaId);
+#[derive(Debug, Clone)]
+pub struct TokenArena {
+    pub tokens: Arena<Token>,
 }
-fn add(a:&mut Arena<AstNode>,id:crate::NodeId,span:Span,kind:&'static str){a.alloc(AstNode{id,span,kind});}
-fn walk_stmt(s:&crate::ast::Stmt,a:&mut Arena<AstNode>){add(a,s.id,s.span,"stmt");match &s.kind{StmtKind::Let{value,..}|StmtKind::Set{value,..}|StmtKind::Expr(value)|StmtKind::Return(Some(value))=>walk_expr(value,a),StmtKind::SetIndex{collection,index,value}=>{walk_expr(collection,a);walk_expr(index,a);walk_expr(value,a)},StmtKind::Scope{body}=>for x in &body.stmts{walk_stmt(x,a)},StmtKind::While{condition,body}=>{walk_expr(condition,a);for x in &body.stmts{walk_stmt(x,a)}},StmtKind::Spawn{call,..}=>walk_expr(call,a),StmtKind::Join{..}|StmtKind::Cancel{..}|StmtKind::Return(None)=>{}}}
-fn walk_expr(e:&Expr,a:&mut Arena<AstNode>){let k=match &e.kind{ExprKind::Int(_)=>"int",ExprKind::Bool(_)=>"bool",ExprKind::String(_)=>"string",ExprKind::Name(_)=>"name",ExprKind::Binary{..}=>"binary",ExprKind::Call{..}=>"call",ExprKind::Group(_)=>"group",ExprKind::List(_)=>"list",ExprKind::Index{..}=>"index",ExprKind::If{..}=>"if"};add(a,e.id,e.span,k);match &e.kind{ExprKind::Binary{left,right,..}=>{walk_expr(left,a);walk_expr(right,a)},ExprKind::Call{callee,args}=>{walk_expr(callee,a);for x in args{walk_expr(x,a)}},ExprKind::Group(x)=>walk_expr(x,a),ExprKind::List(xs)=>for x in xs{walk_expr(x,a)},ExprKind::Index{collection,index}=>{walk_expr(collection,a);walk_expr(index,a)},ExprKind::If{condition,then_branch,else_branch}=>{walk_expr(condition,a);for s in &then_branch.stmts{walk_stmt(s,a)}if let Some(b)=else_branch{for s in &b.stmts{walk_stmt(s,a)}}},_=>{}}}
+impl Default for TokenArena {
+    fn default() -> Self {
+        Self {
+            tokens: Arena::new(),
+        }
+    }
+}
+impl TokenArena {
+    pub fn from_tokens(xs: Vec<Token>) -> Self {
+        let mut a = Arena::with_capacity(xs.len());
+        for x in xs {
+            a.alloc(x);
+        }
+        Self { tokens: a }
+    }
+    pub fn len(&self) -> usize {
+        self.tokens.len()
+    }
+}
 
-#[derive(Debug,Clone,PartialEq,Eq)] pub struct Symbol{pub name:String,pub ty:TypeKind,pub span:Span}
-#[derive(Debug,Clone,Default)] pub struct SymbolTables{pub functions:BTreeMap<String,(Vec<TypeKind>,TypeKind)>,pub types:BTreeSet<String>,pub symbols:BTreeMap<String,Vec<Symbol>>}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AstArenaId(pub ArenaId);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AstNode {
+    pub id: crate::NodeId,
+    pub span: Span,
+    pub kind: &'static str,
+}
+#[derive(Debug, Clone)]
+pub struct AstArena {
+    pub nodes: Arena<AstNode>,
+}
+impl Default for AstArena {
+    fn default() -> Self {
+        Self {
+            nodes: Arena::new(),
+        }
+    }
+}
+impl AstArena {
+    pub fn build(m: &Module) -> Self {
+        let mut a = Arena::new();
+        add(&mut a, m.id, m.span, "module");
+        for i in &m.items {
+            let Item::Function(f) = i;
+            add(&mut a, f.id, f.span, "function");
+            for p in &f.params {
+                add(&mut a, p.id, p.span, "parameter")
+            }
+            for s in &f.body.stmts {
+                walk_stmt(s, &mut a)
+            }
+        }
+        Self { nodes: a }
+    }
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+}
+fn add(a: &mut Arena<AstNode>, id: crate::NodeId, span: Span, kind: &'static str) {
+    a.alloc(AstNode { id, span, kind });
+}
+fn walk_stmt(s: &crate::ast::Stmt, a: &mut Arena<AstNode>) {
+    add(a, s.id, s.span, "stmt");
+    match &s.kind {
+        StmtKind::Let { value, .. }
+        | StmtKind::Set { value, .. }
+        | StmtKind::Expr(value)
+        | StmtKind::Return(Some(value)) => walk_expr(value, a),
+        StmtKind::SetIndex {
+            collection,
+            index,
+            value,
+        } => {
+            walk_expr(collection, a);
+            walk_expr(index, a);
+            walk_expr(value, a)
+        }
+        StmtKind::Scope { body } => {
+            for x in &body.stmts {
+                walk_stmt(x, a)
+            }
+        }
+        StmtKind::While { condition, body } => {
+            walk_expr(condition, a);
+            for x in &body.stmts {
+                walk_stmt(x, a)
+            }
+        }
+        StmtKind::Spawn { call, .. } => walk_expr(call, a),
+        StmtKind::Join { .. } | StmtKind::Cancel { .. } | StmtKind::Return(None) => {}
+    }
+}
+fn walk_expr(e: &Expr, a: &mut Arena<AstNode>) {
+    let k = match &e.kind {
+        ExprKind::Int(_) => "int",
+        ExprKind::Bool(_) => "bool",
+        ExprKind::String(_) => "string",
+        ExprKind::Name(_) => "name",
+        ExprKind::Binary { .. } => "binary",
+        ExprKind::Call { .. } => "call",
+        ExprKind::Group(_) => "group",
+        ExprKind::List(_) => "list",
+        ExprKind::Index { .. } => "index",
+        ExprKind::If { .. } => "if",
+    };
+    add(a, e.id, e.span, k);
+    match &e.kind {
+        ExprKind::Binary { left, right, .. } => {
+            walk_expr(left, a);
+            walk_expr(right, a)
+        }
+        ExprKind::Call { callee, args } => {
+            walk_expr(callee, a);
+            for x in args {
+                walk_expr(x, a)
+            }
+        }
+        ExprKind::Group(x) => walk_expr(x, a),
+        ExprKind::List(xs) => {
+            for x in xs {
+                walk_expr(x, a)
+            }
+        }
+        ExprKind::Index { collection, index } => {
+            walk_expr(collection, a);
+            walk_expr(index, a)
+        }
+        ExprKind::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            walk_expr(condition, a);
+            for s in &then_branch.stmts {
+                walk_stmt(s, a)
+            }
+            if let Some(b) = else_branch {
+                for s in &b.stmts {
+                    walk_stmt(s, a)
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Symbol {
+    pub name: String,
+    pub ty: TypeKind,
+    pub span: Span,
+}
+#[derive(Debug, Clone, Default)]
+pub struct SymbolTables {
+    pub functions: BTreeMap<String, (Vec<TypeKind>, TypeKind)>,
+    pub types: BTreeSet<String>,
+    pub symbols: BTreeMap<String, Vec<Symbol>>,
+}
 impl SymbolTables {
     pub fn build(m: &Module) -> Self {
         let mut s = Self::default();
@@ -38,41 +192,301 @@ impl SymbolTables {
                 .unwrap_or(TypeKind::Unit);
             s.functions.insert(
                 f.name.clone(),
-                (
-                    f.params.iter().map(|p| p.ty.kind.clone()).collect(),
-                    r,
-                ),
+                (f.params.iter().map(|p| p.ty.kind.clone()).collect(), r),
             );
             for p in &f.params {
-                s.symbols
-                    .entry(f.name.clone())
-                    .or_default()
-                    .push(Symbol {
-                        name: p.name.clone(),
-                        ty: p.ty.kind.clone(),
-                        span: p.span,
-                    });
+                s.symbols.entry(f.name.clone()).or_default().push(Symbol {
+                    name: p.name.clone(),
+                    ty: p.ty.kind.clone(),
+                    span: p.span,
+                });
             }
         }
         s
     }
 }
 
-#[derive(Debug,Clone,Default)] pub struct SafetyGraph{pub ownership:OwnershipModel,pub effects:EffectModel,pub calls:BTreeMap<String,BTreeSet<String>>,pub regions:BTreeMap<String,Vec<Span>>}
-impl SafetyGraph{pub fn build(m:&Module)->Result<Self,Vec<Diagnostic>>{let ownership=ownership::analyze(m)?;let effects=effects::analyze(m);let calls=effects.functions.iter().map(|(n,f)|(n.clone(),f.calls.iter().cloned().collect())).collect();let mut regions=BTreeMap::new();for r in &ownership.borrow_regions{regions.entry(r.local.clone()).or_insert_with(Vec::new).push(r.span)}Ok(Self{ownership,effects,calls,regions})}}
+#[derive(Debug, Clone, Default)]
+pub struct SafetyGraph {
+    pub ownership: OwnershipModel,
+    pub effects: EffectModel,
+    pub calls: BTreeMap<String, BTreeSet<String>>,
+    pub regions: BTreeMap<String, Vec<Span>>,
+}
+impl SafetyGraph {
+    pub fn build(m: &Module) -> Result<Self, Vec<Diagnostic>> {
+        let ownership = ownership::analyze(m)?;
+        let effects = effects::analyze(m);
+        let calls = effects
+            .functions
+            .iter()
+            .map(|(n, f)| (n.clone(), f.calls.iter().cloned().collect()))
+            .collect();
+        let mut regions = BTreeMap::new();
+        for r in &ownership.borrow_regions {
+            regions
+                .entry(r.local.clone())
+                .or_insert_with(Vec::new)
+                .push(r.span)
+        }
+        Ok(Self {
+            ownership,
+            effects,
+            calls,
+            regions,
+        })
+    }
+}
 
-#[derive(Debug,Clone,Default,PartialEq,Eq)] pub struct MiddleEndStats{pub blocks:usize,pub values:usize,pub constant_candidates:usize,pub side_effect_ops:usize}
-impl MiddleEndStats{pub fn verify(m:&TypedIrModule)->Result<Self,Vec<String>>{let mut s=Self::default();let mut e=Vec::new();for f in &m.functions{ s.blocks+=f.blocks.len();let ids:HashSet<u32>=f.blocks.iter().map(|b|b.id).collect();for b in &f.blocks{for op in &b.ops{s.values+=count_op(op);if matches!(op,TypedIrOp::Assign{..}|TypedIrOp::AssignIndex{..}|TypedIrOp::Spawn{..}|TypedIrOp::Join(_)|TypedIrOp::Cancel(_)){s.side_effect_ops+=1}}match &b.terminator{TypedTerminator::Branch{condition,then_block,else_block}=>{if condition.ty!=TypeKind::Bool{e.push("branch condition is not Bool".into())}if !ids.contains(then_block)||!ids.contains(else_block){e.push("invalid branch target".into())}},TypedTerminator::Loop{condition,body_block,exit_block}=>{if condition.ty!=TypeKind::Bool{e.push("loop condition is not Bool".into())}if !ids.contains(body_block)||!ids.contains(exit_block){e.push("invalid loop target".into())}},TypedTerminator::Return(Some(v))=>if v.ty!=f.return_type{e.push(format!("return type mismatch in {}",f.name))},_=>{}}}}if e.is_empty(){Ok(s)}else{Err(e)}}}
-fn count_op(o:&TypedIrOp)->usize{match o{TypedIrOp::Bind{value,..}|TypedIrOp::Assign{value,..}|TypedIrOp::Expr(value)|TypedIrOp::Spawn{call:value,..}=>1+count_value(value),TypedIrOp::AssignIndex{collection,index,value}=>3+count_value(collection)+count_value(index)+count_value(value),TypedIrOp::Scope(xs)=>xs.iter().map(count_op).sum(),TypedIrOp::Join(_)|TypedIrOp::Cancel(_)=>0}}
-fn count_value(v:&TypedValue)->usize{match &v.kind{TypedValueKind::List(xs)=>xs.iter().map(|x|1+count_value(x)).sum(),TypedValueKind::Index(a,b)|TypedValueKind::Binary{left:a,right:b,..}=>2+count_value(a)+count_value(b),TypedValueKind::Call{args,..}=>args.iter().map(|x|1+count_value(x)).sum(),TypedValueKind::If{condition,then_ops,else_ops}=>1+count_value(condition)+then_ops.iter().map(count_op).sum::<usize>()+else_ops.iter().map(count_op).sum::<usize>(),_=>0}}
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MiddleEndStats {
+    pub blocks: usize,
+    pub values: usize,
+    pub constant_candidates: usize,
+    pub side_effect_ops: usize,
+}
+impl MiddleEndStats {
+    pub fn verify(m: &TypedIrModule) -> Result<Self, Vec<String>> {
+        let mut s = Self::default();
+        let mut e = Vec::new();
+        for f in &m.functions {
+            s.blocks += f.blocks.len();
+            let ids: HashSet<u32> = f.blocks.iter().map(|b| b.id).collect();
+            for b in &f.blocks {
+                for op in &b.ops {
+                    s.values += count_op(op);
+                    if matches!(
+                        op,
+                        TypedIrOp::Assign { .. }
+                            | TypedIrOp::AssignIndex { .. }
+                            | TypedIrOp::Spawn { .. }
+                            | TypedIrOp::Join(_)
+                            | TypedIrOp::Cancel(_)
+                    ) {
+                        s.side_effect_ops += 1
+                    }
+                }
+                match &b.terminator {
+                    TypedTerminator::Branch {
+                        condition,
+                        then_block,
+                        else_block,
+                    } => {
+                        if condition.ty != TypeKind::Bool {
+                            e.push("branch condition is not Bool".into())
+                        }
+                        if !ids.contains(then_block) || !ids.contains(else_block) {
+                            e.push("invalid branch target".into())
+                        }
+                    }
+                    TypedTerminator::Loop {
+                        condition,
+                        body_block,
+                        exit_block,
+                    } => {
+                        if condition.ty != TypeKind::Bool {
+                            e.push("loop condition is not Bool".into())
+                        }
+                        if !ids.contains(body_block) || !ids.contains(exit_block) {
+                            e.push("invalid loop target".into())
+                        }
+                    }
+                    TypedTerminator::Return(Some(v)) => {
+                        if v.ty != f.return_type {
+                            e.push(format!("return type mismatch in {}", f.name))
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if e.is_empty() { Ok(s) } else { Err(e) }
+    }
+}
+fn count_op(o: &TypedIrOp) -> usize {
+    match o {
+        TypedIrOp::Bind { value, .. }
+        | TypedIrOp::Assign { value, .. }
+        | TypedIrOp::Expr(value)
+        | TypedIrOp::Spawn { call: value, .. } => 1 + count_value(value),
+        TypedIrOp::AssignIndex {
+            collection,
+            index,
+            value,
+        } => 3 + count_value(collection) + count_value(index) + count_value(value),
+        TypedIrOp::Scope(xs) => xs.iter().map(count_op).sum(),
+        TypedIrOp::Join(_) | TypedIrOp::Cancel(_) => 0,
+    }
+}
+fn count_value(v: &TypedValue) -> usize {
+    match &v.kind {
+        TypedValueKind::List(xs) => xs.iter().map(|x| 1 + count_value(x)).sum(),
+        TypedValueKind::Index(a, b)
+        | TypedValueKind::Binary {
+            left: a, right: b, ..
+        } => 2 + count_value(a) + count_value(b),
+        TypedValueKind::Call { args, .. } => args.iter().map(|x| 1 + count_value(x)).sum(),
+        TypedValueKind::If {
+            condition,
+            then_ops,
+            else_ops,
+        } => {
+            1 + count_value(condition)
+                + then_ops.iter().map(count_op).sum::<usize>()
+                + else_ops.iter().map(count_op).sum::<usize>()
+        }
+        _ => 0,
+    }
+}
 
-#[derive(Debug,Clone,PartialEq,Eq)] pub struct BackendReport{pub instructions:usize,pub artifact_hash:String,pub jump_targets_valid:bool,pub calls_resolved:bool}
-impl BackendReport{pub fn verify(p:&crate::native::NativeProgram)->Result<Self,String>{let names:BTreeSet<String>=p.functions.keys().cloned().collect();let mut n=0;let(mut jumps,mut calls)=(true,true);for f in p.functions.values(){n+=f.code.len();for i in &f.code{match i{crate::native::NativeInstr::Jump(x)|crate::native::NativeInstr::JumpIfFalse(x)=>if *x>=f.code.len(){jumps=false},crate::native::NativeInstr::Call{callee,..}|crate::native::NativeInstr::Spawn{callee,..}=>if !names.contains(callee)&&!matches!(callee.as_str(),"chr"|"ok"|"err"|"unwrap"|"len"|"push"){calls=false},_=>{}}}}if !jumps||!calls{return Err("backend control-flow/call validation failed".into())}let artifact=crate::native::encode_program(p);Ok(Self{instructions:n,artifact_hash:fnv64(&artifact),jump_targets_valid:jumps,calls_resolved:calls})}}
-fn fnv64(s:&str)->String{let mut h=0xcbf29ce484222325u64;for b in s.as_bytes(){h^=*b as u64;h=h.wrapping_mul(0x100000001b3)}format!("{h:016x}")}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendReport {
+    pub instructions: usize,
+    pub artifact_hash: String,
+    pub jump_targets_valid: bool,
+    pub calls_resolved: bool,
+}
+impl BackendReport {
+    pub fn verify(p: &crate::native::NativeProgram) -> Result<Self, String> {
+        let names: BTreeSet<String> = p.functions.keys().cloned().collect();
+        let mut n = 0;
+        let (mut jumps, mut calls) = (true, true);
+        for f in p.functions.values() {
+            n += f.code.len();
+            for i in &f.code {
+                match i {
+                    crate::native::NativeInstr::Jump(x)
+                    | crate::native::NativeInstr::JumpIfFalse(x) => {
+                        if *x >= f.code.len() {
+                            jumps = false
+                        }
+                    }
+                    crate::native::NativeInstr::Call { callee, .. }
+                    | crate::native::NativeInstr::Spawn { callee, .. } => {
+                        if !names.contains(callee)
+                            && !matches!(
+                                callee.as_str(),
+                                "chr" | "ok" | "err" | "unwrap" | "len" | "push"
+                            )
+                        {
+                            calls = false
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if !jumps || !calls {
+            return Err("backend control-flow/call validation failed".into());
+        }
+        let artifact = crate::native::encode_program(p);
+        Ok(Self {
+            instructions: n,
+            artifact_hash: fnv64(&artifact),
+            jump_targets_valid: jumps,
+            calls_resolved: calls,
+        })
+    }
+}
+fn fnv64(s: &str) -> String {
+    let mut h = 0xcbf29ce484222325u64;
+    for b in s.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3)
+    }
+    format!("{h:016x}")
+}
 
-#[derive(Debug,Clone,PartialEq,Eq)] pub struct CompilerEvidence{pub tokens:usize,pub ast_nodes:usize,pub functions:usize,pub symbols:usize,pub safety_regions:usize,pub call_edges:usize,pub typed_blocks:usize,pub typed_values:usize,pub native_instructions:usize,pub artifact_hash:String,pub phases:Vec<&'static str>}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerEvidence {
+    pub tokens: usize,
+    pub ast_nodes: usize,
+    pub functions: usize,
+    pub symbols: usize,
+    pub safety_regions: usize,
+    pub call_edges: usize,
+    pub typed_blocks: usize,
+    pub typed_values: usize,
+    pub native_instructions: usize,
+    pub artifact_hash: String,
+    pub phases: Vec<&'static str>,
+}
 
-pub fn validate_source(source:&str)->Result<CompilerEvidence,Vec<String>>{let ts=token::lex(source).map_err(|e|diag(&e))?;let ta=TokenArena::from_tokens(ts);let m=crate::parse(source).map_err(|e|diag(&e))?;let aa=AstArena::build(&m);let st=SymbolTables::build(&m);let sg=SafetyGraph::build(&m).map_err(|e|diag(&e))?;let typed=typed_ir::lower_cfg(&m)?;let mid=MiddleEndStats::verify(&typed)?;let ir=typed_ir::to_legacy_ir(&typed);let program=crate::native::compile_program(&crate::optimizer::optimize(ir)).map_err(|e|vec![format!("native backend: {e:?}")])?;let back=BackendReport::verify(&program).map_err(|e|vec![e])?;Ok(CompilerEvidence{tokens:ta.len(),ast_nodes:aa.len(),functions:st.functions.len(),symbols:st.symbols.values().map(Vec::len).sum(),safety_regions:sg.regions.values().map(Vec::len).sum(),call_edges:sg.calls.values().map(BTreeSet::len).sum(),typed_blocks:mid.blocks,typed_values:mid.values,native_instructions:back.instructions,artifact_hash:back.artifact_hash,phases:vec!["A.native_frontend","B.native_semantics","C.native_safety","D.native_middle_end","E.native_backend","F.self_compilation","G.evidence"]})}
-fn diag(es:&[Diagnostic])->Vec<String>{es.iter().map(|e|format!("{}: {}",e.code,e.message)).collect()}
+pub fn validate_source(source: &str) -> Result<CompilerEvidence, Vec<String>> {
+    let ts = token::lex(source).map_err(|e| diag(&e))?;
+    let ta = TokenArena::from_tokens(ts);
+    let m = crate::parse(source).map_err(|e| diag(&e))?;
+    let aa = AstArena::build(&m);
+    let st = SymbolTables::build(&m);
+    let sg = SafetyGraph::build(&m).map_err(|e| diag(&e))?;
+    let typed = typed_ir::lower_cfg(&m)?;
+    let mid = MiddleEndStats::verify(&typed)?;
+    let ir = typed_ir::to_legacy_ir(&typed);
+    let program = crate::native::compile_program(&crate::optimizer::optimize(ir))
+        .map_err(|e| vec![format!("native backend: {e:?}")])?;
+    let back = BackendReport::verify(&program).map_err(|e| vec![e])?;
+    Ok(CompilerEvidence {
+        tokens: ta.len(),
+        ast_nodes: aa.len(),
+        functions: st.functions.len(),
+        symbols: st.symbols.values().map(Vec::len).sum(),
+        safety_regions: sg.regions.values().map(Vec::len).sum(),
+        call_edges: sg.calls.values().map(BTreeSet::len).sum(),
+        typed_blocks: mid.blocks,
+        typed_values: mid.values,
+        native_instructions: back.instructions,
+        artifact_hash: back.artifact_hash,
+        phases: vec![
+            "A.native_frontend",
+            "B.native_semantics",
+            "C.native_safety",
+            "D.native_middle_end",
+            "E.native_backend",
+            "F.self_compilation",
+            "G.evidence",
+        ],
+    })
+}
+fn diag(es: &[Diagnostic]) -> Vec<String> {
+    es.iter()
+        .map(|e| format!("{}: {}", e.code, e.message))
+        .collect()
+}
 
-#[cfg(test)]mod tests{use super::*;const S:&str="module x\nfn main(a: Int) -> Int\n  a + 1\n";#[test]fn arenas_and_spans(){let m=crate::parse(S).unwrap();assert!(TokenArena::from_tokens(token::lex(S).unwrap()).len()>0);assert!(AstArena::build(&m).nodes.iter().all(|(_,n)|n.span.start<=n.span.end));}#[test]fn full_contract_is_deterministic(){let a=validate_source(S).unwrap();let b=validate_source(S).unwrap();assert_eq!(a.artifact_hash,b.artifact_hash);assert_eq!(a.phases,b.phases);}#[test]fn backend_rejects_bad_jump(){let mut p=crate::native::NativeProgram{functions:BTreeMap::new()};p.functions.insert("main".into(),crate::native::NativeFunction{params:vec![],code:vec![crate::native::NativeInstr::Jump(9)]});assert!(BackendReport::verify(&p).is_err());}}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const S: &str = "module x\nfn main(a: Int) -> Int\n  a + 1\n";
+    #[test]
+    fn arenas_and_spans() {
+        let m = crate::parse(S).unwrap();
+        assert!(TokenArena::from_tokens(token::lex(S).unwrap()).len() > 0);
+        assert!(
+            AstArena::build(&m)
+                .nodes
+                .iter()
+                .all(|(_, n)| n.span.start <= n.span.end)
+        );
+    }
+    #[test]
+    fn full_contract_is_deterministic() {
+        let a = validate_source(S).unwrap();
+        let b = validate_source(S).unwrap();
+        assert_eq!(a.artifact_hash, b.artifact_hash);
+        assert_eq!(a.phases, b.phases);
+    }
+    #[test]
+    fn backend_rejects_bad_jump() {
+        let mut p = crate::native::NativeProgram {
+            functions: BTreeMap::new(),
+        };
+        p.functions.insert(
+            "main".into(),
+            crate::native::NativeFunction {
+                params: vec![],
+                code: vec![crate::native::NativeInstr::Jump(9)],
+            },
+        );
+        assert!(BackendReport::verify(&p).is_err());
+    }
+}

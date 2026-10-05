@@ -5,8 +5,8 @@ pub mod arena;
 pub mod ast;
 pub mod benchmark;
 pub mod bootstrap;
-pub mod concurrency;
 pub mod compiler_engine;
+pub mod concurrency;
 pub mod diagnostic_memory;
 pub mod differential;
 pub mod edit;
@@ -21,21 +21,23 @@ pub mod learning;
 pub mod lower;
 pub mod module_graph;
 pub mod native;
-pub mod ownership;
 pub mod optimizer;
+pub mod ownership;
 pub mod pipeline;
-pub mod typed_ir;
 pub mod protocol;
 pub mod sema;
 pub mod source;
 pub mod token;
+pub mod typed_ir;
 
 pub use ai::{
     Distribution, Embedding, Modality, Probability, Quantization, RuntimeError, SemanticValue,
     Tensor, TraceBuffer, TraceEvent, TraceLevel,
 };
 pub use arena::{Arena, ArenaId, RecordField, RecordSchema, RecordValue};
-pub use compiler_engine::{AstArena,BackendReport,CompilerEvidence,SafetyGraph,SymbolTables,TokenArena};
+pub use compiler_engine::{
+    AstArena, BackendReport, CompilerEvidence, SafetyGraph, SymbolTables, TokenArena,
+};
 pub use concurrency::{
     CancellationToken, ScopeEvent, ScopeReport, StructuredScope, TaskHandle, TaskSpec, TaskTerminal,
 };
@@ -49,19 +51,24 @@ pub use interop::{
     AbiParameterContract, InteropType, OwnershipContract, RustFunction, SafeRustBoundary,
 };
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
-pub use optimizer::optimize;
-pub use pipeline::{compile_source, CompiledArtifact, PipelineError, PipelineEvidence, PipelineTiming};
-pub use typed_ir::{TypedBasicBlock, TypedIrFunction, TypedIrModule, TypedIrOp, TypedTerminator, TypedValue, TypedValueKind};
 pub use learning::{
     LearningEntry, LearningKey, LearningProvenance, LearningStatus, PersistentCompilerLearning,
     ProvenanceKind,
 };
 pub use module_graph::{ModuleGraph, ModuleGraphError, ModuleNode};
 pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
+pub use optimizer::optimize;
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
+pub use pipeline::{
+    CompiledArtifact, PipelineError, PipelineEvidence, PipelineTiming, compile_source,
+};
 pub use protocol::{
     CompilerRequest, CompilerResponse, CompilerSession, CompilerSnapshot, CompilerTrace,
     PROTOCOL_VERSION, ProtocolError, VerificationRequirement,
+};
+pub use typed_ir::{
+    TypedBasicBlock, TypedIrFunction, TypedIrModule, TypedIrOp, TypedTerminator, TypedValue,
+    TypedValueKind,
 };
 
 pub use ast::{

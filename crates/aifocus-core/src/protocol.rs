@@ -666,7 +666,10 @@ mod tests {
         let response = execute(source, CompilerRequest::Inspect).unwrap();
         assert_eq!(response.snapshot.protocol_version, PROTOCOL_VERSION);
         assert_eq!(capabilities().schema_version, PROTOCOL_SCHEMA_VERSION);
-        assert_eq!(response.snapshot.source_fingerprint, source_fingerprint(source));
+        assert_eq!(
+            response.snapshot.source_fingerprint,
+            source_fingerprint(source)
+        );
         assert_eq!(response.snapshot.module.name, "x");
         assert_eq!(response.snapshot.ir.functions.len(), 1);
         assert!(response.snapshot.effects.functions.contains_key("main"));

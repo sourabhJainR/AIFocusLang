@@ -271,9 +271,7 @@ impl PersistentCompilerLearning {
         let version = lines.next();
         if !matches!(
             version,
-            Some("ARDISA-LEARNING-V1")
-                | Some("ARDISA-LEARNING-V2")
-                | Some("ARDISA-LEARNING-V3")
+            Some("ARDISA-LEARNING-V1") | Some("ARDISA-LEARNING-V2") | Some("ARDISA-LEARNING-V3")
         ) {
             return Err("unsupported Ardisa learning format".into());
         }

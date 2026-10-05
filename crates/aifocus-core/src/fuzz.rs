@@ -163,9 +163,15 @@ pub fn verify_native_roundtrip(case: &GeneratedCase) -> Result<(), String> {
     let decoded = native::decode_program(&encoded)
         .map_err(|e| format!("artifact decode {:?}: {e:?}", case.seed))?;
     if encoded != native::encode_program(&decoded) {
-        return Err(format!("artifact encoding is not canonical for seed {}", case.seed));
+        return Err(format!(
+            "artifact encoding is not canonical for seed {}",
+            case.seed
+        ));
     }
-    let main = program.functions.get("main").ok_or("generated case has no main")?;
+    let main = program
+        .functions
+        .get("main")
+        .ok_or("generated case has no main")?;
     let args = main
         .params
         .iter()
@@ -176,7 +182,10 @@ pub fn verify_native_roundtrip(case: &GeneratedCase) -> Result<(), String> {
     let right = native::run_program(&decoded, "main", &args)
         .map_err(|e| format!("decoded execution {:?}: {e:?}", case.seed))?;
     if left != right {
-        return Err(format!("native/artifact execution mismatch for seed {}", case.seed));
+        return Err(format!(
+            "native/artifact execution mismatch for seed {}",
+            case.seed
+        ));
     }
     Ok(())
 }

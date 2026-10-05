@@ -37,29 +37,54 @@ fn main() -> ExitCode {
         Some("bootstrap") => match args.next().as_deref() {
             Some("seed") => match (args.next(), args.next()) {
                 (Some(source), Some(output)) => bootstrap_seed(&source, &output),
-                _ => { eprintln!("error: bootstrap seed requires source and output"); ExitCode::from(2) }
+                _ => {
+                    eprintln!("error: bootstrap seed requires source and output");
+                    ExitCode::from(2)
+                }
             },
             Some("compile") => match (args.next(), args.next()) {
                 (Some(source), Some(output)) => bootstrap_compile(&source, &output),
-                _ => { eprintln!("error: bootstrap compile requires source and output"); ExitCode::from(2) }
+                _ => {
+                    eprintln!("error: bootstrap compile requires source and output");
+                    ExitCode::from(2)
+                }
             },
             Some("chain") => match (args.next(), args.next()) {
                 (Some(source), Some(evidence_dir)) => bootstrap_chain(&source, &evidence_dir),
-                _ => { eprintln!("error: bootstrap chain requires source and evidence directory"); ExitCode::from(2) }
+                _ => {
+                    eprintln!("error: bootstrap chain requires source and evidence directory");
+                    ExitCode::from(2)
+                }
             },
             Some("run") => match args.next() {
                 Some(output) => bootstrap_run(&output, args.collect()),
-                None => { eprintln!("error: bootstrap run requires an executable artifact"); ExitCode::from(2) }
+                None => {
+                    eprintln!("error: bootstrap run requires an executable artifact");
+                    ExitCode::from(2)
+                }
             },
             Some("compile-from-executable") => match (args.next(), args.next(), args.next()) {
-                (Some(compiler), Some(source), Some(output)) => bootstrap_compile_from_executable(&compiler, &source, &output),
-                _ => { eprintln!("error: bootstrap compile-from-executable requires compiler, source, and output"); ExitCode::from(2) }
+                (Some(compiler), Some(source), Some(output)) => {
+                    bootstrap_compile_from_executable(&compiler, &source, &output)
+                }
+                _ => {
+                    eprintln!(
+                        "error: bootstrap compile-from-executable requires compiler, source, and output"
+                    );
+                    ExitCode::from(2)
+                }
             },
             Some("verify") => match args.next() {
                 Some(output) => bootstrap_verify(&output),
-                None => { eprintln!("error: bootstrap verify requires an executable artifact"); ExitCode::from(2) }
+                None => {
+                    eprintln!("error: bootstrap verify requires an executable artifact");
+                    ExitCode::from(2)
+                }
             },
-            _ => { eprintln!("error: bootstrap requires compile, run, or verify"); ExitCode::from(2) }
+            _ => {
+                eprintln!("error: bootstrap requires compile, run, or verify");
+                ExitCode::from(2)
+            }
         },
         Some("fmt") => match args.next() {
             Some(path) => format_file(&path),
@@ -77,10 +102,16 @@ fn main() -> ExitCode {
             println!("  Compile and execute the module natively without Rust.");
             println!("  The entry function is 'main'; arguments are typed from its signature.");
             println!("ardisa bootstrap compile <source.ardisa> <output.aexe>");
-            println!("  Produce a deterministic native executable artifact without invoking Rust at run time.");
+            println!(
+                "  Produce a deterministic native executable artifact without invoking Rust at run time."
+            );
             println!("ardisa bootstrap run <output.aexe> [args...]");
-            println!("ardisa bootstrap compile-from-executable <compiler.aexe> <source.ardisa> <output.aexe>");
-            println!("  Run an already-built Ardisa compiler executable and require an ARDISA-EXEC-V1 result.");
+            println!(
+                "ardisa bootstrap compile-from-executable <compiler.aexe> <source.ardisa> <output.aexe>"
+            );
+            println!(
+                "  Run an already-built Ardisa compiler executable and require an ARDISA-EXEC-V1 result."
+            );
             println!("  Execute a previously produced Ardisa executable artifact.");
             println!("ardisa fmt <file>");
             println!("  Print canonical Ardisa source.");

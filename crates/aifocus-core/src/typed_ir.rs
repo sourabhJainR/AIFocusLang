@@ -25,12 +25,25 @@ pub struct TypedBasicBlock {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypedIrOp {
-    Bind { name: String, value: TypedValue },
-    Assign { name: String, value: TypedValue },
-    AssignIndex { collection: TypedValue, index: TypedValue, value: TypedValue },
+    Bind {
+        name: String,
+        value: TypedValue,
+    },
+    Assign {
+        name: String,
+        value: TypedValue,
+    },
+    AssignIndex {
+        collection: TypedValue,
+        index: TypedValue,
+        value: TypedValue,
+    },
     Expr(TypedValue),
     Scope(Vec<TypedIrOp>),
-    Spawn { name: String, call: TypedValue },
+    Spawn {
+        name: String,
+        call: TypedValue,
+    },
     Join(String),
     Cancel(String),
 }
@@ -39,8 +52,16 @@ pub enum TypedIrOp {
 pub enum TypedTerminator {
     Fallthrough,
     Return(Option<TypedValue>),
-    Branch { condition: TypedValue, then_block: u32, else_block: u32 },
-    Loop { condition: TypedValue, body_block: u32, exit_block: u32 },
+    Branch {
+        condition: TypedValue,
+        then_block: u32,
+        else_block: u32,
+    },
+    Loop {
+        condition: TypedValue,
+        body_block: u32,
+        exit_block: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,42 +79,88 @@ pub enum TypedValueKind {
     Name(String),
     List(Vec<TypedValue>),
     Index(Box<TypedValue>, Box<TypedValue>),
-    Binary { op: BinaryOp, left: Box<TypedValue>, right: Box<TypedValue> },
-    Call { callee: String, args: Vec<TypedValue> },
-    If { condition: Box<TypedValue>, then_ops: Vec<TypedIrOp>, else_ops: Vec<TypedIrOp> },
+    Binary {
+        op: BinaryOp,
+        left: Box<TypedValue>,
+        right: Box<TypedValue>,
+    },
+    Call {
+        callee: String,
+        args: Vec<TypedValue>,
+    },
+    If {
+        condition: Box<TypedValue>,
+        then_ops: Vec<TypedIrOp>,
+        else_ops: Vec<TypedIrOp>,
+    },
 }
 
 pub fn lower(module: &Module) -> Result<TypedIrModule, Vec<String>> {
     let analysis = crate::sema::analyze(module).map_err(|errors| {
-        errors.into_iter().map(|e| format!("{}: {}", e.code, e.message)).collect::<Vec<_>>()
+        errors
+            .into_iter()
+            .map(|e| format!("{}: {}", e.code, e.message))
+            .collect::<Vec<_>>()
     })?;
     let mut functions = Vec::new();
     let mut errors = Vec::new();
 
     for item in &module.items {
         let crate::ast::Item::Function(function) = item;
-        let return_type = function.return_type.as_ref()
+        let return_type = function
+            .return_type
+            .as_ref()
             .map(|t| t.kind.clone())
-            .or_else(|| analysis.function_returns.get(&function.name).map(|t| t.kind.clone()))
+            .or_else(|| {
+                analysis
+                    .function_returns
+                    .get(&function.name)
+                    .map(|t| t.kind.clone())
+            })
             .unwrap_or(TypeKind::Unit);
         let mut locals = BTreeMap::new();
-        for p in &function.params { locals.insert(p.name.clone(), p.ty.kind.clone()); }
+        for p in &function.params {
+            locals.insert(p.name.clone(), p.ty.kind.clone());
+        }
         let mut ops = Vec::new();
         for stmt in &function.body.stmts {
-            lower_stmt(stmt, &analysis.inferred_types, &mut locals, &mut ops, &mut errors);
+            lower_stmt(
+                stmt,
+                &analysis.inferred_types,
+                &mut locals,
+                &mut ops,
+                &mut errors,
+            );
         }
         let terminator = match ops.last() {
-            Some(TypedIrOp::Expr(value)) if return_type != TypeKind::Unit => TypedTerminator::Return(Some(value.clone())),
+            Some(TypedIrOp::Expr(value)) if return_type != TypeKind::Unit => {
+                TypedTerminator::Return(Some(value.clone()))
+            }
             _ => TypedTerminator::Return(None),
         };
         functions.push(TypedIrFunction {
             name: function.name.clone(),
-            params: function.params.iter().map(|p| (p.name.clone(), p.ty.kind.clone())).collect(),
+            params: function
+                .params
+                .iter()
+                .map(|p| (p.name.clone(), p.ty.kind.clone()))
+                .collect(),
             return_type,
-            blocks: vec![TypedBasicBlock { id: 0, ops, terminator }],
+            blocks: vec![TypedBasicBlock {
+                id: 0,
+                ops,
+                terminator,
+            }],
         });
     }
-    if errors.is_empty() { Ok(TypedIrModule { name: module.name.clone(), functions }) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(TypedIrModule {
+            name: module.name.clone(),
+            functions,
+        })
+    } else {
+        Err(errors)
+    }
 }
 
 fn lower_stmt(
@@ -107,113 +174,239 @@ fn lower_stmt(
         StmtKind::Let { name, value } => {
             if let Some(v) = lower_expr(value, types, locals, errors) {
                 locals.insert(name.clone(), v.ty.clone());
-                ops.push(TypedIrOp::Bind { name: name.clone(), value: v });
+                ops.push(TypedIrOp::Bind {
+                    name: name.clone(),
+                    value: v,
+                });
             }
         }
         StmtKind::Set { name, value } => {
             if let Some(v) = lower_expr(value, types, locals, errors) {
                 if let Some(expected) = locals.get(name) {
-                    if expected != &v.ty { errors.push(format!("assignment type mismatch for {name}")); }
-                } else { errors.push(format!("assignment to unknown binding {name}")); }
-                ops.push(TypedIrOp::Assign { name: name.clone(), value: v });
+                    if expected != &v.ty {
+                        errors.push(format!("assignment type mismatch for {name}"));
+                    }
+                } else {
+                    errors.push(format!("assignment to unknown binding {name}"));
+                }
+                ops.push(TypedIrOp::Assign {
+                    name: name.clone(),
+                    value: v,
+                });
             }
         }
-        StmtKind::SetIndex { collection, index, value } => {
+        StmtKind::SetIndex {
+            collection,
+            index,
+            value,
+        } => {
             if let (Some(c), Some(i), Some(v)) = (
                 lower_expr(collection, types, locals, errors),
                 lower_expr(index, types, locals, errors),
                 lower_expr(value, types, locals, errors),
-            ) { ops.push(TypedIrOp::AssignIndex { collection:c,index:i,value:v }); }
+            ) {
+                ops.push(TypedIrOp::AssignIndex {
+                    collection: c,
+                    index: i,
+                    value: v,
+                });
+            }
         }
         StmtKind::Return(value) => {
-            let v = value.as_ref().and_then(|e| lower_expr(e, types, locals, errors));
-            ops.push(TypedIrOp::Expr(v.unwrap_or(TypedValue { ty:TypeKind::Unit, span:stmt.span, kind:TypedValueKind::Bool(false) })));
+            let v = value
+                .as_ref()
+                .and_then(|e| lower_expr(e, types, locals, errors));
+            ops.push(TypedIrOp::Expr(v.unwrap_or(TypedValue {
+                ty: TypeKind::Unit,
+                span: stmt.span,
+                kind: TypedValueKind::Bool(false),
+            })));
         }
-        StmtKind::Expr(e) => if let Some(v)=lower_expr(e,types,locals,errors){ ops.push(TypedIrOp::Expr(v)); },
+        StmtKind::Expr(e) => {
+            if let Some(v) = lower_expr(e, types, locals, errors) {
+                ops.push(TypedIrOp::Expr(v));
+            }
+        }
         StmtKind::Scope { body } => {
-            let mut nested=Vec::new();
-            let mut scoped=locals.clone();
-            for s in &body.stmts { lower_stmt(s,types,&mut scoped,&mut nested,errors); }
+            let mut nested = Vec::new();
+            let mut scoped = locals.clone();
+            for s in &body.stmts {
+                lower_stmt(s, types, &mut scoped, &mut nested, errors);
+            }
             ops.push(TypedIrOp::Scope(nested));
         }
-        StmtKind::Spawn { name, call } => if let Some(v)=lower_expr(call,types,locals,errors){ops.push(TypedIrOp::Spawn{name:name.clone(),call:v});},
+        StmtKind::Spawn { name, call } => {
+            if let Some(v) = lower_expr(call, types, locals, errors) {
+                ops.push(TypedIrOp::Spawn {
+                    name: name.clone(),
+                    call: v,
+                });
+            }
+        }
         StmtKind::Join { name } => ops.push(TypedIrOp::Join(name.clone())),
         StmtKind::Cancel { name } => ops.push(TypedIrOp::Cancel(name.clone())),
         StmtKind::While { condition, body } => {
-            if let Some(c)=lower_expr(condition,types,locals,errors) {
-                let mut nested=Vec::new(); let mut scoped=locals.clone();
-                for s in &body.stmts { lower_stmt(s,types,&mut scoped,&mut nested,errors); }
-                ops.push(TypedIrOp::Scope(vec![TypedIrOp::Expr(c), TypedIrOp::Scope(nested)]));
+            if let Some(c) = lower_expr(condition, types, locals, errors) {
+                let mut nested = Vec::new();
+                let mut scoped = locals.clone();
+                for s in &body.stmts {
+                    lower_stmt(s, types, &mut scoped, &mut nested, errors);
+                }
+                ops.push(TypedIrOp::Scope(vec![
+                    TypedIrOp::Expr(c),
+                    TypedIrOp::Scope(nested),
+                ]));
             }
         }
     }
 }
 
 fn lower_expr(
-    expr:&Expr,
-    types:&HashMap<crate::NodeId, crate::ast::Type>,
-    locals:&BTreeMap<String,TypeKind>,
-    errors:&mut Vec<String>
-)->Option<TypedValue>{
-    let ty=types.get(&expr.id).map(|t|t.kind.clone()).or_else(||match &expr.kind {
-        ExprKind::Int(_)=>Some(TypeKind::Int), ExprKind::Bool(_)=>Some(TypeKind::Bool),
-        ExprKind::String(_)=>Some(TypeKind::String), ExprKind::Name(n)=>locals.get(n).cloned(),
-        _=>None
-    })?;
-    let kind=match &expr.kind {
-        ExprKind::Int(v)=>TypedValueKind::Int(*v), ExprKind::Bool(v)=>TypedValueKind::Bool(*v),
-        ExprKind::String(v)=>TypedValueKind::String(v.clone()), ExprKind::Name(v)=>TypedValueKind::Name(v.clone()),
-        ExprKind::Group(e)=>return lower_expr(e,types,locals,errors),
-        ExprKind::List(xs)=>TypedValueKind::List(xs.iter().filter_map(|e|lower_expr(e,types,locals,errors)).collect()),
-        ExprKind::Index{collection,index}=>TypedValueKind::Index(Box::new(lower_expr(collection,types,locals,errors)?),Box::new(lower_expr(index,types,locals,errors)?)),
-        ExprKind::Binary{op,left,right}=>TypedValueKind::Binary{op:*op,left:Box::new(lower_expr(left,types,locals,errors)?),right:Box::new(lower_expr(right,types,locals,errors)?)},
-        ExprKind::Call{callee,args}=>{
-            let ExprKind::Name(name)=&callee.kind else { errors.push("dynamic call in typed IR".into()); return None; };
-            TypedValueKind::Call{callee:name.clone(),args:args.iter().filter_map(|e|lower_expr(e,types,locals,errors)).collect()}
-        }
-        ExprKind::If{condition,then_branch,else_branch}=>{
-            let condition=Box::new(lower_expr(condition,types,locals,errors)?);
-            let mut then_ops=Vec::new(); let mut then_locals=locals.clone();
-            for s in &then_branch.stmts { lower_stmt(s,types,&mut then_locals,&mut then_ops,errors); }
-            let mut else_ops=Vec::new(); let mut else_locals=locals.clone();
-            if let Some(branch)=else_branch { for s in &branch.stmts { lower_stmt(s,types,&mut else_locals,&mut else_ops,errors); } }
-            TypedValueKind::If{condition,then_ops,else_ops}
+    expr: &Expr,
+    types: &HashMap<crate::NodeId, crate::ast::Type>,
+    locals: &BTreeMap<String, TypeKind>,
+    errors: &mut Vec<String>,
+) -> Option<TypedValue> {
+    let ty = types
+        .get(&expr.id)
+        .map(|t| t.kind.clone())
+        .or_else(|| match &expr.kind {
+            ExprKind::Int(_) => Some(TypeKind::Int),
+            ExprKind::Bool(_) => Some(TypeKind::Bool),
+            ExprKind::String(_) => Some(TypeKind::String),
+            ExprKind::Name(n) => locals.get(n).cloned(),
+            _ => None,
+        })?;
+    let kind = match &expr.kind {
+        ExprKind::Int(v) => TypedValueKind::Int(*v),
+        ExprKind::Bool(v) => TypedValueKind::Bool(*v),
+        ExprKind::String(v) => TypedValueKind::String(v.clone()),
+        ExprKind::Name(v) => TypedValueKind::Name(v.clone()),
+        ExprKind::Group(e) => return lower_expr(e, types, locals, errors),
+        ExprKind::List(xs) => TypedValueKind::List(
+            xs.iter()
+                .filter_map(|e| lower_expr(e, types, locals, errors))
+                .collect(),
+        ),
+        ExprKind::Index { collection, index } => TypedValueKind::Index(
+            Box::new(lower_expr(collection, types, locals, errors)?),
+            Box::new(lower_expr(index, types, locals, errors)?),
+        ),
+        ExprKind::Binary { op, left, right } => TypedValueKind::Binary {
+            op: *op,
+            left: Box::new(lower_expr(left, types, locals, errors)?),
+            right: Box::new(lower_expr(right, types, locals, errors)?),
         },
+        ExprKind::Call { callee, args } => {
+            let ExprKind::Name(name) = &callee.kind else {
+                errors.push("dynamic call in typed IR".into());
+                return None;
+            };
+            TypedValueKind::Call {
+                callee: name.clone(),
+                args: args
+                    .iter()
+                    .filter_map(|e| lower_expr(e, types, locals, errors))
+                    .collect(),
+            }
+        }
+        ExprKind::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            let condition = Box::new(lower_expr(condition, types, locals, errors)?);
+            let mut then_ops = Vec::new();
+            let mut then_locals = locals.clone();
+            for s in &then_branch.stmts {
+                lower_stmt(s, types, &mut then_locals, &mut then_ops, errors);
+            }
+            let mut else_ops = Vec::new();
+            let mut else_locals = locals.clone();
+            if let Some(branch) = else_branch {
+                for s in &branch.stmts {
+                    lower_stmt(s, types, &mut else_locals, &mut else_ops, errors);
+                }
+            }
+            TypedValueKind::If {
+                condition,
+                then_ops,
+                else_ops,
+            }
+        }
     };
-    Some(TypedValue{ty,span:expr.span,kind})
+    Some(TypedValue {
+        ty,
+        span: expr.span,
+        kind,
+    })
 }
-
 
 pub fn lower_cfg(module: &Module) -> Result<TypedIrModule, Vec<String>> {
     let analysis = crate::sema::analyze(module).map_err(|errors| {
-        errors.into_iter().map(|e| format!("{}: {}", e.code, e.message)).collect::<Vec<_>>()
+        errors
+            .into_iter()
+            .map(|e| format!("{}: {}", e.code, e.message))
+            .collect::<Vec<_>>()
     })?;
     let mut functions = Vec::new();
     let mut errors = Vec::new();
     for item in &module.items {
         let crate::ast::Item::Function(function) = item;
-        let return_type = function.return_type.as_ref()
+        let return_type = function
+            .return_type
+            .as_ref()
             .map(|t| t.kind.clone())
-            .or_else(|| analysis.function_returns.get(&function.name).map(|t| t.kind.clone()))
+            .or_else(|| {
+                analysis
+                    .function_returns
+                    .get(&function.name)
+                    .map(|t| t.kind.clone())
+            })
             .unwrap_or(TypeKind::Unit);
         let mut locals = BTreeMap::new();
-        for p in &function.params { locals.insert(p.name.clone(), p.ty.kind.clone()); }
+        for p in &function.params {
+            locals.insert(p.name.clone(), p.ty.kind.clone());
+        }
         let mut blocks = Vec::new();
-        let entry = build_cfg_block(&function.body, &analysis.inferred_types, &mut locals, &mut blocks, &mut errors);
-        if entry != 0 { errors.push(format!("internal CFG error: entry block is {entry}")); }
+        let entry = build_cfg_block(
+            &function.body,
+            &analysis.inferred_types,
+            &mut locals,
+            &mut blocks,
+            &mut errors,
+        );
+        if entry != 0 {
+            errors.push(format!("internal CFG error: entry block is {entry}"));
+        }
         functions.push(TypedIrFunction {
             name: function.name.clone(),
-            params: function.params.iter().map(|p| (p.name.clone(), p.ty.kind.clone())).collect(),
+            params: function
+                .params
+                .iter()
+                .map(|p| (p.name.clone(), p.ty.kind.clone()))
+                .collect(),
             return_type,
             blocks,
         });
     }
-    if errors.is_empty() { Ok(TypedIrModule { name: module.name.clone(), functions }) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(TypedIrModule {
+            name: module.name.clone(),
+            functions,
+        })
+    } else {
+        Err(errors)
+    }
 }
 
 fn new_cfg_block(blocks: &mut Vec<TypedBasicBlock>) -> u32 {
     let id = blocks.len() as u32;
-    blocks.push(TypedBasicBlock { id, ops: Vec::new(), terminator: TypedTerminator::Fallthrough });
+    blocks.push(TypedBasicBlock {
+        id,
+        ops: Vec::new(),
+        terminator: TypedTerminator::Fallthrough,
+    });
     id
 }
 
@@ -234,7 +427,9 @@ fn build_cfg_block(
                 let exit_block = new_cfg_block(blocks);
                 if let Some(cond) = lower_expr(condition, types, locals, errors) {
                     blocks[header as usize].terminator = TypedTerminator::Loop {
-                        condition: cond, body_block, exit_block,
+                        condition: cond,
+                        body_block,
+                        exit_block,
                     };
                 }
                 let mut scoped = locals.clone();
@@ -247,61 +442,106 @@ fn build_cfg_block(
                 cursor = exit_block;
             }
             StmtKind::Return(value) => {
-                let value = value.as_ref().and_then(|e| lower_expr(e, types, locals, errors));
+                let value = value
+                    .as_ref()
+                    .and_then(|e| lower_expr(e, types, locals, errors));
                 blocks[cursor as usize].terminator = TypedTerminator::Return(value);
                 cursor = new_cfg_block(blocks);
             }
             StmtKind::Let { name, value } => {
                 if let Some(v) = lower_expr(value, types, locals, errors) {
                     locals.insert(name.clone(), v.ty.clone());
-                    blocks[cursor as usize].ops.push(TypedIrOp::Bind { name: name.clone(), value: v });
+                    blocks[cursor as usize].ops.push(TypedIrOp::Bind {
+                        name: name.clone(),
+                        value: v,
+                    });
                 }
             }
             StmtKind::Set { name, value } => {
                 if let Some(v) = lower_expr(value, types, locals, errors) {
-                    blocks[cursor as usize].ops.push(TypedIrOp::Assign { name: name.clone(), value: v });
+                    blocks[cursor as usize].ops.push(TypedIrOp::Assign {
+                        name: name.clone(),
+                        value: v,
+                    });
                 }
             }
-            StmtKind::SetIndex { collection, index, value } => {
-                if let (Some(c), Some(i), Some(v)) = (lower_expr(collection, types, locals, errors), lower_expr(index, types, locals, errors), lower_expr(value, types, locals, errors)) {
-                    blocks[cursor as usize].ops.push(TypedIrOp::AssignIndex { collection: c, index: i, value: v });
+            StmtKind::SetIndex {
+                collection,
+                index,
+                value,
+            } => {
+                if let (Some(c), Some(i), Some(v)) = (
+                    lower_expr(collection, types, locals, errors),
+                    lower_expr(index, types, locals, errors),
+                    lower_expr(value, types, locals, errors),
+                ) {
+                    blocks[cursor as usize].ops.push(TypedIrOp::AssignIndex {
+                        collection: c,
+                        index: i,
+                        value: v,
+                    });
                 }
             }
             StmtKind::Expr(expr) => {
-                if let Some(v) = lower_expr(expr, types, locals, errors) { blocks[cursor as usize].ops.push(TypedIrOp::Expr(v)); }
+                if let Some(v) = lower_expr(expr, types, locals, errors) {
+                    blocks[cursor as usize].ops.push(TypedIrOp::Expr(v));
+                }
             }
             StmtKind::Scope { body } => {
                 let mut nested = Vec::new();
                 let mut scoped = locals.clone();
-                for s in &body.stmts { lower_stmt(s, types, &mut scoped, &mut nested, errors); }
+                for s in &body.stmts {
+                    lower_stmt(s, types, &mut scoped, &mut nested, errors);
+                }
                 blocks[cursor as usize].ops.push(TypedIrOp::Scope(nested));
             }
             StmtKind::Spawn { name, call } => {
-                if let Some(v) = lower_expr(call, types, locals, errors) { blocks[cursor as usize].ops.push(TypedIrOp::Spawn { name: name.clone(), call: v }); }
+                if let Some(v) = lower_expr(call, types, locals, errors) {
+                    blocks[cursor as usize].ops.push(TypedIrOp::Spawn {
+                        name: name.clone(),
+                        call: v,
+                    });
+                }
             }
-            StmtKind::Join { name } => blocks[cursor as usize].ops.push(TypedIrOp::Join(name.clone())),
-            StmtKind::Cancel { name } => blocks[cursor as usize].ops.push(TypedIrOp::Cancel(name.clone())),
+            StmtKind::Join { name } => blocks[cursor as usize]
+                .ops
+                .push(TypedIrOp::Join(name.clone())),
+            StmtKind::Cancel { name } => blocks[cursor as usize]
+                .ops
+                .push(TypedIrOp::Cancel(name.clone())),
         }
     }
-    if matches!(blocks[cursor as usize].terminator, TypedTerminator::Fallthrough) {
-        let value = blocks[cursor as usize].ops.last().and_then(|op| match op { TypedIrOp::Expr(v) => Some(v.clone()), _ => None });
+    if matches!(
+        blocks[cursor as usize].terminator,
+        TypedTerminator::Fallthrough
+    ) {
+        let value = blocks[cursor as usize].ops.last().and_then(|op| match op {
+            TypedIrOp::Expr(v) => Some(v.clone()),
+            _ => None,
+        });
         blocks[cursor as usize].terminator = TypedTerminator::Return(value);
     }
     current
 }
 
-
 pub fn optimize(module: TypedIrModule) -> TypedIrModule {
-    let functions = module.functions.into_iter().map(|mut function| {
-        for block in &mut function.blocks {
-            for op in &mut block.ops {
-                optimize_op(op);
+    let functions = module
+        .functions
+        .into_iter()
+        .map(|mut function| {
+            for block in &mut function.blocks {
+                for op in &mut block.ops {
+                    optimize_op(op);
+                }
+                block.terminator = optimize_terminator(block.terminator.clone());
             }
-            block.terminator = optimize_terminator(block.terminator.clone());
-        }
-        function
-    }).collect();
-    TypedIrModule { name: module.name, functions }
+            function
+        })
+        .collect();
+    TypedIrModule {
+        name: module.name,
+        functions,
+    }
 }
 
 fn optimize_op(op: &mut TypedIrOp) {
@@ -309,7 +549,11 @@ fn optimize_op(op: &mut TypedIrOp) {
         TypedIrOp::Bind { value, .. }
         | TypedIrOp::Assign { value, .. }
         | TypedIrOp::Expr(value) => optimize_value(value),
-        TypedIrOp::AssignIndex { collection, index, value } => {
+        TypedIrOp::AssignIndex {
+            collection,
+            index,
+            value,
+        } => {
             optimize_value(collection);
             optimize_value(index);
             optimize_value(value);
@@ -326,15 +570,31 @@ fn optimize_terminator(terminator: TypedTerminator) -> TypedTerminator {
             optimize_value(&mut v);
             v
         })),
-        TypedTerminator::Branch { condition, then_block, else_block } => {
+        TypedTerminator::Branch {
+            condition,
+            then_block,
+            else_block,
+        } => {
             let mut condition = condition;
             optimize_value(&mut condition);
-            TypedTerminator::Branch { condition, then_block, else_block }
+            TypedTerminator::Branch {
+                condition,
+                then_block,
+                else_block,
+            }
         }
-        TypedTerminator::Loop { condition, body_block, exit_block } => {
+        TypedTerminator::Loop {
+            condition,
+            body_block,
+            exit_block,
+        } => {
             let mut condition = condition;
             optimize_value(&mut condition);
-            TypedTerminator::Loop { condition, body_block, exit_block }
+            TypedTerminator::Loop {
+                condition,
+                body_block,
+                exit_block,
+            }
         }
         TypedTerminator::Fallthrough => TypedTerminator::Fallthrough,
     }
@@ -375,7 +635,11 @@ fn optimize_value(value: &mut TypedValue) {
             optimize_value(index);
         }
         TypedValueKind::Call { args, .. } => args.iter_mut().for_each(optimize_value),
-        TypedValueKind::If { condition, then_ops, else_ops } => {
+        TypedValueKind::If {
+            condition,
+            then_ops,
+            else_ops,
+        } => {
             optimize_value(condition);
             for op in then_ops.iter_mut() {
                 optimize_op(op);
@@ -391,16 +655,19 @@ fn optimize_value(value: &mut TypedValue) {
     }
 }
 
-
 pub fn to_legacy_ir(module: &TypedIrModule) -> crate::ir::IrModule {
     crate::ir::IrModule {
         name: module.name.clone(),
-        functions: module.functions.iter().map(|function| crate::ir::IrFunction {
-            name: function.name.clone(),
-            params: function.params.clone(),
-            return_type: Some(function.return_type.clone()),
-            ops: flatten_cfg(function),
-        }).collect(),
+        functions: module
+            .functions
+            .iter()
+            .map(|function| crate::ir::IrFunction {
+                name: function.name.clone(),
+                params: function.params.clone(),
+                return_type: Some(function.return_type.clone()),
+                ops: flatten_cfg(function),
+            })
+            .collect(),
     }
 }
 
@@ -409,9 +676,16 @@ fn flatten_cfg(function: &TypedIrFunction) -> Vec<crate::ir::IrOp> {
     for block in &function.blocks {
         ops.extend(block.ops.iter().map(typed_op_to_legacy));
         match &block.terminator {
-            TypedTerminator::Return(value) => ops.push(crate::ir::IrOp::Return(value.as_ref().map(typed_value_to_legacy))),
-            TypedTerminator::Branch { condition, .. } => ops.push(crate::ir::IrOp::Expr(typed_value_to_legacy(condition))),
-            TypedTerminator::Loop { condition, .. } => ops.push(crate::ir::IrOp::While { condition: typed_value_to_legacy(condition), ops: Vec::new() }),
+            TypedTerminator::Return(value) => ops.push(crate::ir::IrOp::Return(
+                value.as_ref().map(typed_value_to_legacy),
+            )),
+            TypedTerminator::Branch { condition, .. } => {
+                ops.push(crate::ir::IrOp::Expr(typed_value_to_legacy(condition)))
+            }
+            TypedTerminator::Loop { condition, .. } => ops.push(crate::ir::IrOp::While {
+                condition: typed_value_to_legacy(condition),
+                ops: Vec::new(),
+            }),
             TypedTerminator::Fallthrough => {}
         }
     }
@@ -420,12 +694,31 @@ fn flatten_cfg(function: &TypedIrFunction) -> Vec<crate::ir::IrOp> {
 
 fn typed_op_to_legacy(op: &TypedIrOp) -> crate::ir::IrOp {
     match op {
-        TypedIrOp::Bind { name, value } => crate::ir::IrOp::Let { name: name.clone(), value: typed_value_to_legacy(value) },
-        TypedIrOp::Assign { name, value } => crate::ir::IrOp::Set { name: name.clone(), value: typed_value_to_legacy(value) },
-        TypedIrOp::AssignIndex { collection, index, value } => crate::ir::IrOp::SetIndex { collection: typed_value_to_legacy(collection), index: typed_value_to_legacy(index), value: typed_value_to_legacy(value) },
+        TypedIrOp::Bind { name, value } => crate::ir::IrOp::Let {
+            name: name.clone(),
+            value: typed_value_to_legacy(value),
+        },
+        TypedIrOp::Assign { name, value } => crate::ir::IrOp::Set {
+            name: name.clone(),
+            value: typed_value_to_legacy(value),
+        },
+        TypedIrOp::AssignIndex {
+            collection,
+            index,
+            value,
+        } => crate::ir::IrOp::SetIndex {
+            collection: typed_value_to_legacy(collection),
+            index: typed_value_to_legacy(index),
+            value: typed_value_to_legacy(value),
+        },
         TypedIrOp::Expr(value) => crate::ir::IrOp::Expr(typed_value_to_legacy(value)),
-        TypedIrOp::Scope(ops) => crate::ir::IrOp::Scope { ops: ops.iter().map(typed_op_to_legacy).collect() },
-        TypedIrOp::Spawn { name, call } => crate::ir::IrOp::Spawn { name: name.clone(), call: typed_value_to_legacy(call) },
+        TypedIrOp::Scope(ops) => crate::ir::IrOp::Scope {
+            ops: ops.iter().map(typed_op_to_legacy).collect(),
+        },
+        TypedIrOp::Spawn { name, call } => crate::ir::IrOp::Spawn {
+            name: name.clone(),
+            call: typed_value_to_legacy(call),
+        },
         TypedIrOp::Join(name) => crate::ir::IrOp::Join { name: name.clone() },
         TypedIrOp::Cancel(name) => crate::ir::IrOp::Cancel { name: name.clone() },
     }
@@ -437,11 +730,27 @@ fn typed_value_to_legacy(value: &TypedValue) -> crate::ir::IrValue {
         TypedValueKind::Bool(v) => crate::ir::IrValue::Bool(*v),
         TypedValueKind::String(v) => crate::ir::IrValue::String(v.clone()),
         TypedValueKind::Name(v) => crate::ir::IrValue::Name(v.clone()),
-        TypedValueKind::List(values) => crate::ir::IrValue::List(values.iter().map(typed_value_to_legacy).collect()),
-        TypedValueKind::Index(c, i) => crate::ir::IrValue::Index { collection: Box::new(typed_value_to_legacy(c)), index: Box::new(typed_value_to_legacy(i)) },
-        TypedValueKind::Binary { op, left, right } => crate::ir::IrValue::Binary { op: *op, left: Box::new(typed_value_to_legacy(left)), right: Box::new(typed_value_to_legacy(right)) },
-        TypedValueKind::Call { callee, args } => crate::ir::IrValue::Call { callee: callee.clone(), args: args.iter().map(typed_value_to_legacy).collect() },
-        TypedValueKind::If { condition, then_ops, else_ops } => crate::ir::IrValue::If {
+        TypedValueKind::List(values) => {
+            crate::ir::IrValue::List(values.iter().map(typed_value_to_legacy).collect())
+        }
+        TypedValueKind::Index(c, i) => crate::ir::IrValue::Index {
+            collection: Box::new(typed_value_to_legacy(c)),
+            index: Box::new(typed_value_to_legacy(i)),
+        },
+        TypedValueKind::Binary { op, left, right } => crate::ir::IrValue::Binary {
+            op: *op,
+            left: Box::new(typed_value_to_legacy(left)),
+            right: Box::new(typed_value_to_legacy(right)),
+        },
+        TypedValueKind::Call { callee, args } => crate::ir::IrValue::Call {
+            callee: callee.clone(),
+            args: args.iter().map(typed_value_to_legacy).collect(),
+        },
+        TypedValueKind::If {
+            condition,
+            then_ops,
+            else_ops,
+        } => crate::ir::IrValue::If {
             condition: Box::new(typed_value_to_legacy(condition)),
             then_ops: then_ops.iter().map(typed_op_to_legacy).collect(),
             else_ops: else_ops.iter().map(typed_op_to_legacy).collect(),
@@ -449,15 +758,17 @@ fn typed_value_to_legacy(value: &TypedValue) -> crate::ir::IrValue {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn lowers_typed_function() {
-        let m=crate::parse("module x\nfn main(a: Int) -> Int\n  a + 1\n").unwrap();
-        let ir=lower(&m).unwrap();
-        assert_eq!(ir.functions[0].return_type,TypeKind::Int);
-        assert!(matches!(ir.functions[0].blocks[0].ops[0],TypedIrOp::Expr(_)));
+        let m = crate::parse("module x\nfn main(a: Int) -> Int\n  a + 1\n").unwrap();
+        let ir = lower(&m).unwrap();
+        assert_eq!(ir.functions[0].return_type, TypeKind::Int);
+        assert!(matches!(
+            ir.functions[0].blocks[0].ops[0],
+            TypedIrOp::Expr(_)
+        ));
     }
 }

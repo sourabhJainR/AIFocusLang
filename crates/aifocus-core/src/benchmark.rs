@@ -108,7 +108,10 @@ pub fn run(seed_start: u64, cases: usize) -> BenchmarkResult {
         result.native_compile_ns += compile_started.elapsed().as_nanos();
         result.native_compiled += 1;
         result.native_instruction_count += code.len();
-        result.native_artifact_bytes += native::encode_program(&native::compile_program(&lowered).expect("program already compiled")).len();
+        result.native_artifact_bytes += native::encode_program(
+            &native::compile_program(&lowered).expect("program already compiled"),
+        )
+        .len();
         let execute_started = Instant::now();
         let executed = native::run(
             &code,

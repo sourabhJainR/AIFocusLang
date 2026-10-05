@@ -193,7 +193,10 @@ const SELF_HOSTED_SOURCES: &[(&str, &str)] = &[
         include_str!("../../../bootstrap/semantic.ardisa"),
     ),
     ("ir", include_str!("../../../bootstrap/ir.ardisa")),
-    ("compiler", include_str!("../../../bootstrap/compiler.ardisa")),
+    (
+        "compiler",
+        include_str!("../../../bootstrap/compiler.ardisa"),
+    ),
 ];
 
 fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
@@ -208,9 +211,15 @@ fn self_hosted_pipeline_artifact() -> Result<BootstrapArtifact, &'static str> {
                 let code = errors.first().map(|error| error.code).unwrap_or("AIF000");
                 if let Some(error) = errors.first() {
                     if let Some(location) = error.location(source) {
-                        eprintln!("self-hosted source {name} parse diagnostic [{}] at {}:{}: {}", error.code, location.line, location.column, error.message);
+                        eprintln!(
+                            "self-hosted source {name} parse diagnostic [{}] at {}:{}: {}",
+                            error.code, location.line, location.column, error.message
+                        );
                     } else {
-                        eprintln!("self-hosted source {name} parse diagnostic [{}]: {}", error.code, error.message);
+                        eprintln!(
+                            "self-hosted source {name} parse diagnostic [{}]: {}",
+                            error.code, error.message
+                        );
                     }
                 }
                 return Err(match code {
@@ -576,7 +585,10 @@ mod tests {
         assert!(source.contains("fn backend"));
         assert!(source.contains("ARDISA-EXEC-V1"));
         let manifest = stage_manifest();
-        assert_eq!(manifest["stage2"], "Ardisa-native compiler executable compiling compiler.ardisa without the Rust host");
+        assert_eq!(
+            manifest["stage2"],
+            "Ardisa-native compiler executable compiling compiler.ardisa without the Rust host"
+        );
     }
 
     #[test]
