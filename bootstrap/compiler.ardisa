@@ -330,7 +330,10 @@ fn token_at(stream: String, start: Int) -> String
     if begin >= len(stream)
       ""
     else
-      slice(stream, begin, begin + 96)
+      let end = begin + 96
+      if end > len(stream)
+        set end = len(stream)
+      slice(stream, begin, end)
 
 fn next_cursor(stream: String, start: Int) -> Int
   start
