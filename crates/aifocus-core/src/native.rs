@@ -442,22 +442,6 @@ pub fn run(
                 }
                 stack.push(NativeValue::String(value[start..end].to_owned()));
             }
-            NativeInstr::Slice => {
-                let end = pop_int(&mut stack)?;
-                let start = pop_int(&mut stack)?;
-                let value = match stack.pop() {
-                    Some(NativeValue::String(value)) => value,
-                    _ => return Err(NativeError::Type("slice requires String, Int, Int".into())),
-                };
-                let start = usize::try_from(start)
-                    .map_err(|_| NativeError::Type("negative slice start".into()))?;
-                let end = usize::try_from(end)
-                    .map_err(|_| NativeError::Type("negative slice end".into()))?;
-                if start > end || end > value.len() {
-                    return Err(NativeError::Type("slice bounds out of range".into()));
-                }
-                stack.push(NativeValue::String(value[start..end].to_string()));
-            }
             NativeInstr::MakeOk => {
                 let value = stack
                     .pop()
@@ -849,6 +833,28 @@ fn run_function(
                 let byte = u8::try_from(value)
                     .map_err(|_| NativeError::Type("chr requires a byte in 0..=255".into()))?;
                 stack.push(NativeValue::String(char::from(byte).to_string()));
+            }
+            NativeInstr::Slice => {
+                let end = pop_int(&mut stack)?;
+                let start = pop_int(&mut stack)?;
+                let value = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("slice from empty stack".into()))?;
+                let NativeValue::String(value) = value else {
+                    return Err(NativeError::Type("slice requires String, Int, Int".into()));
+                };
+                let start = usize::try_from(start)
+                    .map_err(|_| NativeError::Type("slice start must be non-negative".into()))?;
+                let end = usize::try_from(end)
+                    .map_err(|_| NativeError::Type("slice end must be non-negative".into()))?;
+                if start > end
+                    || end > value.len()
+                    || !value.is_char_boundary(start)
+                    || !value.is_char_boundary(end)
+                {
+                    return Err(NativeError::Type("slice bounds are invalid".into()));
+                }
+                stack.push(NativeValue::String(value[start..end].to_owned()));
             }
             NativeInstr::MakeOk => {
                 let value = stack
