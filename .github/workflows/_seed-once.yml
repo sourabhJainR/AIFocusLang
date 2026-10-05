@@ -36,6 +36,13 @@ jobs:
           test "$status" -eq 0
           grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
           test -s bootstrap/stage0.aexe
+      - name: Upload generated seed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ardisa-stage0-seed
+          path: bootstrap/stage0.aexe
+          if-no-files-found: ignore
       - name: Commit seed or diagnostics
         if: always()
         run: |
