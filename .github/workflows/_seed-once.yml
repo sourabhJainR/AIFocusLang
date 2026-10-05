@@ -18,11 +18,31 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Regenerate deterministic Stage 0 from compiler source
         run: |
+          set -o pipefail
           source="$(cat bootstrap/compiler.ardisa)"
-          cargo run -q --release -p ardisa -- run bootstrap/compiler.ardisa "$source" > bootstrap/stage0.aexe
+          set +e
+          cargo run -q --release -p ardisa -- run bootstrap/compiler.ardisa "$source" > bootstrap/stage0.aexe 2> bootstrap/seed.stderr
+          status=$?
+          set -e
+          {
+            echo "seed_exit=$status"
+            echo "seed_bytes=$(wc -c < bootstrap/stage0.aexe)"
+            echo "seed_header=$(head -n 1 bootstrap/stage0.aexe || true)"
+            echo "compiler_lines=$(wc -l < bootstrap/compiler.ardisa)"
+          } | tee bootstrap/seed.summary
+          cat bootstrap/seed.stderr
+          test "$status" -eq 0
           grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
           test -s bootstrap/stage0.aexe
+      - name: Upload seed diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ardisa-stage0-seed-diagnostics
+          path: bootstrap/seed.*
+          if-no-files-found: ignore
       - name: Commit seed
+        if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
