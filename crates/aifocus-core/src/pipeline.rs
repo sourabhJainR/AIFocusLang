@@ -56,10 +56,10 @@ pub fn compile_source(source: &str) -> Result<CompiledArtifact, PipelineError> {
     let effect_model = effects::analyze(&module);
     phase_order.push("effects");
 
-    let typed = typed_ir::lower(&module).map_err(PipelineError::TypedIr)?;
+    let typed = typed_ir::lower_cfg(&module).map_err(PipelineError::TypedIr)?;
     phase_order.push("typed_ir");
 
-    let ir_module = optimizer::optimize(ir::lower(&module));
+    let ir_module = optimizer::optimize(typed_ir::to_legacy_ir(&typed));
     phase_order.push("optimizer");
 
     let native_program = native::compile_program(&ir_module).map_err(PipelineError::Native)?;
