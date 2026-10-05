@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ardisa-ci
+  group: ardisa-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   verify:
     name: Ardisa compile, tests, and native bootstrap
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
