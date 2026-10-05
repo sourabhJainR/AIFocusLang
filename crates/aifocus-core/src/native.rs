@@ -476,15 +476,31 @@ pub fn run(
                 locals.insert(name, NativeValue::List(items));
             }
 
-            NativeInstr::Add
-            | NativeInstr::Sub
+            NativeInstr::Add => {
+                let right = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                let left = stack
+                    .pop()
+                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                match (left, right) {
+                    (NativeValue::Int(left), NativeValue::Int(right)) => {
+                        stack.push(NativeValue::Int(left + right));
+                    }
+                    (NativeValue::String(mut left), NativeValue::String(right)) => {
+                        left.push_str(&right);
+                        stack.push(NativeValue::String(left));
+                    }
+                    _ => return Err(NativeError::Type("addition requires two Ints or two Strings".into())),
+                }
+            }
+            NativeInstr::Sub
             | NativeInstr::Mul
             | NativeInstr::Div
             | NativeInstr::Mod => {
                 let right = pop_int(&mut stack)?;
                 let left = pop_int(&mut stack)?;
                 let value = match code[pc - 1] {
-                    NativeInstr::Add => left + right,
                     NativeInstr::Sub => left - right,
                     NativeInstr::Mul => left * right,
                     NativeInstr::Div => {
