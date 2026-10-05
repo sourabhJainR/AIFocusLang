@@ -781,12 +781,17 @@ fn validate_semantics(stream: String) -> Bool
               if depth > 0
                 set depth = depth - 1
             else
-              if kind == "Let" or kind == "Set"
+              if kind == "Let"
                 let name_cursor = next_cursor(stream, cursor) + 1
                 if token_kind(token_at(stream, name_cursor)) != "Ident"
                   return false
               else
-                if kind == "Return"
+                if kind == "Set"
+                  let name_cursor = next_cursor(stream, cursor) + 1
+                  if token_kind(token_at(stream, name_cursor)) != "Ident"
+                    return false
+                else
+                  if kind == "Return"
                   if function_seen == false
                     return false
     set cursor = next_cursor(stream, cursor) + 1
