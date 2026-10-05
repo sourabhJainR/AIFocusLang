@@ -10,9 +10,10 @@ pub fn optimize(mut module: IrModule) -> IrModule {
 
 fn eliminate_dead_ops(ops: Vec<IrOp>) -> Vec<IrOp> {
     let mut out = Vec::with_capacity(ops.len());
-    for op in ops {
+    let last = ops.len().saturating_sub(1);
+    for (index, op) in ops.into_iter().enumerate() {
         let terminal = matches!(op, IrOp::Return(_));
-        if !terminal && is_pure_expr(&op) && !out.is_empty() {
+        if index != last && !terminal && is_pure_expr(&op) {
             continue;
         }
         out.push(op);
