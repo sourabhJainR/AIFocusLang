@@ -448,12 +448,7 @@ fn emit_op(kind: String) -> String
                       "GreaterEqual"
 
 fn clone_text(value: String) -> String
-  let result = ""
-  let index = 0
-  while index < len(value)
-    set result = result + chr(value[index])
-    set index = index + 1
-  result
+  value
 
 fn itoa(value: Int) -> String
   if value < 10
