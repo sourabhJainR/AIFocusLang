@@ -20,6 +20,7 @@ pub enum NativeInstr {
     Append(String),
     MakeOk,
     Chr,
+    Slice,
     MakeErr,
     Unwrap,
     Load(String),
@@ -418,6 +419,20 @@ pub fn run(
                 let byte = u8::try_from(value)
                     .map_err(|_| NativeError::Type("chr requires a byte in 0..=255".into()))?;
                 stack.push(NativeValue::String(char::from(byte).to_string()));
+            }
+            NativeInstr::Slice => {
+                let end = pop_int(&mut stack)?;
+                let start = pop_int(&mut stack)?;
+                let value = match stack.pop() {
+                    Some(NativeValue::String(value)) => value,
+                    _ => return Err(NativeError::Type("slice requires String, Int, Int".into())),
+                };
+                let start = usize::try_from(start).map_err(|_| NativeError::Type("negative slice start".into()))?;
+                let end = usize::try_from(end).map_err(|_| NativeError::Type("negative slice end".into()))?;
+                if start > end || end > value.len() {
+                    return Err(NativeError::Type("slice bounds out of range".into()));
+                }
+                stack.push(NativeValue::String(value[start..end].to_string()));
             }
             NativeInstr::MakeOk => {
                 let value = stack
@@ -1066,7 +1081,7 @@ fn encode_instr(instr: &NativeInstr) -> String {
         NativeInstr::PushList(v) => format!("PushList:{v}"),
         NativeInstr::Index => "Index".into(), NativeInstr::Len => "Len".into(),
         NativeInstr::Append(v) => format!("Append:{}", escape_artifact(v)),
-        NativeInstr::MakeOk => "MakeOk".into(), NativeInstr::Chr => "Chr".into(),
+        NativeInstr::MakeOk => "MakeOk".into(), NativeInstr::Chr => "Chr".into(), NativeInstr::Slice => "Slice".into(),
         NativeInstr::MakeErr => "MakeErr".into(), NativeInstr::Unwrap => "Unwrap".into(),
         NativeInstr::Load(v) => format!("Load:{}", escape_artifact(v)),
         NativeInstr::Store(v) => format!("Store:{}", escape_artifact(v)),
@@ -1098,7 +1113,7 @@ fn decode_instr(s: &str) -> Result<NativeInstr, NativeError> {
         "PushUnit"=>NativeInstr::PushUnit,"Index"=>NativeInstr::Index,"Len"=>NativeInstr::Len,
         "PushString"=>NativeInstr::PushString(unescape_artifact(arg)?),
         "PushList"=>NativeInstr::PushList(int(arg)?),"Append"=>NativeInstr::Append(unescape_artifact(arg)?),
-        "MakeOk"=>NativeInstr::MakeOk,"Chr"=>NativeInstr::Chr,"MakeErr"=>NativeInstr::MakeErr,"Unwrap"=>NativeInstr::Unwrap,
+        "MakeOk"=>NativeInstr::MakeOk,"Chr"=>NativeInstr::Chr,"Slice"=>NativeInstr::Slice,"MakeErr"=>NativeInstr::MakeErr,"Unwrap"=>NativeInstr::Unwrap,
         "Load"=>NativeInstr::Load(unescape_artifact(arg)?),"Store"=>NativeInstr::Store(unescape_artifact(arg)?),
         "StoreIndex"=>NativeInstr::StoreIndex(unescape_artifact(arg)?),"Add"=>NativeInstr::Add,"Sub"=>NativeInstr::Sub,
         "Mul"=>NativeInstr::Mul,"Div"=>NativeInstr::Div,"Mod"=>NativeInstr::Mod,"Equal"=>NativeInstr::Equal,
