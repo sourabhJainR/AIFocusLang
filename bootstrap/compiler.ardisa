@@ -486,7 +486,25 @@ fn parse_primary(stream: String, start: Int) -> String
                     if token_kind(comma) == "RParen"
                       set done = true
               let close = next_cursor(stream, cursor) + 1
-              itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+              if value == "len"
+                if argc == 1
+                  itoa(close) + "#" + code + "Len" + chr(10)
+                else
+                  itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+              else
+                if value == "chr"
+                  if argc == 1
+                    itoa(close) + "#" + code + "Chr" + chr(10)
+                  else
+                    itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                else
+                  if value == "slice"
+                    if argc == 3
+                      itoa(close) + "#" + code + "Slice" + chr(10)
+                    else
+                      itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                  else
+                    itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
             else
               if after_kind == "LBracket"
                 let cursor = next_cursor(stream, next) + 1
