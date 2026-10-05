@@ -146,7 +146,11 @@ fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, out
     };
     let program = match ardisa_core::native::decode_program(&output) {
         Ok(value) => value,
-        Err(error) => { eprintln!("{compiler_path}: error[AIF608]: compiler output is not ARDISA-EXEC-V1: {error:?}"); return ExitCode::from(1); }
+        Err(error) => {
+            let preview = output.chars().take(160).collect::<String>();
+            eprintln!("{compiler_path}: error[AIF608]: compiler output is not ARDISA-EXEC-V1: {error:?}; len={}; preview={preview:?}", output.len());
+            return ExitCode::from(1);
+        }
     };
     if !program.functions.contains_key("main") {
         eprintln!("{compiler_path}: error[AIF609]: compiler output has no main entry");
