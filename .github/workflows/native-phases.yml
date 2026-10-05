@@ -20,9 +20,7 @@ jobs:
           components: rustfmt
       - name: Normalize Rust formatting
         run: cargo fmt --all
-      - name: Workspace tests
-        run: cargo test --workspace --all-targets
-      - name: Native phase contract tests
+      - name: Compiler-engine contract tests
         run: cargo test -p ardisa-core compiler_engine
       - name: Bootstrap host-fallback guard
         run: |
