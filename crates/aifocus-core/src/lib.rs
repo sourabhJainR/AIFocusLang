@@ -4,7 +4,6 @@ pub mod ai;
 pub mod arena;
 pub mod ast;
 pub mod benchmark;
-pub mod bootstrap;
 pub mod compiler_engine;
 pub mod concurrency;
 pub mod diagnostic_memory;
