@@ -150,7 +150,7 @@ fn lower_stmt(
 
 fn lower_expr(
     expr:&Expr,
-    types:&BTreeMap<crate::NodeId, crate::ast::Type>,
+    types:&HashMap<crate::NodeId, crate::ast::Type>,
     locals:&BTreeMap<String,TypeKind>,
     errors:&mut Vec<String>
 )->Option<TypedValue>{
