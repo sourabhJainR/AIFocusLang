@@ -1,0 +1,35 @@
+module holdout
+
+fn contains(text: String, needle: String) -> Bool
+  let index = 0
+  let found = false
+  while index < len(text)
+    if found == false
+      let offset = 0
+      let same = true
+      while offset < len(needle)
+        if index + offset >= len(text)
+          set same = false
+        else
+          if text[index + offset] != needle[offset]
+            set same = false
+        set offset = offset + 1
+      if same
+        set found = true
+    set index = index + 1
+  found
+
+fn required_artifact_contract(text: String) -> String
+  if contains(text, "ARDISA-EXEC-V1")
+    if contains(text, "FN|")
+      if contains(text, "I|")
+        if contains(text, "END")
+          "Ok"
+        else
+          "Err:missing-end"
+      else
+        "Err:missing-instruction"
+    else
+      "Err:missing-function"
+  else
+    "Err:missing-magic"
