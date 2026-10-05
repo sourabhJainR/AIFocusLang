@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+mkdir -p bootstrap/evidence target
+
 ROOT="$(pwd)"
 COMPILER="$ROOT/bootstrap/compiler.ardisa"
 STAGE1="$ROOT/target/bootstrap-stage1.aexe"
@@ -23,4 +25,9 @@ cmp -s "$STAGE2" "$STAGE3" || {
 
 cargo run -q -p aifocus-cli -- bootstrap verify "$STAGE2"
 cargo run -q -p aifocus-cli -- bootstrap verify "$STAGE3"
+{
+  echo "stage2_stage3_byte_identical=true"
+  echo "stage2=$STAGE2"
+  echo "stage3=$STAGE3"
+} > bootstrap/evidence/self-hosting.txt
 echo "SELF-HOSTING-GATE: deterministic stage-2/stage-3 rebuild verified"
