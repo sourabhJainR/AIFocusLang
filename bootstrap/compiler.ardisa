@@ -446,7 +446,7 @@ fn parse_primary(stream: String, start: Int) -> String
   let token = token_at(stream, start)
   let kind = token_kind(token)
   let value = token_value(token)
-  let next = next_cursor(stream, start) + 1
+  let next = next_cursor(stream, start)
   if kind == "Int"
     itoa(next) + "#" + "PushInt:" + value + chr(10)
   else
@@ -463,7 +463,7 @@ fn parse_primary(stream: String, start: Int) -> String
             let after = token_at(stream, next)
             let after_kind = token_kind(after)
             if after_kind == "LParen"
-              let cursor = next_cursor(stream, next) + 1
+              let cursor = next_cursor(stream, next)
               let code = ""
               let argc = 0
               let done = false
@@ -481,7 +481,7 @@ fn parse_primary(stream: String, start: Int) -> String
                   set cursor = arg_cursor
                   let comma = token_at(stream, cursor)
                   if token_kind(comma) == "Comma"
-                    set cursor = next_cursor(stream, cursor) + 1
+                    set cursor = next_cursor(stream, cursor)
                   else
                     if token_kind(comma) == "RParen"
                       set done = true
@@ -507,7 +507,7 @@ fn parse_primary(stream: String, start: Int) -> String
                     itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
             else
               if after_kind == "LBracket"
-                let cursor = next_cursor(stream, next) + 1
+                let cursor = next_cursor(stream, next)
                 let parsed = parse_expr(stream, cursor, 0)
                 let split = find_hash(parsed)
                 let after_expr = parse_int(prefix(parsed, split))
@@ -541,7 +541,7 @@ fn parse_primary(stream: String, start: Int) -> String
                     set count = count + 1
                     let separator = token_at(stream, cursor)
                     if token_kind(separator) == "Comma"
-                      set cursor = next_cursor(stream, cursor) + 1
+                      set cursor = next_cursor(stream, cursor)
                     else
                       if token_kind(separator) == "RBracket"
                         set done = true
@@ -591,7 +591,7 @@ fn parse_expr(stream: String, start: Int, minimum: Int) -> String
     let kind = token_kind(token_at(stream, cursor))
     let precedence = op_precedence(kind)
     if precedence > minimum
-      let right = parse_expr(stream, next_cursor(stream, cursor) + 1, precedence)
+      let right = parse_expr(stream, next_cursor(stream, cursor), precedence)
       let right_split = find_hash(right)
       let right_cursor = parse_int(prefix(right, right_split))
       set code = code + suffix(right, right_split) + emit_op(kind) + chr(10)
@@ -605,7 +605,7 @@ fn line_end(stream: String, start: Int) -> Int
   while cursor < len(stream)
     if token_kind(token_at(stream, cursor)) == "Newline"
       return cursor
-    set cursor = next_cursor(stream, cursor) + 1
+    set cursor = next_cursor(stream, cursor)
   cursor
 
 fn parse_type(stream: String, start: Int) -> String
@@ -628,20 +628,20 @@ fn parse_params(stream: String, start: Int) -> String
     else
       if kind == "Ident"
         set result = result + token_value(token) + ","
-        set cursor = next_cursor(stream, cursor) + 1
+        set cursor = next_cursor(stream, cursor)
         if token_kind(token_at(stream, cursor)) == "Colon"
-          set cursor = next_cursor(stream, cursor) + 1
-        set cursor = next_cursor(stream, cursor) + 1
+          set cursor = next_cursor(stream, cursor)
+        set cursor = next_cursor(stream, cursor)
         if token_kind(token_at(stream, cursor)) == "Comma"
-          set cursor = next_cursor(stream, cursor) + 1
+          set cursor = next_cursor(stream, cursor)
       else
-        set cursor = next_cursor(stream, cursor) + 1
+        set cursor = next_cursor(stream, cursor)
   result
 
 fn compile_statement(stream: String, start: Int, label: Int) -> String
   let token = token_at(stream, start)
   let kind = token_kind(token)
-  let next = next_cursor(stream, start) + 1
+  let next = next_cursor(stream, start)
   let end = line_end(stream, start)
   if kind == "Let"
     let name = token_value(token_at(stream, next))
@@ -765,7 +765,7 @@ fn validate_semantics(stream: String) -> Bool
         if kind == "Fn"
           set function_seen = true
           set body_seen = false
-          let name_cursor = next_cursor(stream, cursor) + 1
+          let name_cursor = next_cursor(stream, cursor)
           let name_token = token_at(stream, name_cursor)
           if token_kind(name_token) != "Ident"
             set valid = false
@@ -788,19 +788,19 @@ fn validate_semantics(stream: String) -> Bool
                 set valid = false
             else
               if kind == "Let"
-                let name_cursor = next_cursor(stream, cursor) + 1
+                let name_cursor = next_cursor(stream, cursor)
                 if token_kind(token_at(stream, name_cursor)) != "Ident"
                   set valid = false
               else
                 if kind == "Set"
-                  let name_cursor = next_cursor(stream, cursor) + 1
+                  let name_cursor = next_cursor(stream, cursor)
                   if token_kind(token_at(stream, name_cursor)) != "Ident"
                     set valid = false
                 else
                   if kind == "Return"
                     if function_seen == false
                       set valid = false
-    set cursor = next_cursor(stream, cursor) + 1
+    set cursor = next_cursor(stream, cursor)
   if function_seen == false
     set valid = false
   else
@@ -831,10 +831,10 @@ fn compile_native(source: String) -> String
       if in_function == true
         set code = code + "Return" + chr(10)
         set result = result + encode_function(function_name, params, code)
-      let name_cursor = next_cursor(tokens, cursor) + 1
+      let name_cursor = next_cursor(tokens, cursor)
       let name_token = token_at(tokens, name_cursor)
       set function_name = token_value(name_token)
-      let paren_cursor = next_cursor(tokens, name_cursor) + 1
+      let paren_cursor = next_cursor(tokens, name_cursor)
       set params = parse_params(tokens, paren_cursor)
       set cursor = line_end(tokens, cursor)
       set block_stack = ""
@@ -886,7 +886,7 @@ fn compile_native(source: String) -> String
                         set labels = labels + 1
                       else
                         set code = code + compile_statement(tokens, cursor, labels)
-    set cursor = next_cursor(tokens, cursor) + 1
+    set cursor = next_cursor(tokens, cursor)
   if in_function == true
     set code = code + "Return" + chr(10)
     set result = result + encode_function(function_name, params, code)
