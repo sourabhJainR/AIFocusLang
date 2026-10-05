@@ -22,6 +22,7 @@ pub mod module_graph;
 pub mod native;
 pub mod ownership;
 pub mod optimizer;
+pub mod pipeline;
 pub mod typed_ir;
 pub mod protocol;
 pub mod sema;
@@ -47,6 +48,7 @@ pub use interop::{
 };
 pub use ir::{IrFunction, IrModule, IrOp, IrValue};
 pub use optimizer::optimize;
+pub use pipeline::{compile_source, CompiledArtifact, PipelineError, PipelineEvidence, PipelineTiming};
 pub use typed_ir::{TypedBasicBlock, TypedIrFunction, TypedIrModule, TypedIrOp, TypedTerminator, TypedValue, TypedValueKind};
 pub use learning::{
     LearningEntry, LearningKey, LearningProvenance, LearningStatus, PersistentCompilerLearning,
