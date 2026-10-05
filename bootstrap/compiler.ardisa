@@ -485,7 +485,7 @@ fn parse_primary(stream: String, start: Int) -> String
                   else
                     if token_kind(comma) == "RParen"
                       set done = true
-              let close = next_cursor(stream, cursor) + 1
+              let close = next_cursor(stream, cursor)
               if value == "len"
                 if argc == 1
                   itoa(close) + "#" + code + "Len" + chr(10)
@@ -545,7 +545,7 @@ fn parse_primary(stream: String, start: Int) -> String
                     else
                       if token_kind(separator) == "RBracket"
                         set done = true
-                itoa(next_cursor(stream, cursor) + 1) + "#" + code + "PushList:" + itoa(count) + chr(10)
+                itoa(next_cursor(stream, cursor)) + "#" + code + "PushList:" + itoa(count) + chr(10)
               else
                 itoa(next) + "#PushUnit" + chr(10)
 
@@ -645,7 +645,7 @@ fn compile_statement(stream: String, start: Int, label: Int) -> String
   let end = line_end(stream, start)
   if kind == "Let"
     let name = token_value(token_at(stream, next))
-    let value_start = next_cursor(stream, next_cursor(stream, next) + 1) + 1
+    let value_start = next_cursor(stream, next_cursor(stream, next))
     let parsed = parse_expr(stream, value_start, 0)
     let split = find_hash(parsed)
     suffix(parsed, split) + "Store:" + name + chr(10)
