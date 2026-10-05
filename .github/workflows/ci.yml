@@ -6,43 +6,42 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: read
-
 concurrency:
-  group: ardisa-ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Rust compiler, runtime, and tests
+  verify:
+    name: Ardisa compile, tests, and native bootstrap
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> target
-      - name: Validate Rust formatting
-        run: |
-          cargo fmt --all -- --check
-      - run: cargo check --workspace --all-targets
-      - run: cargo test --workspace --all-targets
 
-  bootstrap:
-    name: Bootstrap probe stage-2/stage-3 reproducibility gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             . -> target
-      - run: chmod +x bootstrap/verify_self_hosting.sh
-      - run: ./bootstrap/verify_self_hosting.sh
+
+      - name: Validate formatting
+        run: cargo fmt --all -- --check
+
+      - name: Compile and test
+        run: cargo test --workspace --all-targets
+
+      - name: Rebuild deterministic Stage 0 seed
+        run: |
+          cargo run -q --release -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/evidence-stage0.aexe
+          grep -q '^ARDISA-EXEC-V1$' bootstrap/evidence-stage0.aexe
+          test -s bootstrap/evidence-stage0.aexe
+          cmp -s bootstrap/evidence-stage0.aexe bootstrap/stage0.aexe
+
+      - name: Verify native Stage 0 -> Stage 3 fixed point
+        run: |
+          chmod +x bootstrap/verify_self_hosting.sh
+          ./bootstrap/verify_self_hosting.sh
+
       - name: Upload bootstrap evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,28 +49,3 @@ jobs:
           name: ardisa-bootstrap-evidence
           path: bootstrap/evidence/
           if-no-files-found: ignore
-
-  generated:
-    name: Generated differential and holdout corpus
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> target
-      - run: cargo test -p ardisa-core fuzz --all-targets -- --nocapture
-      - run: cargo test -p ardisa-core differential --all-targets -- --nocapture
-      - run: cargo test -p ardisa-core benchmark --all-targets -- --nocapture
-
-  self-hosting-status:
-    name: Self-hosting evidence contract (fail-closed)
-    runs-on: ubuntu-latest
-    needs: [bootstrap, generated]
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          test -f bootstrap/compiler.ardisa
-          grep -q 'ARDISA-EXEC-V1' bootstrap/native_codegen.ardisa
-          echo "Bootstrap source and native artifact contract present; compiler self-hosting remains fail-closed."
