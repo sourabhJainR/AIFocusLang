@@ -40,7 +40,7 @@ jobs:
       - name: Validate regenerated native Stage 0 seed
         run: |
           test -s bootstrap/stage0.aexe
-          grep -q '^ARDISA-EXEC-V1
+          grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
 
       - name: Enforce native compiler target contract
         run: |
@@ -95,43 +95,3 @@ jobs:
             git commit -m "build: regenerate trusted native Stage 0"
             git push origin HEAD:${{ github.head_ref || github.ref_name }}
           fi
- bootstrap/stage0.aexe
-
-      - name: Enforce native compiler target contract
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path("bootstrap/compiler.ardisa").read_text()
-          forbidden = ("fn backend(", "symbolic", "FN\\p")
-          hits = [item for item in forbidden if item in text]
-          if hits:
-              raise SystemExit("compiler-specific pseudo-IR remains: " + ", ".join(hits))
-          PY
-
-      - name: Host compiler exclusion guard
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path("crates/aifocus-cli/src/main.rs").read_text()
-          start = text.index("fn bootstrap_compile(")
-          end = text.index("fn bootstrap_run(")
-          section = text[start:end]
-          forbidden = (
-              "ardisa_core::parse",
-              "ardisa_core::sema::check",
-              "ardisa_core::ownership::infer",
-              "ardisa_core::ir::lower",
-              "ardisa_core::native::compile_program",
-          )
-          hits = [item for item in forbidden if item in section]
-          if hits:
-              raise SystemExit("Rust Stage-0 construction path detected: " + ", ".join(hits))
-          PY
-
-      - name: Upload bootstrap evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ardisa-bootstrap-evidence
-          path: bootstrap/evidence/
-          if-no-files-found: ignore
