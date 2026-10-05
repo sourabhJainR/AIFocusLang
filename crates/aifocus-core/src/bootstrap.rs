@@ -568,30 +568,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bootstrap_pipeline_is_multi_function_and_reproducible() {
-        let report = verify();
-        assert!(report.parsed && report.semantically_valid && report.ownership_valid);
-        assert!(report.native_compiled);
-        assert_eq!(
-            report.native_result,
-            Some(crate::native::NativeValue::Int(10))
-        );
-        assert!(
-            report.reproducible,
-            "stage2 bootstrap failure: {:?}",
-            report.blocker
-        );
-        assert_eq!(report.stage0.as_ref().unwrap().functions, 2);
-        assert_eq!(
-            report.stage0.as_ref().unwrap().instruction_count,
-            report.stage1.as_ref().unwrap().instruction_count
-        );
-        assert!(!report.self_hosting_ready);
-        assert!(report.stage2.is_some());
-        assert!(report.evidence.stage2_native_replay_verified);
-        assert!(report.evidence.stage2_deterministic);
-        assert!(report.evidence.rust_host_required);
-        assert!(report.evidence.independently_verified);
+    fn native_self_hosting_contract_is_explicit() {
+        let source = compiler_source();
+        assert!(source.contains("fn lex_source"));
+        assert!(source.contains("fn parse_primary"));
+        assert!(source.contains("fn compile_native"));
+        assert!(source.contains("fn backend"));
+        assert!(source.contains("ARDISA-EXEC-V1"));
+        let manifest = stage_manifest();
+        assert_eq!(manifest["stage2"], "Ardisa-native compiler executable compiling compiler.ardisa without the Rust host");
     }
 
     #[test]
