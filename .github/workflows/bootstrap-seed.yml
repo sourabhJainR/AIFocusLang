@@ -3,9 +3,8 @@ name: Ardisa Bootstrap Seed
 # The one-time root seed is generated from bootstrap/compiler.ardisa; runtime bootstrap never calls the host compiler.
 
 on:
-  push:
-    branches:
-      - feature/native-self-hosting
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
@@ -16,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: feature/native-self-hosting
+          ref: ${{ github.event.pull_request.head.ref }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -34,5 +33,5 @@ jobs:
             echo "Stage 0 seed already current"
           else
             git commit -m "build: add native Stage 0 bootstrap seed"
-            git push origin HEAD:feature/native-self-hosting
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
           fi
