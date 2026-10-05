@@ -1,0 +1,6 @@
+module corpus_conditional
+fn main(a: Int) -> Int
+  if a == 0
+    return 1
+  else
+    return 2
