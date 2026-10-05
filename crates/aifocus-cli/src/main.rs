@@ -35,13 +35,6 @@ fn main() -> ExitCode {
             }
         },
         Some("bootstrap") => match args.next().as_deref() {
-            Some("seed") => match (args.next(), args.next()) {
-                (Some(source), Some(output)) => bootstrap_seed(&source, &output),
-                _ => {
-                    eprintln!("error: bootstrap seed requires source and output");
-                    ExitCode::from(2)
-                }
-            },
             Some("compile") => match (args.next(), args.next()) {
                 (Some(source), Some(output)) => bootstrap_compile(&source, &output),
                 _ => {
