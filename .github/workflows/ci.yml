@@ -23,6 +23,7 @@ jobs:
             . -> target
 
       # Formatting is enforced on every native-bootstrap change.
+      # Native bootstrap remains a required gate.
       - name: Validate formatting
         run: cargo fmt --all -- --check
 
