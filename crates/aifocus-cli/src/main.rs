@@ -89,6 +89,7 @@ fn main() -> ExitCode {
     }
 }
 
+#[rustfmt::skip]
 fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, output_path: &str) -> ExitCode {
     require_ardisa_extension(source_path);
     let compiler_artifact = match fs::read_to_string(compiler_path) {
@@ -127,6 +128,7 @@ fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, out
     }
 }
 
+#[rustfmt::skip]
 fn bootstrap_verify(path: &str) -> ExitCode {
     let artifact = match fs::read_to_string(path) {
         Ok(value) => value,
@@ -139,12 +141,14 @@ fn bootstrap_verify(path: &str) -> ExitCode {
     }
 }
 
+#[rustfmt::skip]
 fn bootstrap_compile(path: &str, output: &str) -> ExitCode {
     require_ardisa_extension(path);
     let seed = "bootstrap/stage0.aexe";
     bootstrap_compile_from_executable(seed, path, output)
 }
 
+#[rustfmt::skip]
 fn bootstrap_chain(source_path: &str, evidence_dir: &str) -> ExitCode {
     require_ardisa_extension(source_path);
     let seed = "bootstrap/stage0.aexe";
@@ -196,12 +200,14 @@ fn bootstrap_chain(source_path: &str, evidence_dir: &str) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+#[rustfmt::skip]
 fn fnv1a(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     for byte in bytes { hash ^= u64::from(*byte); hash = hash.wrapping_mul(0x100000001b3); }
     hash
 }
 
+#[rustfmt::skip]
 fn bootstrap_run(path: &str, raw_args: Vec<String>) -> ExitCode {
     let artifact = match fs::read_to_string(path) {
         Ok(value) => value,
