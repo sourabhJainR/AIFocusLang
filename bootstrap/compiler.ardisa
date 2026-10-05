@@ -685,6 +685,14 @@ fn emit_op(kind: String) -> String
                     else
                       "GreaterEqual"
 
+fn clone_text(value: String) -> String
+  let result = ""
+  let index = 0
+  while index < len(value)
+    set result = result + chr(value[index])
+    set index = index + 1
+  result
+
 fn itoa(value: Int) -> String
   if value < 10
     chr(48 + value)
@@ -972,7 +980,7 @@ fn compile_native(source: String) -> String
     if kind == "Fn"
       if in_function == true
         set code = code + "Return" + chr(10)
-        set program = program + "FN|" + function_name + "|" + itoa(count_params(params)) + "|" + params + chr(10) + code + "END" + chr(10)
+        set program = program + "FN|" + function_name + "|" + itoa(count_params(params)) + "|" + params + chr(10) + clone_text(code) + "END" + chr(10)
       let name_cursor = next_cursor(tokens, cursor) + 1
       let name_token = token_at(tokens, name_cursor)
       set function_name = token_value(name_token)
