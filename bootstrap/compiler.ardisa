@@ -225,7 +225,7 @@ fn lex_source(source: String) -> String
                           else
                             set output = output + token("Less", "<")
                             set index = index + 1
-                      else
+                        else
                         if c == 62
                           if index + 1 < len(source)
                             if source[index + 1] == 61
@@ -308,7 +308,7 @@ fn token_value(token: String) -> String
     if seen == false
       if token[index] == 61
         set seen = true
-    else
+      else
       if token[index] == 124
         set index = len(token)
       else
@@ -389,7 +389,7 @@ fn parse_tokens(stream: String) -> String
               set result = result + " (Body"
               set in_body = true
             set body_depth = body_depth + 1
-        else
+          else
           if kind == "Dedent"
             if in_body == true
               if body_depth > 1
@@ -401,7 +401,7 @@ fn parse_tokens(stream: String) -> String
                 if in_function == true
                   set result = result + ")"
                   set in_function = false
-          else
+                else
             if kind == "Newline"
               set result = result
             else
