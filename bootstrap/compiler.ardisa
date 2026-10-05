@@ -586,16 +586,464 @@ fn lower_ir(ast: String) -> String
           set result = result + op(classify(atom), atom) + ","
   result + "]"
 
-fn compile(source: String) -> String
-  let tokens = lex_source(source)
-  let parsed = parse_tokens(tokens)
-  let ast = build_ast(parsed)
-  let semantic = check_ast(ast)
-  if semantic == "Ok"
-    let ir = lower_ir(ast)
-    optimize_ir(ir)
+
+fn find_delimiter(stream: String, start: Int) -> Int
+  let index = start
+  while index < len(stream)
+    if stream[index] == 124
+      return index
+    set index = index + 1
+  len(stream)
+
+fn field(stream: String, start: Int, which: Int) -> String
+  let index = start
+  let part = 0
+  let result = ""
+  let active = false
+  while index < len(stream)
+    let c = stream[index]
+    if c == 124
+      if part == which
+        return result
+      set part = part + 1
+      set result = ""
+    else
+      if part == which
+        set result = result + chr(c)
+    set index = index + 1
+  result
+
+fn token_end(stream: String, start: Int) -> Int
+  find_delimiter(stream, start)
+
+fn op_precedence(kind: String) -> Int
+  if kind == "EqualEqual"
+    1
   else
-    "ERROR:" + semantic
+    if kind == "NotEqual"
+      1
+    else
+      if kind == "Less"
+        1
+      else
+        if kind == "LessEqual"
+          1
+        else
+          if kind == "Greater"
+            1
+          else
+            if kind == "GreaterEqual"
+              1
+            else
+              if kind == "Plus"
+                2
+              else
+                if kind == "Minus"
+                  2
+                else
+                  if kind == "Star"
+                    3
+                  else
+                    if kind == "Slash"
+                      3
+                    else
+                      if kind == "Percent"
+                        3
+                      else
+                        0
+
+fn emit_op(kind: String) -> String
+  if kind == "Plus"
+    "Add"
+  else
+    if kind == "Minus"
+      "Sub"
+    else
+      if kind == "Star"
+        "Mul"
+      else
+        if kind == "Slash"
+          "Div"
+        else
+          if kind == "Percent"
+            "Mod"
+          else
+            if kind == "EqualEqual"
+              "Equal"
+            else
+              if kind == "NotEqual"
+                "NotEqual"
+              else
+                if kind == "Less"
+                  "Less"
+                else
+                  if kind == "LessEqual"
+                    "LessEqual"
+                  else
+                    if kind == "Greater"
+                      "Greater"
+                    else
+                      "GreaterEqual"
+
+fn parse_primary(stream: String, start: Int) -> String
+  let token = token_at(stream, start)
+  let kind = token_kind(token)
+  let value = token_value(token)
+  let next = next_cursor(stream, start) + 1
+  if kind == "Int"
+    next + "#" + "PushInt:" + value + chr(10)
+  else
+    if kind == "True"
+      next + "#PushBool:true" + chr(10)
+    else
+      if kind == "False"
+        next + "#PushBool:false" + chr(10)
+      else
+        if kind == "String"
+          next + "#PushString:" + value + chr(10)
+        else
+          if kind == "Ident"
+            let after = token_at(stream, next)
+            let after_kind = token_kind(after)
+            if after_kind == "LParen"
+              let cursor = next_cursor(stream, next) + 1
+              let code = ""
+              let argc = 0
+              let done = false
+              while done == false
+                let arg = token_at(stream, cursor)
+                let arg_kind = token_kind(arg)
+                if arg_kind == "RParen"
+                  set done = true
+                else
+                  let parsed = parse_expr(stream, cursor, 0)
+                  let split = find_hash(parsed)
+                  let arg_cursor = parse_int(prefix(parsed, split))
+                  set code = code + suffix(parsed, split) 
+                  set argc = argc + 1
+                  set cursor = arg_cursor
+                  let comma = token_at(stream, cursor)
+                  if token_kind(comma) == "Comma"
+                    set cursor = next_cursor(stream, cursor) + 1
+                  else
+                    if token_kind(comma) == "RParen"
+                      set done = true
+              let close = next_cursor(stream, cursor) + 1
+              close + "#" + code + "Call:" + value + "," + argc + chr(10)
+            else
+              if after_kind == "LBracket"
+                let cursor = next_cursor(stream, next) + 1
+                let parsed = parse_expr(stream, cursor, 0)
+                let split = find_hash(parsed)
+                let after_expr = parse_int(prefix(parsed, split))
+                let code = suffix(parsed, split)
+                let close = next_cursor(stream, after_expr)
+                close + 1 + "#" + "Load:" + value + chr(10) + code + "Index" + chr(10)
+              else
+                next + "#Load:" + value + chr(10)
+          else
+            if kind == "LParen"
+              let parsed = parse_expr(stream, next, 0)
+              let split = find_hash(parsed)
+              let after_expr = parse_int(prefix(parsed, split))
+              let close = next_cursor(stream, after_expr)
+              close + 1 + "#" + suffix(parsed, split)
+            else
+              if kind == "LBracket"
+                let cursor = next
+                let code = ""
+                let count = 0
+                let done = false
+                while done == false
+                  let item = token_at(stream, cursor)
+                  if token_kind(item) == "RBracket"
+                    set done = true
+                  else
+                    let parsed = parse_expr(stream, cursor, 0)
+                    let split = find_hash(parsed)
+                    set cursor = parse_int(prefix(parsed, split))
+                    set code = code + suffix(parsed, split)
+                    set count = count + 1
+                    let separator = token_at(stream, cursor)
+                    if token_kind(separator) == "Comma"
+                      set cursor = next_cursor(stream, cursor) + 1
+                    else
+                      if token_kind(separator) == "RBracket"
+                        set done = true
+                next_cursor(stream, cursor) + 1 + "#" + code + "PushList:" + count + chr(10)
+              else
+                next + "#PushUnit" + chr(10)
+
+fn find_hash(value: String) -> Int
+  let index = 0
+  while index < len(value)
+    if value[index] == 35
+      return index
+    set index = index + 1
+  len(value)
+
+fn prefix(value: String, end: Int) -> String
+  let result = ""
+  let index = 0
+  while index < end
+    set result = result + chr(value[index])
+    set index = index + 1
+  result
+
+fn suffix(value: String, start: Int) -> String
+  let result = ""
+  let index = start + 1
+  while index < len(value)
+    set result = result + chr(value[index])
+    set index = index + 1
+  result
+
+fn parse_int(value: String) -> Int
+  let result = 0
+  let index = 0
+  while index < len(value)
+    set result = result * 10 + (value[index] - 48)
+    set index = index + 1
+  result
+
+fn parse_expr(stream: String, start: Int, minimum: Int) -> String
+  let parsed = parse_primary(stream, start)
+  let split = find_hash(parsed)
+  let cursor = parse_int(prefix(parsed, split))
+  let code = suffix(parsed, split)
+  let next = cursor
+  let kind = token_kind(token_at(stream, next))
+  let precedence = op_precedence(kind)
+  if precedence > minimum
+    let right = parse_expr(stream, next_cursor(stream, next) + 1, precedence)
+    let right_split = find_hash(right)
+    let right_cursor = parse_int(prefix(right, right_split))
+    set code = code + suffix(right, right_split) + emit_op(kind) + chr(10)
+    set cursor = right_cursor
+  cursor + "#" + code
+
+fn line_end(stream: String, start: Int) -> Int
+  let cursor = start
+  while cursor < len(stream)
+    if token_kind(token_at(stream, cursor)) == "Newline"
+      return cursor
+    set cursor = next_cursor(stream, cursor) + 1
+  cursor
+
+fn parse_type(stream: String, start: Int) -> String
+  let token = token_at(stream, start)
+  let kind = token_kind(token)
+  if kind == "Ident"
+    token_value(token)
+  else
+    "()"
+
+fn parse_params(stream: String, start: Int) -> String
+  let cursor = start
+  let result = ""
+  let done = false
+  while done == false
+    let token = token_at(stream, cursor)
+    let kind = token_kind(token)
+    if kind == "RParen"
+      set done = true
+    else
+      if kind == "Ident"
+        set result = result + token_value(token) + ","
+        set cursor = next_cursor(stream, cursor) + 1
+        if token_kind(token_at(stream, cursor)) == "Colon"
+          set cursor = next_cursor(stream, cursor) + 1
+        set cursor = next_cursor(stream, cursor) + 1
+        if token_kind(token_at(stream, cursor)) == "Comma"
+          set cursor = next_cursor(stream, cursor) + 1
+      else
+        set cursor = next_cursor(stream, cursor) + 1
+  result
+
+fn compile_statement(stream: String, start: Int, label: Int) -> String
+  let token = token_at(stream, start)
+  let kind = token_kind(token)
+  let next = next_cursor(stream, start) + 1
+  let end = line_end(stream, start)
+  if kind == "Let"
+    let name = token_value(token_at(stream, next))
+    let value_start = next_cursor(stream, next_cursor(stream, next) + 1) + 1
+    let parsed = parse_expr(stream, value_start, 0)
+    let split = find_hash(parsed)
+    suffix(parsed, split) + "Store:" + name + chr(10)
+  else
+    if kind == "Set"
+      let name = token_value(token_at(stream, next))
+      let value_start = next_cursor(stream, next_cursor(stream, next) + 1) + 1
+      let parsed = parse_expr(stream, value_start, 0)
+      let split = find_hash(parsed)
+      suffix(parsed, split) + "Store:" + name + chr(10)
+    else
+      if kind == "Return"
+        if token_kind(token_at(stream, next)) == "Newline"
+          "PushUnit" + chr(10) + "Return" + chr(10)
+        else
+          let parsed = parse_expr(stream, next, 0)
+          let split = find_hash(parsed)
+          suffix(parsed, split) + "Return" + chr(10)
+      else
+        if kind == "If"
+          let parsed = parse_expr(stream, next, 0)
+          let split = find_hash(parsed)
+          suffix(parsed, split) + "JumpIfFalse:$L" + label + chr(10)
+        else
+          if kind == "While"
+            let parsed = parse_expr(stream, next, 0)
+            let split = find_hash(parsed)
+            "LABEL:$W" + label + chr(10) + suffix(parsed, split) + "JumpIfFalse:$E" + label + chr(10)
+          else
+            if kind == "Expr"
+              let parsed = parse_expr(stream, start, 0)
+              let split = find_hash(parsed)
+              suffix(parsed, split) + "Pop" + chr(10)
+            else
+              let parsed = parse_expr(stream, start, 0)
+              let split = find_hash(parsed)
+              suffix(parsed, split) + "Pop" + chr(10)
+
+fn compile_native(source: String) -> String
+  let tokens = lex_source(source)
+  let cursor = 0
+  let program = ""
+  let function_name = ""
+  let params = ""
+  let code = ""
+  let labels = 0
+  let in_function = false
+  let block_stack = ""
+  let block_depth = 0
+  while cursor < len(tokens)
+    let token = token_at(tokens, cursor)
+    let kind = token_kind(token)
+    if kind == "Fn"
+      if in_function == true
+        set code = code + "Return" + chr(10)
+        set program = program + "FN|" + function_name + "|" + count_params(params) + "|" + params + chr(10) + code + "END" + chr(10)
+      let name_token = token_at(tokens, next_cursor(tokens, cursor) + 1)
+      set function_name = token_value(name_token)
+      set params = ""
+      set code = ""
+      set in_function = true
+      set block_stack = ""
+      set block_depth = 0
+    else
+      if in_function == true
+        if kind == "Indent"
+          set block_depth = block_depth + 1
+        else
+          if kind == "Dedent"
+            if block_depth > 0
+              set block_depth = block_depth - 1
+              if len(block_stack) > 0
+                let last = block_stack[len(block_stack) - 1]
+                if last == 73
+                  set code = code + "LABEL:$L" + labels + chr(10)
+                  set block_stack = ""
+                else
+                  if last == 87
+                    set code = code + "Jump:$W" + labels + chr(10) + "LABEL:$E" + labels + chr(10)
+                    set block_stack = ""
+            else
+              if kind != "Newline" and kind != "Module" and kind != "Eof"
+                let statement = compile_statement(tokens, cursor, labels)
+                set code = code + statement
+    set cursor = next_cursor(tokens, cursor) + 1
+  if in_function == true
+    set code = code + "Return" + chr(10)
+    set program = program + "FN|" + function_name + "|" + count_params(params) + "|" + params + chr(10) + code + "END" + chr(10)
+  backend(program)
+
+fn count_params(params: String) -> Int
+  let count = 0
+  let index = 0
+  while index < len(params)
+    if params[index] == 44
+      set count = count + 1
+    set index = index + 1
+  count
+
+fn backend(symbolic: String) -> String
+  let result = "ARDISA-EXEC-V1" + chr(10)
+  let cursor = 0
+  let current = ""
+  let code = ""
+  let params = ""
+  let name = ""
+  while cursor < len(symbolic)
+    let line = line_at(symbolic, cursor)
+    if line[0] == 70
+      if len(name) > 0
+        set result = result + encode_function(name, params, code)
+      let first = find_char(line, 124, 0)
+      let second = find_char(line, 124, first + 1)
+      let third = find_char(line, 124, second + 1)
+      set name = slice(line, first + 1, second)
+      set params = slice(line, third + 1, len(line))
+      set code = ""
+    else
+      if line == "END"
+        set result = result + encode_function(name, params, code)
+        set name = ""
+        set params = ""
+        set code = ""
+      else
+        set code = code + line + chr(10)
+    set cursor = next_line(symbolic, cursor)
+  result
+
+fn line_at(stream: String, start: Int) -> String
+  let end = start
+  while end < len(stream)
+    if stream[end] == 10
+      return slice(stream, start, end)
+    set end = end + 1
+  slice(stream, start, end)
+
+fn next_line(stream: String, start: Int) -> Int
+  let end = start
+  while end < len(stream)
+    if stream[end] == 10
+      return end + 1
+    set end = end + 1
+  end
+
+fn find_char(text: String, needle: Int, start: Int) -> Int
+  let index = start
+  while index < len(text)
+    if text[index] == needle
+      return index
+    set index = index + 1
+  len(text)
+
+fn slice(text: String, start: Int, end: Int) -> String
+  let result = ""
+  let index = start
+  while index < end
+    set result = result + chr(text[index])
+    set index = index + 1
+  result
+
+fn encode_instr(line: String) -> String
+  "I|" + line + chr(10)
+
+fn encode_function(name: String, params: String, code: String) -> String
+  let result = "FN|" + name + "|" + count_params(params) + "|" + params + chr(10)
+  let cursor = 0
+  while cursor < len(code)
+    let line = line_at(code, cursor)
+    if len(line) > 0
+      if line[0] != 64
+        set result = result + encode_instr(line)
+    set cursor = next_line(code, cursor)
+  result + "END" + chr(10)
+
+fn compile(source: String) -> String
+  compile_native(source)
 
 fn main(source: String) -> String
-  compile(source)
+  compile_native(source)
