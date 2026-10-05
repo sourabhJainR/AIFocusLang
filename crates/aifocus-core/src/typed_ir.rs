@@ -354,7 +354,7 @@ fn optimize_value(value: &mut TypedValue) {
                 };
                 if let Some(kind) = folded {
                     value.kind = kind;
-                    value.ty = match value.kind {
+                    value.ty = match &value.kind {
                         TypedValueKind::Bool(_) => TypeKind::Bool,
                         _ => TypeKind::Int,
                     };
