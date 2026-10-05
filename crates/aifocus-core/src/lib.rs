@@ -6,6 +6,7 @@ pub mod ast;
 pub mod benchmark;
 pub mod bootstrap;
 pub mod concurrency;
+pub mod compiler_engine;
 pub mod diagnostic_memory;
 pub mod differential;
 pub mod edit;
@@ -34,6 +35,7 @@ pub use ai::{
     Tensor, TraceBuffer, TraceEvent, TraceLevel,
 };
 pub use arena::{Arena, ArenaId, RecordField, RecordSchema, RecordValue};
+pub use compiler_engine::{AstArena,BackendReport,CompilerEvidence,SafetyGraph,SymbolTables,TokenArena};
 pub use concurrency::{
     CancellationToken, ScopeEvent, ScopeReport, StructuredScope, TaskHandle, TaskSpec, TaskTerminal,
 };
