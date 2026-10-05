@@ -3391,7 +3391,7 @@ I|PushInt:0
 I|Less
 I|JumpIfFalse:6
 I|PushString:
-I|Jump:35
+I|Jump:33
 I|Load:start
 I|PushInt:97
 I|Mul
@@ -3400,9 +3400,9 @@ I|Load:begin
 I|Load:stream
 I|Len
 I|GreaterEqual
-I|JumpIfFalse:23
+I|JumpIfFalse:17
 I|PushString:
-I|Jump:35
+I|Jump:33
 I|Load:begin
 I|PushInt:97
 I|Add
@@ -3411,7 +3411,7 @@ I|Load:end
 I|Load:stream
 I|Len
 I|Greater
-I|JumpIfFalse:30
+I|JumpIfFalse:29
 I|Load:stream
 I|Len
 I|Store:end
