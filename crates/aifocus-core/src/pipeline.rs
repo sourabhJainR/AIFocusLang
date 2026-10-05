@@ -47,7 +47,7 @@ pub fn compile_source(source: &str) -> Result<CompiledArtifact, PipelineError> {
     let semantic = sema::analyze(&module).map_err(PipelineError::Semantic)?;
     phase_order.push("semantic_type");
 
-    let ownership_model = ownership::infer(&module).map_err(PipelineError::Ownership)?;
+    let ownership_model = ownership::analyze(&module).map_err(PipelineError::Ownership)?;
     phase_order.push("ownership");
 
     concurrency::analyze_with_diagnostics(&module).map_err(PipelineError::Concurrency)?;
