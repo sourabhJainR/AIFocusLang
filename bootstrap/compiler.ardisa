@@ -813,7 +813,7 @@ fn validate_semantics(stream: String) -> Bool
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
   if validate_semantics(tokens) == false
-    return ""
+    return "ARDISA-COMPILER-ERROR:semantic-validation"
 
   let cursor = 0
   let result = "ARDISA-EXEC-V1" + chr(10)
