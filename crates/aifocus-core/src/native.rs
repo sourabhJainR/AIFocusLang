@@ -381,9 +381,9 @@ pub fn run(
                     NativeValue::String(value) => {
                         let byte = value.as_bytes().get(index).copied().ok_or_else(|| {
                             NativeError::Type(format!(
-                            "string index out of bounds: {index} >= {}",
-                            value.len()
-                        ))
+                                "string index out of bounds: {index} >= {}",
+                                value.len()
+                            ))
                         })?;
                         stack.push(NativeValue::Int(i64::from(byte)));
                     }
