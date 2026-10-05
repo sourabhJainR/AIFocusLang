@@ -20,7 +20,7 @@ jobs:
           toolchain: stable
       - name: Build native Stage 0 seed from compiler.ardisa
         run: |
-          cargo run -q -p ardisa -- bootstrap compile bootstrap/compiler.ardisa bootstrap/stage0.aexe
+          cargo run -q -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/stage0.aexe
           grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
           test -s bootstrap/stage0.aexe
       - name: Commit deterministic Stage 0 seed
