@@ -1,0 +1,34 @@
+name: One-time Ardisa Stage 0 seed regeneration
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Regenerate deterministic Stage 0 from compiler source
+        run: |
+          source="$(cat bootstrap/compiler.ardisa)"
+          cargo run -q --release -p ardisa -- run bootstrap/compiler.ardisa "$source" > bootstrap/stage0.aexe
+          grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
+          test -s bootstrap/stage0.aexe
+      - name: Commit seed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bootstrap/stage0.aexe
+          if git diff --cached --quiet; then
+            echo "seed unchanged"
+          else
+            git commit -m "build: regenerate native Stage 0 seed"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
