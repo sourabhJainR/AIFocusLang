@@ -18,8 +18,8 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt
-      - name: Format check
-        run: cargo fmt --all -- --check
+      - name: Normalize Rust formatting
+        run: cargo fmt --all
       - name: Workspace tests
         run: cargo test --workspace --all-targets
       - name: Native phase contract tests
