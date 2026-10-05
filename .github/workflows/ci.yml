@@ -34,6 +34,8 @@ jobs:
         run: |
           cargo run -q --release -p ardisa -- bootstrap seed bootstrap/compiler.ardisa bootstrap/evidence-stage0.aexe
           grep -q '^ARDISA-EXEC-V1
+
+      - name: Verify native Stage 0 -> Stage 3 fixed point
         run: |
           chmod +x bootstrap/verify_self_hosting.sh
           ./bootstrap/verify_self_hosting.sh
