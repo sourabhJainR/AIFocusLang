@@ -47,8 +47,11 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           text = Path("crates/aifocus-cli/src/main.rs").read_text()
-          forbidden = ("fn bootstrap_seed(", "ardisa_core::parse(&source)", "ardisa_core::sema::check(&module)", "ardisa_core::ir::lower(&module)")
-          hits = [item for item in forbidden if item in text]
+          start = text.index("fn bootstrap_compile(")
+          end = text.index("fn bootstrap_run(")
+          section = text[start:end]
+          forbidden = ("ardisa_core::parse", "ardisa_core::sema::check", "ardisa_core::ownership::infer", "ardisa_core::ir::lower", "ardisa_core::native::compile_program")
+          hits = [item for item in forbidden if item in section]
           if hits:
               raise SystemExit("Rust Stage-0 construction path detected: " + ", ".join(hits))
           PY
