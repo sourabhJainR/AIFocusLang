@@ -39,6 +39,17 @@ jobs:
           chmod +x bootstrap/verify_self_hosting.sh
           ./bootstrap/verify_self_hosting.sh
 
+      - name: Enforce native compiler target contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("bootstrap/compiler.ardisa").read_text()
+          forbidden = ("fn backend(", "symbolic", "FN\\p", "LABEL:$")
+          hits = [item for item in forbidden if item in text]
+          if hits:
+              raise SystemExit("compiler-specific pseudo-IR remains: " + ", ".join(hits))
+          PY
+
       - name: Host compiler exclusion guard
         run: |
           python3 - <<'PY'
