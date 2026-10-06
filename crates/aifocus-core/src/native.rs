@@ -660,10 +660,12 @@ fn run_function(
         steps += 1;
         if steps > 2_000_000 {
             return Err(NativeError::InvalidProgram(format!(
-                "instruction budget exceeded at pc {} of {}: {:?}",
+                "instruction budget exceeded at pc {} of {}: {:?}; offset={:?}; cursor={:?}",
                 pc,
                 function.code.len(),
-                function.code.get(pc)
+                function.code.get(pc),
+                locals.get("offset"),
+                locals.get("cursor")
             )));
         }
         if cancellation
