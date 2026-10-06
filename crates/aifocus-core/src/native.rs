@@ -1302,10 +1302,10 @@ fn decode_instr(s: &str) -> Result<NativeInstr, NativeError> {
     let op = p.next().unwrap_or("");
     let arg = p.next().unwrap_or("");
     let bad = || NativeError::InvalidProgram(format!("invalid instruction '{s}'"));
-    let int = |v: &str| v.parse::<usize>().map_err(|_| bad());
+    let int = |v: &str| v.trim().parse::<usize>().map_err(|_| bad());
     Ok(match op {
-        "PushInt" => NativeInstr::PushInt(arg.parse().map_err(|_| bad())?),
-        "PushBool" => NativeInstr::PushBool(arg == "true"),
+        "PushInt" => NativeInstr::PushInt(arg.trim().parse().map_err(|_| bad())?),
+        "PushBool" => NativeInstr::PushBool(arg.trim() == "true"),
         "PushUnit" => NativeInstr::PushUnit,
         "Index" => NativeInstr::Index,
         "Len" => NativeInstr::Len,
