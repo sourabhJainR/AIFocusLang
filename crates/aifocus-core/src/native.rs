@@ -984,10 +984,10 @@ fn run_function_with_budget(
             NativeInstr::Add => {
                 let right = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                    .ok_or_else(|| NativeError::InvalidProgram("generic empty stack".into()))?;
                 let left = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                    .ok_or_else(|| NativeError::InvalidProgram("generic empty stack".into()))?;
                 stack.push(add_values(left, right)?);
             }
             NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div | NativeInstr::Mod => {
@@ -1022,10 +1022,10 @@ fn run_function_with_budget(
             | NativeInstr::GreaterEqual => {
                 let right = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                    .ok_or_else(|| NativeError::InvalidProgram("generic empty stack".into()))?;
                 let left = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
+                    .ok_or_else(|| NativeError::InvalidProgram("generic empty stack".into()))?;
                 let result = match instr {
                     NativeInstr::Equal => left == right,
                     NativeInstr::NotEqual => left != right,
