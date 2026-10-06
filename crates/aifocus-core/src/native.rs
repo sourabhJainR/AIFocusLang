@@ -706,12 +706,14 @@ fn run_function_with_budget(
         let steps = budget_counter.fetch_add(1, Ordering::Relaxed) + 1;
         if steps > instruction_budget {
             return Err(NativeError::InvalidProgram(format!(
-                "instruction budget exceeded at pc {} of {}: {:?}; offset={:?}; cursor={:?}",
+                "instruction budget exceeded at pc {} of {}: {:?}; offset={:?}; cursor={:?}; locals={:?}; values={:?}",
                 pc,
                 function.code.len(),
                 function.code.get(pc),
                 locals.get("offset"),
-                locals.get("cursor")
+                locals.get("cursor"),
+                locals.keys().cloned().collect::<Vec<_>>(),
+                locals
             )));
         }
         if cancellation
