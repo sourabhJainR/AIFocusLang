@@ -132,7 +132,12 @@ fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, out
         Ok(value) => value,
         Err(error) => { eprintln!("{source_path}: error[AIF000]: {error}"); return ExitCode::from(1); }
     };
-    let output = match ardisa_core::native::run_program(&compiler, "main", &[ardisa_core::NativeValue::String(source)]) {
+    let output = match ardisa_core::native::run_program_with_budget(
+        &compiler,
+        "main",
+        &[ardisa_core::NativeValue::String(source)],
+        10_000_000,
+    ) {
         Ok(ardisa_core::NativeValue::String(value)) => value,
         Ok(value) => { eprintln!("{compiler_path}: error[AIF606]: compiler returned non-string value: {}", display_value(&value)); return ExitCode::from(1); }
         Err(error) => { eprintln!("{compiler_path}: error[AIF607]: compiler execution failed: {error:?}"); return ExitCode::from(1); }
