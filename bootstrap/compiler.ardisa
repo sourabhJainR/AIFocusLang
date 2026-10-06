@@ -1,4 +1,3 @@
-# Native bootstrap compiler: delimiter-indexed token stream.
 module compiler
 
 fn is_letter(c: Int) -> Bool
