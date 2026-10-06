@@ -55,10 +55,13 @@ jobs:
           grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
           grep -q '^FN|compile|' bootstrap/stage0.aexe
           grep -q '^FN|main|' bootstrap/stage0.aexe
-      - name: Run staged self-hosting
+      - name: Regenerate trusted Stage 0 through native transition
         run: |
           chmod +x bootstrap/regenerate_stage0.sh bootstrap/verify_self_hosting.sh
-          ./bootstrap/verify_self_hosting.sh
+          ./bootstrap/regenerate_stage0.sh
+
+      - name: Run staged self-hosting
+        run: ./bootstrap/verify_self_hosting.sh
       - name: Enforce Stage 2 == Stage 3
         run: cmp -s bootstrap/evidence/stage2.aexe bootstrap/evidence/stage3.aexe
       - name: Upload native evidence
