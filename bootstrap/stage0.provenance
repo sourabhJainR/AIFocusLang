@@ -1,0 +1,8 @@
+# Trusted Stage 0 provenance
+
+root_artifact: bootstrap/stage0.aexe
+compiler_source: bootstrap/compiler.ardisa
+artifact_format: ARDISA-EXEC-V1
+trust_boundary: Stage 0 is the checked-in root executable; Rust is executor-only.
+regeneration: bootstrap/regenerate_stage0.sh executes the checked-in Stage 0 against compiler.ardisa.
+verification: bootstrap/verify_self_hosting.sh records input and stage hashes and requires Stage 2 == Stage 3.
