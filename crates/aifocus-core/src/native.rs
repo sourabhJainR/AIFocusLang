@@ -505,7 +505,7 @@ pub fn run(
             NativeInstr::Add => {
                 let right = stack.pop().ok_or_else(|| {
                     NativeError::InvalidProgram(format!(
-                        "add missing right operand; cursor={:?}; offset={:?}",
+                        "add missing right operand; cursor={:?}; offset={:?}; locals={:?}",
                         locals.get("cursor"),
                         locals.get("offset"),
                         locals.keys().cloned().collect::<Vec<_>>()
@@ -513,9 +513,10 @@ pub fn run(
                 })?;
                 let left = stack.pop().ok_or_else(|| {
                     NativeError::InvalidProgram(format!(
-                        "add missing left operand; cursor={:?}; offset={:?}",
+                        "add missing left operand; cursor={:?}; offset={:?}; locals={:?}",
                         locals.get("cursor"),
-                        locals.get("offset")
+                        locals.get("offset"),
+                        locals.keys().cloned().collect::<Vec<_>>()
                     ))
                 })?;
                 match (left, right) {
