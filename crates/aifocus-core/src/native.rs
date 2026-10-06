@@ -661,7 +661,7 @@ fn run_function(
         if steps > 2_000_000 {
             return Err(NativeError::InvalidProgram(format!(
                 "instruction budget exceeded in function '{}' at pc {}",
-                function.name, pc
+                pc
             )));
         }
         if cancellation
