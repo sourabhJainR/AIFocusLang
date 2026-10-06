@@ -475,14 +475,12 @@ pub fn run(
                 })?)
             }
             NativeInstr::Store(name) => {
-                let value = stack
-                    .pop()
-                    .ok_or_else(|| {
-                        NativeError::InvalidProgram(format!(
-                            "store from empty stack in native function at pc {}",
-                            pc - 1
-                        ))
-                    })?;
+                let value = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram(format!(
+                        "store from empty stack in native function at pc {}",
+                        pc - 1
+                    ))
+                })?;
                 locals.insert(name, value);
             }
             NativeInstr::StoreIndex(name) => {
