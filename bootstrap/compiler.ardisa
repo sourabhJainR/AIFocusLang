@@ -643,7 +643,10 @@ fn parse_params(stream: String, start: Int) -> String
           set cursor = next_cursor(stream, cursor)
       else
         set cursor = next_cursor(stream, cursor)
-  result
+  if len(result) > 0
+    slice(result, 0, len(result) - 1)
+  else
+    ""
 
 fn compile_statement(stream: String, start: Int) -> String
   let token = token_at(stream, start)
