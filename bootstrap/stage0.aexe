@@ -462,7 +462,7 @@ I|Call:token_at,2
 I|Call:token_kind,1
 I|PushString:Newline
 I|Equal
-I|JumpIfFalse:108
+I|JumpIfFalse:104
 I|PushString:PushUnit
 I|PushInt:10
 I|Chr
