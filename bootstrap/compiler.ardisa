@@ -446,6 +446,26 @@ fn itoa(value: Int) -> String
   else
     itoa(value / 10) + chr(48 + value % 10)
 
+fn escape_artifact(value: String) -> String
+  let result = ""
+  let index = 0
+  while index < len(value)
+    if value[index] == 92
+      set result = result + chr(92) + chr(92)
+    else
+      if value[index] == 124
+        set result = result + chr(92) + "p"
+      else
+        if value[index] == 44
+          set result = result + chr(92) + "c"
+        else
+          if value[index] == 10
+            set result = result + chr(92) + "n"
+          else
+            set result = result + chr(value[index])
+    set index = index + 1
+  result
+
 fn parse_primary(stream: String, start: Int) -> String
   let token = token_at(stream, start)
   let kind = token_kind(token)
@@ -461,7 +481,7 @@ fn parse_primary(stream: String, start: Int) -> String
         itoa(next) + chr(2) + "PushBool:false" + chr(10)
       else
         if kind == "String"
-          itoa(next) + chr(2) + "PushString:" + value + chr(10)
+          itoa(next) + chr(2) + "PushString:" + escape_artifact(value) + chr(10)
         else
           if kind == "Ident"
             let after = token_at(stream, next)
