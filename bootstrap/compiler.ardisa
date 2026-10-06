@@ -749,22 +749,27 @@ fn contains_exact(list: String, name: String) -> Bool
     set cursor = cursor + 1
   false
 
-fn validate_semantics(stream: String) -> Bool
+fn validate_semantics(stream: String) -> String
   let cursor = 0
   let depth = 0
   let functions = ","
   let function_seen = false
   let body_seen = false
   let valid = true
+  let failure = ""
   while cursor < token_count(stream)
     let token = token_at(stream, cursor)
     let kind = token_kind(token)
     if kind == "Unknown"
       set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
     else
       if kind == "Module"
         if function_seen == true
           set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
       else
         if kind == "Fn"
           set function_seen = true
@@ -773,10 +778,14 @@ fn validate_semantics(stream: String) -> Bool
           let name_token = token_at(stream, name_cursor)
           if token_kind(name_token) != "Ident"
             set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
           else
             let name = token_value(name_token)
             if contains_exact(functions, name)
               set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
             else
               set functions = functions + name + ","
         else
@@ -790,34 +799,50 @@ fn validate_semantics(stream: String) -> Bool
                 set depth = depth - 1
               else
                 set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
             else
               if kind == "Let"
                 let name_cursor = next_cursor(stream, cursor)
                 if token_kind(token_at(stream, name_cursor)) != "Ident"
                   set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
               else
                 if kind == "Set"
                   let name_cursor = next_cursor(stream, cursor)
                   if token_kind(token_at(stream, name_cursor)) != "Ident"
                     set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
                 else
                   if kind == "Return"
                     if function_seen == false
                       set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
     set cursor = next_cursor(stream, cursor)
   if function_seen == false
     set valid = false
   else
     if body_seen == false
       set valid = false
+      if failure == ""
+        set failure = itoa(cursor) + ":" + kind
   if depth != 0
     set valid = false
-  valid
+    if failure == ""
+      set failure = itoa(cursor) + ":depth"
+  if valid
+    "ok"
+  else
+    failure
 
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
-  if validate_semantics(tokens) == false
-    return ""
+  let validation = validate_semantics(tokens)
+  if validation != "ok"
+    return "DEBUG-VALIDATION:" + validation
 
   let cursor = 0
   let result = "ARDISA-EXEC-V1" + chr(10)
