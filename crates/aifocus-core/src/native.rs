@@ -982,12 +982,12 @@ fn run_function_with_budget(
                 locals.insert(name, NativeValue::List(items));
             }
             NativeInstr::Add => {
-                let right = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("add missing right operand".into()))?;
-                let left = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("add missing left operand".into()))?;
+                let right = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("add missing right operand".into())
+                })?;
+                let left = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("add missing left operand".into())
+                })?;
                 stack.push(add_values(left, right)?);
             }
             NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div | NativeInstr::Mod => {
@@ -1020,12 +1020,12 @@ fn run_function_with_budget(
             | NativeInstr::LessEqual
             | NativeInstr::Greater
             | NativeInstr::GreaterEqual => {
-                let right = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("comparison missing right operand".into()))?;
-                let left = stack
-                    .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("comparison missing left operand".into()))?;
+                let right = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("comparison missing right operand".into())
+                })?;
+                let left = stack.pop().ok_or_else(|| {
+                    NativeError::InvalidProgram("comparison missing left operand".into())
+                })?;
                 let result = match instr {
                     NativeInstr::Equal => left == right,
                     NativeInstr::NotEqual => left != right,
