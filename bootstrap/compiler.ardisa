@@ -29,7 +29,7 @@ fn is_digit(c: Int) -> Bool
 
 fn pad_token(value: String) -> String
   let result = value
-  while len(result) < 96
+  while len(result) < 256
     set result = result + " "
   result + chr(1)
 
@@ -327,29 +327,17 @@ fn token_at(stream: String, start: Int) -> String
   if start < 0
     ""
   else
-    let cursor = 0
-    let token_index = 0
-    let begin = 0
-    while cursor < len(stream)
-      if stream[cursor] == 1
-        if token_index == start
-          return slice(stream, begin, cursor + 1)
-        set token_index = token_index + 1
-        set begin = cursor + 1
-      set cursor = cursor + 1
-    if token_index == start
-      slice(stream, begin, len(stream))
-    else
+    let begin = start * 257
+    if begin >= len(stream)
       ""
+    else
+      let end = begin + 257
+      if end > len(stream)
+        set end = len(stream)
+      slice(stream, begin, end)
 
 fn token_count(stream: String) -> Int
-  let count = 0
-  let cursor = 0
-  while cursor < len(stream)
-    if stream[cursor] == 1
-      set count = count + 1
-    set cursor = cursor + 1
-  count
+  len(stream) / 257
 
 fn next_cursor(stream: String, start: Int) -> Int
   start + 1
