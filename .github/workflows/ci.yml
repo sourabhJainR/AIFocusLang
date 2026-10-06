@@ -38,8 +38,18 @@ jobs:
 
       - name: Validate trusted Stage 0 root artifact
         run: |
-          test -s bootstrap/stage0.aexe
-          grep -q '^ARDISA-EXEC-V1
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("bootstrap/stage0.aexe")
+          text = p.read_text()
+          if not text.startswith("ARDISA-EXEC-V1\\n"):
+              raise SystemExit("Stage 0 is not an ARDISA-EXEC-V1 artifact")
+          if "FN|patch_instruction|" not in text:
+              raise SystemExit("Stage 0 is not the direct-emission compiler")
+          if "LABEL:" in text or "JumpIfFalse:$" in text:
+              raise SystemExit("symbolic branch artifacts remain in Stage 0")
+          PY
+
       - name: Enforce native compiler target contract
         run: |
           python3 - <<'PY'
