@@ -327,17 +327,17 @@ fn token_at(stream: String, start: Int) -> String
   if start < 0
     ""
   else
-    let begin = start * 98
+    let begin = start * 97
     if begin >= len(stream)
       ""
     else
-      let end = begin + 98
+      let end = begin + 97
       if end > len(stream)
         set end = len(stream)
       slice(stream, begin, end)
 
 fn token_count(stream: String) -> Int
-  len(stream) / 98
+  len(stream) / 97
 
 fn next_cursor(stream: String, start: Int) -> Int
   start + 1
@@ -816,7 +816,7 @@ fn validate_semantics(stream: String) -> Bool
 
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
-  if false
+  if validate_semantics(tokens) == false
     return ""
 
   let cursor = 0
