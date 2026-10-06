@@ -1,9 +1,5 @@
 name: Ardisa Native Phases
 
-concurrency:
-  group: ardisa-native-${{ github.ref }}
-  cancel-in-progress: true
-
 on:
   push:
     branches: [main, feature/native-self-hosting]
@@ -13,9 +9,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ardisa-native-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   native-phases:
-    runs-on: ubuntu-24.04
+    name: Independent native staged bootstrap
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -26,18 +27,44 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Workspace tests
         run: cargo test --workspace --all-targets
-      - name: Native phase contract tests
-        run: cargo test -p ardisa-core compiler_engine
-      - name: Native staged bootstrap
+      - name: Verify bootstrap boundary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("crates/aifocus-cli/src/main.rs").read_text()
+          start = text.index("fn bootstrap_compile_from_executable(")
+          end = text.index("fn bootstrap_verify(")
+          section = text[start:end]
+          forbidden = (
+              "ardisa_core::parse",
+              "ardisa_core::sema::check",
+              "ardisa_core::ownership::infer",
+              "ardisa_core::ir::lower",
+              "ardisa_core::native::compile_program",
+          )
+          hits = [item for item in forbidden if item in section]
+          if hits:
+              raise SystemExit("trusted bootstrap path calls Rust compiler construction: " + ", ".join(hits))
+          for item in ("ardisa_core::native::decode_program", "ardisa_core::native::run_program_with_budget"):
+              if item not in section:
+                  raise SystemExit("executor-only bootstrap operation missing: " + item)
+          PY
+      - name: Verify trusted Stage 0
+        run: |
+          test -s bootstrap/stage0.aexe
+          grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
+          grep -q '^FN|compile|' bootstrap/stage0.aexe
+          grep -q '^FN|main|' bootstrap/stage0.aexe
+      - name: Run staged self-hosting
         run: |
           chmod +x bootstrap/regenerate_stage0.sh bootstrap/verify_self_hosting.sh
-          ./bootstrap/regenerate_stage0.sh
-          cp bootstrap/evidence/stage2.aexe evidence-stage2.aexe
-          cp bootstrap/evidence/stage3.aexe evidence-stage3.aexe
-          cargo run -q -p ardisa -- bootstrap verify bootstrap/stage0.aexe
-          sha256sum bootstrap/stage0.aexe | tee bootstrap/evidence/stage0.native.sha256
-      - name: Upload evidence
+          ./bootstrap/verify_self_hosting.sh
+      - name: Enforce Stage 2 == Stage 3
+        run: cmp -s bootstrap/evidence/stage2.aexe bootstrap/evidence/stage3.aexe
+      - name: Upload native evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ardisa-native-phase-evidence
-          path: evidence/
+          path: bootstrap/evidence/
+          if-no-files-found: ignore
