@@ -648,6 +648,7 @@ fn run_function(
         )));
     }
     let mut pc = 0usize;
+    let mut steps = 0usize;
     let mut stack = Vec::new();
     let mut locals = HashMap::new();
     let mut scopes: Vec<BTreeMap<String, NativeTask>> = Vec::new();
@@ -656,6 +657,13 @@ fn run_function(
     }
 
     while pc < function.code.len() {
+        steps += 1;
+        if steps > 2_000_000 {
+            return Err(NativeError::InvalidProgram(format!(
+                "instruction budget exceeded in function '{}' at pc {}",
+                function.name, pc
+            )));
+        }
         if cancellation
             .as_ref()
             .is_some_and(|token| token.load(Ordering::Acquire))
