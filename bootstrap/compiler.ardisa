@@ -782,18 +782,23 @@ fn contains_exact(list: String, name: String) -> Bool
   let cursor = 0
   while cursor < len(list)
     let start = cursor
+    let scanning = true
     while start < len(list)
-      if list[start] == 44
-        set start = start + 1
-        set cursor = start
-        break
-      else
-        set start = start + 1
+      if scanning == true
+        if list[start] == 44
+          set start = start + 1
+          set cursor = start
+          set scanning = false
+        else
+          set start = start + 1
     let end = cursor
+    let scanning_end = true
     while end < len(list)
-      if list[end] == 44
-        break
-      set end = end + 1
+      if scanning_end == true
+        if list[end] == 44
+          set scanning_end = false
+        else
+          set end = end + 1
     let candidate = slice(list, cursor, end)
     if candidate == name
       return true
