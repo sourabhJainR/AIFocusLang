@@ -1,4 +1,4 @@
-module compiler
+# Native bootstrap compiler: delimiter-indexed token stream.\nmodule compiler
 
 fn is_letter(c: Int) -> Bool
   if c == 95
