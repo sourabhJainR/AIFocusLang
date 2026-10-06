@@ -28,10 +28,10 @@ fn is_digit(c: Int) -> Bool
     false
 
 fn pad_token(value: String) -> String
-  let result = value
-  while len(result) < 32
+  let result = value + chr(1)
+  while len(result) < 33
     set result = result + " "
-  result + chr(1)
+  result
 
 fn token(kind: String, value: String) -> String
   pad_token(kind + "=" + value)
