@@ -2358,7 +2358,7 @@ I|Pop
 I|Jump:18
 I|Load:cursor
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2498,7 +2498,7 @@ I|Equal
 I|JumpIfFalse:30
 I|Load:next
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|PushString:PushInt:
 I|Add
@@ -2514,7 +2514,7 @@ I|Equal
 I|JumpIfFalse:42
 I|Load:next
 I|Call:itoa,1
-I|PushString:#PushBool:true
+I|PushString:PushBool:true
 I|Add
 I|PushInt:10
 I|Chr
@@ -2526,7 +2526,7 @@ I|Equal
 I|JumpIfFalse:54
 I|Load:next
 I|Call:itoa,1
-I|PushString:#PushBool:false
+I|PushString:PushBool:false
 I|Add
 I|PushInt:10
 I|Chr
@@ -2538,7 +2538,7 @@ I|Equal
 I|JumpIfFalse:68
 I|Load:next
 I|Call:itoa,1
-I|PushString:#PushString:
+I|PushString:PushString:
 I|Add
 I|Load:value
 I|Add
@@ -2656,7 +2656,7 @@ I|Equal
 I|JumpIfFalse:188
 I|Load:close
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2668,7 +2668,7 @@ I|Add
 I|Jump:206
 I|Load:close
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2695,7 +2695,7 @@ I|Equal
 I|JumpIfFalse:227
 I|Load:close
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2707,7 +2707,7 @@ I|Add
 I|Jump:245
 I|Load:close
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2734,7 +2734,7 @@ I|Equal
 I|JumpIfFalse:266
 I|Load:close
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2746,7 +2746,7 @@ I|Add
 I|Jump:284
 I|Load:close
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2765,7 +2765,7 @@ I|Add
 I|Jump:303
 I|Load:close
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2815,7 +2815,7 @@ I|Load:close
 I|PushInt:1
 I|Add
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|PushString:Load:
 I|Add
@@ -2834,7 +2834,7 @@ I|Add
 I|Jump:363
 I|Load:next
 I|Call:itoa,1
-I|PushString:#Load:
+I|PushString:Load:
 I|Add
 I|Load:value
 I|Add
@@ -2867,7 +2867,7 @@ I|Load:close
 I|PushInt:1
 I|Add
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:parsed
 I|Load:split
@@ -2957,7 +2957,7 @@ I|Load:stream
 I|Load:cursor
 I|Call:next_cursor,2
 I|Call:itoa,1
-I|PushString:#
+I|PushString:
 I|Add
 I|Load:code
 I|Add
@@ -2972,7 +2972,7 @@ I|Add
 I|Jump:499
 I|Load:next
 I|Call:itoa,1
-I|PushString:#PushUnit
+I|PushString:PushUnit
 I|Add
 I|PushInt:10
 I|Chr
