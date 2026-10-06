@@ -115,6 +115,7 @@ jobs:
           path: |
             bootstrap/evidence/
             bootstrap/stage0.rebuilt.aexe
+            bootstrap/stage0.aexe
           if-no-files-found: ignore
 
       - name: Commit regenerated trusted Stage 0
