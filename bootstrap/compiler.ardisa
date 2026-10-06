@@ -517,7 +517,7 @@ fn parse_primary(stream: String, start: Int) -> String
                 let after_expr = parse_int(prefix(parsed, split))
                 let code = suffix(parsed, split)
                 let close = next_cursor(stream, after_expr)
-                itoa(close + 1) + chr(2) + "Load:" + value + chr(10) + code + "Index" + chr(10)
+                itoa(close) + chr(2) + "Load:" + value + chr(10) + code + "Index" + chr(10)
               else
                 itoa(next) + "#Load:" + value + chr(10)
           else
