@@ -89,17 +89,14 @@ fn lex_source(source: String) -> String
   while index < len(source)
     if line_start
       let spaces = 0
-      let scanning_spaces = true
       let pending_index = index
       while index < len(source)
-        if scanning_spaces == true
-          if source[index] == 32
-            set spaces = spaces + 1
-            set index = index + 1
-          else
-            set pending_index = index
-            set scanning_spaces = false
-            set index = len(source)
+        if source[index] == 32
+          set spaces = spaces + 1
+          set index = index + 1
+        else
+          set pending_index = index
+          set index = len(source)
       set index = pending_index
       if spaces > indent
         set indent = spaces
