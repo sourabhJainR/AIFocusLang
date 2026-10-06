@@ -41,7 +41,7 @@ I|PushInt:0
 I|Store:block_depth
 I|Load:cursor
 I|Load:tokens
-I|Len
+I|Call:token_count,1
 I|Less
 I|JumpIfFalse:338
 I|Load:tokens
@@ -3359,5 +3359,13 @@ I|Return
 END
 FN|validate_semantics|1|stream
 I|PushBool:true
+I|Return
+END
+
+FN|token_count|1|stream
+I|Load:stream
+I|Len
+I|PushInt:33
+I|Div
 I|Return
 END
