@@ -31,10 +31,11 @@ fn pad_token(value: String) -> String
   let result = value
   while len(result) < 96
     set result = result + " "
-  result + "|"
+  result + chr(1)
 
 fn token(kind: String, value: String) -> String
   pad_token(kind + "=" + value)
+  + chr(1)
 
 fn keyword(word: String) -> String
   if word == "module"
@@ -331,7 +332,7 @@ fn token_at(stream: String, start: Int) -> String
     let token_index = 0
     let begin = 0
     while cursor < len(stream)
-      if stream[cursor] == 124
+      if stream[cursor] == 1
         if token_index == start
           return slice(stream, begin, cursor + 1)
         set token_index = token_index + 1
@@ -346,7 +347,7 @@ fn token_count(stream: String) -> Int
   let count = 0
   let cursor = 0
   while cursor < len(stream)
-    if stream[cursor] == 124
+    if stream[cursor] == 1
       set count = count + 1
     set cursor = cursor + 1
   count
