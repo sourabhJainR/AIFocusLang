@@ -999,7 +999,7 @@ I|JumpIfFalse:23
 I|Load:value
 I|Load:index
 I|Index
-I|PushInt:35
+I|PushInt:2
 I|Equal
 I|JumpIfFalse:16
 I|Load:index
