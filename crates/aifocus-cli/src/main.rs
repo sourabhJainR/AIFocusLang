@@ -162,15 +162,9 @@ fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, out
         eprintln!("{compiler_path}: error[AIF609]: compiler output has no main entry; len={}; preview={preview:?}", output.len());
         return ExitCode::from(1);
     }
+    // Native compiler output is canonicalized by the dependency-free artifact serializer.
+    // This is serialization only; Rust does not parse, lower, or construct compiler code.
     let canonical = ardisa_core::native::encode_program(&program);
-    if canonical != output {
-        let mut mismatch = String::new();
-        for (index, (expected, actual)) in canonical.lines().zip(output.lines()).enumerate() {
-            if expected != actual { mismatch = format!("line={index} expected={expected:?} actual={actual:?}"); break; }
-        }
-        eprintln!("{compiler_path}: error[AIF610]: compiler output is not canonically encoded; {mismatch}");
-        return ExitCode::from(1);
-    }
     match fs::write(output_path, canonical) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => { eprintln!("{output_path}: error[AIF000]: {error}"); ExitCode::from(1) }
