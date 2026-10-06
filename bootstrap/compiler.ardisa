@@ -29,9 +29,9 @@ fn is_digit(c: Int) -> Bool
 
 fn pad_token(value: String) -> String
   let result = value
-  while len(result) < 96
+  while len(result) < 32
     set result = result + " "
-  result + "|"
+  result + chr(1)
 
 fn token(kind: String, value: String) -> String
   pad_token(kind + "=" + value)
@@ -316,7 +316,7 @@ fn token_value(token: String) -> String
       if token[index] == 61
         set seen = true
     else
-      if token[index] == 124
+      if token[index] == 1
         set index = len(token)
       else
         set result = result + chr(token[index])
@@ -327,17 +327,17 @@ fn token_at(stream: String, start: Int) -> String
   if start < 0
     ""
   else
-    let begin = start * 97
+    let begin = start * 33
     if begin >= len(stream)
       ""
     else
-      let end = begin + 97
+      let end = begin + 33
       if end > len(stream)
         set end = len(stream)
       slice(stream, begin, end)
 
 fn token_count(stream: String) -> Int
-  len(stream) / 97
+  len(stream) / 33
 
 fn next_cursor(stream: String, start: Int) -> Int
   start + 1
@@ -452,7 +452,7 @@ fn parse_primary(stream: String, start: Int) -> String
   let value = token_value(token)
   let next = next_cursor(stream, start)
   if kind == "Int"
-    itoa(next) + "#" + "PushInt:" + value + chr(10)
+    itoa(next) + chr(2) + "PushInt:" + value + chr(10)
   else
     if kind == "True"
       itoa(next) + "#PushBool:true" + chr(10)
@@ -492,23 +492,23 @@ fn parse_primary(stream: String, start: Int) -> String
               let close = next_cursor(stream, cursor)
               if value == "len"
                 if argc == 1
-                  itoa(close) + "#" + code + "Len" + chr(10)
+                  itoa(close) + chr(2) + code + "Len" + chr(10)
                 else
-                  itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                  itoa(close) + chr(2) + code + "Call:" + value + "," + itoa(argc) + chr(10)
               else
                 if value == "chr"
                   if argc == 1
-                    itoa(close) + "#" + code + "Chr" + chr(10)
+                    itoa(close) + chr(2) + code + "Chr" + chr(10)
                   else
-                    itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                    itoa(close) + chr(2) + code + "Call:" + value + "," + itoa(argc) + chr(10)
                 else
                   if value == "slice"
                     if argc == 3
-                      itoa(close) + "#" + code + "Slice" + chr(10)
+                      itoa(close) + chr(2) + code + "Slice" + chr(10)
                     else
-                      itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                      itoa(close) + chr(2) + code + "Call:" + value + "," + itoa(argc) + chr(10)
                   else
-                    itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                    itoa(close) + chr(2) + code + "Call:" + value + "," + itoa(argc) + chr(10)
             else
               if after_kind == "LBracket"
                 let cursor = next_cursor(stream, next)
@@ -517,7 +517,7 @@ fn parse_primary(stream: String, start: Int) -> String
                 let after_expr = parse_int(prefix(parsed, split))
                 let code = suffix(parsed, split)
                 let close = next_cursor(stream, after_expr)
-                itoa(close) + "#" + "Load:" + value + chr(10) + code + "Index" + chr(10)
+                itoa(close) + chr(2) + "Load:" + value + chr(10) + code + "Index" + chr(10)
               else
                 itoa(next) + "#Load:" + value + chr(10)
           else
@@ -526,7 +526,7 @@ fn parse_primary(stream: String, start: Int) -> String
               let split = find_hash(parsed)
               let after_expr = parse_int(prefix(parsed, split))
               let close = next_cursor(stream, after_expr)
-              itoa(close) + "#" + suffix(parsed, split)
+              itoa(close) + chr(2) + suffix(parsed, split)
             else
               if kind == "LBracket"
                 let cursor = next
@@ -549,14 +549,14 @@ fn parse_primary(stream: String, start: Int) -> String
                     else
                       if token_kind(separator) == "RBracket"
                         set done = true
-                itoa(next_cursor(stream, cursor)) + "#" + code + "PushList:" + itoa(count) + chr(10)
+                itoa(next_cursor(stream, cursor)) + chr(2) + code + "PushList:" + itoa(count) + chr(10)
               else
                 itoa(next) + "#PushUnit" + chr(10)
 
 fn find_hash(value: String) -> Int
   let index = 0
   while index < len(value)
-    if value[index] == 35
+    if value[index] == 2
       return index
     set index = index + 1
   len(value)
@@ -605,7 +605,7 @@ fn parse_expr(stream: String, start: Int, minimum: Int) -> String
       set cursor = right_cursor
     else
       set scanning = false
-  itoa(cursor) + "#" + code
+  itoa(cursor) + chr(2) + code
 
 fn line_end(stream: String, start: Int) -> Int
   let cursor = start
@@ -645,11 +645,10 @@ fn parse_params(stream: String, start: Int) -> String
         set cursor = next_cursor(stream, cursor)
   result
 
-fn compile_statement(stream: String, start: Int, label: Int) -> String
+fn compile_statement(stream: String, start: Int) -> String
   let token = token_at(stream, start)
   let kind = token_kind(token)
   let next = next_cursor(stream, start)
-  let end = line_end(stream, start)
   if kind == "Let"
     let name = token_value(token_at(stream, next))
     let value_start = next_cursor(stream, next_cursor(stream, next))
@@ -675,24 +674,22 @@ fn compile_statement(stream: String, start: Int, label: Int) -> String
         if kind == "If"
           let parsed = parse_expr(stream, next, 0)
           let split = find_hash(parsed)
-          suffix(parsed, split) + "JumpIfFalse:$L" + itoa(label) + chr(10)
+          suffix(parsed, split) + "JumpIfFalse:0" + chr(10)
         else
           if kind == "While"
             let parsed = parse_expr(stream, next, 0)
             let split = find_hash(parsed)
-            "LABEL:$W" + itoa(label) + chr(10) + suffix(parsed, split) + "JumpIfFalse:$E" + itoa(label) + chr(10)
+            suffix(parsed, split) + "JumpIfFalse:0" + chr(10)
           else
-            if kind == "Expr"
-              let parsed = parse_expr(stream, start, 0)
-              let split = find_hash(parsed)
-              suffix(parsed, split) + "Pop" + chr(10)
-            else
-              let parsed = parse_expr(stream, start, 0)
-              let split = find_hash(parsed)
-              suffix(parsed, split) + "Pop" + chr(10)
+            let parsed = parse_expr(stream, start, 0)
+            let split = find_hash(parsed)
+            suffix(parsed, split) + "Pop" + chr(10)
 
-fn push_context(stack: String, kind: String, label: Int) -> String
-  stack + kind + ":" + itoa(label) + "|"
+fn push_context(stack: String, kind: String, false_pc: Int, loop_pc: Int) -> String
+  stack + kind + ":" + itoa(false_pc) + ":" + itoa(loop_pc) + "|"
+
+fn push_end_context(stack: String, end_pc: Int) -> String
+  stack + "E:" + itoa(end_pc) + ":0|"
 
 fn last_context(stack: String) -> String
   let index = len(stack) - 1
@@ -726,30 +723,84 @@ fn context_kind(context: String) -> String
   else
     ""
 
-fn context_label(context: String) -> Int
-  let index = 2
+fn context_field(context: String, which: Int) -> Int
+  let field = 0
+  let index = 0
   let result = 0
+  let active = false
   while index < len(context)
-    set result = result * 10 + (context[index] - 48)
+    if context[index] == 58
+      if active == true
+        if field == which
+          return result
+        set field = field + 1
+      set active = true
+      set result = 0
+    else
+      if active == true
+        if context[index] >= 48
+          if context[index] <= 57
+            set result = result * 10 + context[index] - 48
     set index = index + 1
+  if active == true
+    if field == which
+      return result
+  0
+
+fn context_false_pc(context: String) -> Int
+  context_field(context, 0)
+
+fn context_loop_pc(context: String) -> Int
+  context_field(context, 1)
+
+fn instruction_count(code: String) -> Int
+  let cursor = 0
+  let count = 0
+  while cursor < len(code)
+    let line = line_at(code, cursor)
+    if len(line) > 0
+      set count = count + 1
+    set cursor = next_line(code, cursor)
+  count
+
+fn patch_instruction(code: String, target: Int, replacement: String) -> String
+  let cursor = 0
+  let index = 0
+  let result = ""
+  while cursor < len(code)
+    let line = line_at(code, cursor)
+    if len(line) > 0
+      if index == target
+        set result = result + replacement + chr(10)
+      else
+        set result = result + line + chr(10)
+      set index = index + 1
+    set cursor = next_line(code, cursor)
   result
 
 fn contains_exact(list: String, name: String) -> Bool
   let cursor = 0
-  let target = "," + name + ","
   while cursor < len(list)
-    let same = true
-    let offset = 0
-    while offset < len(target)
-      if cursor + offset >= len(list)
-        set same = false
+    let start = cursor
+    while start < len(list)
+      if list[start] == 44
+        set start = start + 1
+        set cursor = start
+        break
       else
-        if list[cursor + offset] != target[offset]
-          set same = false
-      set offset = offset + 1
-    if same == true
+        set start = start + 1
+    let end = cursor
+    while end < len(list)
+      if list[end] == 44
+        break
+      set end = end + 1
+    let candidate = slice(list, cursor, end)
+    if candidate == name
       return true
-    set cursor = cursor + 1
+    if end >= len(list)
+      set cursor = len(list)
+    else
+      set cursor = end + 1
   false
 
 fn validate_semantics(stream: String) -> Bool
@@ -818,15 +869,15 @@ fn validate_semantics(stream: String) -> Bool
   valid
 
 fn compile_native(source: String) -> String
-  let tokens = lex_source(source)  let cursor = 0
+  let tokens = lex_source(source)
+  let cursor = 0
   let result = "ARDISA-EXEC-V1" + chr(10)
   let function_name = ""
   let params = ""
   let code = ""
-  let labels = 0
-  let in_function = false
   let block_stack = ""
   let block_depth = 0
+  let in_function = false
   while cursor < token_count(tokens)
     let token = token_at(tokens, cursor)
     let kind = token_kind(token)
@@ -855,23 +906,24 @@ fn compile_native(source: String) -> String
               set block_stack = pop_context(block_stack)
               set block_depth = block_depth - 1
               if context_kind(context) == "I"
-                set code = code + "LABEL:$E" + itoa(context_label(context)) + chr(10)
+                set code = patch_instruction(code, context_false_pc(context), "JumpIfFalse:" + itoa(instruction_count(code)))
               else
                 if context_kind(context) == "E"
-                  set code = code + "LABEL:$E" + itoa(context_label(context)) + chr(10)
+                  set code = patch_instruction(code, context_false_pc(context), "Jump:" + itoa(instruction_count(code)))
                 else
                   if context_kind(context) == "W"
-                    set code = code + "Jump:$W" + itoa(context_label(context)) + chr(10)
-                    set code = code + "LABEL:$E" + itoa(context_label(context)) + chr(10)
+                    let exit_pc = instruction_count(code)
+                    set code = code + "Jump:" + itoa(context_loop_pc(context)) + chr(10)
+                    set code = patch_instruction(code, context_false_pc(context), "JumpIfFalse:" + itoa(exit_pc + 1))
           else
             if kind == "Else"
               let context = last_context(block_stack)
               if context_kind(context) == "I"
-                let label = context_label(context)
-                set code = code + "Jump:$E" + itoa(label) + chr(10)
-                set code = code + "LABEL:$L" + itoa(label) + chr(10)
+                let false_pc = context_false_pc(context)
+                set code = patch_instruction(code, false_pc, "JumpIfFalse:" + itoa(instruction_count(code) + 1))
+                set code = code + "Jump:0" + chr(10)
                 set block_stack = pop_context(block_stack)
-                set block_stack = push_context(block_stack, "E", label)
+                set block_stack = push_end_context(block_stack, instruction_count(code) - 1)
               else
                 set code = code + "PushUnit" + chr(10)
             else
@@ -879,16 +931,18 @@ fn compile_native(source: String) -> String
                 if kind != "Module"
                   if kind != "Eof"
                     if kind == "If"
-                      set code = code + compile_statement(tokens, cursor, labels)
-                      set block_stack = push_context(block_stack, "I", labels)
-                      set labels = labels + 1
+                      let before = instruction_count(code)
+                      set code = code + compile_statement(tokens, cursor)
+                      let false_pc = instruction_count(code) - 1
+                      set block_stack = push_context(block_stack, "I", false_pc, before)
                     else
                       if kind == "While"
-                        set code = code + compile_statement(tokens, cursor, labels)
-                        set block_stack = push_context(block_stack, "W", labels)
-                        set labels = labels + 1
+                        let loop_pc = instruction_count(code)
+                        set code = code + compile_statement(tokens, cursor)
+                        let false_pc = instruction_count(code) - 1
+                        set block_stack = push_context(block_stack, "W", false_pc, loop_pc)
                       else
-                        set code = code + compile_statement(tokens, cursor, labels)
+                        set code = code + compile_statement(tokens, cursor)
     set cursor = next_cursor(tokens, cursor)
   if in_function == true
     set code = code + "Return" + chr(10)
@@ -959,18 +1013,7 @@ fn encode_function(name: String, params: String, code: String) -> String
   while cursor < len(code)
     let line = line_at(code, cursor)
     if len(line) > 0
-      if line[0] != 76
-        if line[0] == 74
-          if line[1] == 117
-            if line[2] == 109
-              if line[3] == 112
-                if line[4] == 73
-                  let target = slice(line, 12, len(line))
-                  set line = "JumpIfFalse:" + itoa(resolve_target(code, target))
-                else
-                  let target = slice(line, 5, len(line))
-                  set line = "Jump:" + itoa(resolve_target(code, target))
-        set result = result + "I|" + line + chr(10)
+      set result = result + "I|" + line + chr(10)
     set cursor = next_line(code, cursor)
   result + "END" + chr(10)
 
