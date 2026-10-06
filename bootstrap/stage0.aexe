@@ -895,7 +895,7 @@ I|Load:index
 I|Index
 I|Store:c
 I|Load:c
-I|PushInt:124
+I|PushInt:1
 I|Equal
 I|JumpIfFalse:38
 I|Load:part
@@ -3225,7 +3225,7 @@ I|JumpIfFalse:6
 I|PushString:
 I|Jump:37
 I|Load:start
-I|PushInt:97
+I|PushInt:33
 I|Mul
 I|Store:begin
 I|Load:begin
@@ -3236,7 +3236,7 @@ I|JumpIfFalse:17
 I|PushString:
 I|Jump:37
 I|Load:begin
-I|PushInt:97
+I|PushInt:33
 I|Add
 I|Store:end
 I|Load:end
