@@ -1,5 +1,9 @@
 name: Ardisa Native Phases
 
+concurrency:
+  group: ardisa-native-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main, feature/native-self-hosting]
