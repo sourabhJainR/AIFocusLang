@@ -327,11 +327,11 @@ fn token_at(stream: String, start: Int) -> String
   if start < 0
     ""
   else
-    let begin = start * 97
+    let begin = start * 98
     if begin >= len(stream)
       ""
     else
-      let end = begin + 97
+      let end = begin + 98
       if end > len(stream)
         set end = len(stream)
       slice(stream, begin, end)
