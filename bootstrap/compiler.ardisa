@@ -316,7 +316,7 @@ fn token_value(token: String) -> String
       if token[index] == 61
         set seen = true
     else
-      if token[index] == 124
+      if token[index] == 1
         set index = len(token)
       else
         set result = result + chr(token[index])
