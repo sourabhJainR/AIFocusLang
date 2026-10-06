@@ -42,6 +42,13 @@ fn main() -> ExitCode {
                     ExitCode::from(2)
                 }
             },
+            Some("host-compile") => match (args.next(), args.next()) {
+                (Some(source), Some(output)) => bootstrap_host_compile(&source, &output),
+                _ => {
+                    eprintln!("error: bootstrap host-compile requires source and output");
+                    ExitCode::from(2)
+                }
+            },
             Some("chain") => match (args.next(), args.next()) {
                 (Some(source), Some(evidence_dir)) => bootstrap_chain(&source, &evidence_dir),
                 _ => {
@@ -185,6 +192,37 @@ fn bootstrap_compile(path: &str, output: &str) -> ExitCode {
     require_ardisa_extension(path);
     let seed = "bootstrap/stage0.aexe";
     bootstrap_compile_from_executable(seed, path, output)
+}
+
+#[rustfmt::skip]
+fn bootstrap_host_compile(path: &str, output: &str) -> ExitCode {
+    require_ardisa_extension(path);
+    let source = match fs::read_to_string(path) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{path}: error[AIF000]: {error}"); return ExitCode::from(1); }
+    };
+    let module = match ardisa_core::parse(&source) {
+        Ok(module) => module,
+        Err(errors) => { emit_diagnostics(path, &source, false, errors); return ExitCode::from(1); }
+    };
+    if let Err(errors) = ardisa_core::sema::check(&module) {
+        emit_diagnostics(path, &source, false, errors);
+        return ExitCode::from(1);
+    }
+    if let Err(errors) = ardisa_core::ownership::infer(&module) {
+        emit_diagnostics(path, &source, false, errors);
+        return ExitCode::from(1);
+    }
+    let ir = ardisa_core::ir::lower(&module);
+    let program = match ardisa_core::native::compile_program(&ir) {
+        Ok(program) => program,
+        Err(error) => { eprintln!("{path}: error[AIF603]: native compilation failed: {error:?}"); return ExitCode::from(1); }
+    };
+    let artifact = ardisa_core::native::encode_program(&program);
+    match fs::write(output, artifact) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => { eprintln!("{output}: error[AIF000]: {error}"); ExitCode::from(1) }
+    }
 }
 
 #[rustfmt::skip]
