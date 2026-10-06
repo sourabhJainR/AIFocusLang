@@ -182,7 +182,8 @@ fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, out
         }
     };
     if !program.functions.contains_key("main") {
-        eprintln!("{compiler_path}: error[AIF609]: compiler output has no main entry");
+        let preview = output.chars().take(500).collect::<String>();
+        eprintln!("{compiler_path}: error[AIF609]: compiler output has no main entry; len={}; preview={preview:?}", output.len());
         return ExitCode::from(1);
     }
     let canonical = ardisa_core::native::encode_program(&program);
