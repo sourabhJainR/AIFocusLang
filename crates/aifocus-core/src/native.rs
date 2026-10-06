@@ -507,7 +507,8 @@ pub fn run(
                     NativeError::InvalidProgram(format!(
                         "add missing right operand; cursor={:?}; offset={:?}",
                         locals.get("cursor"),
-                        locals.get("offset")
+                        locals.get("offset"),
+                        locals.keys().cloned().collect::<Vec<_>>()
                     ))
                 })?;
                 let left = stack.pop().ok_or_else(|| {
