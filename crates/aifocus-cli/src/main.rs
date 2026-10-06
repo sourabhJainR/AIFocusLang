@@ -136,7 +136,7 @@ fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, out
         &compiler,
         "main",
         &[ardisa_core::NativeValue::String(source)],
-        100_000_000,
+        20_000_000,
     ) {
         Ok(ardisa_core::NativeValue::String(value)) => value,
         Ok(value) => { eprintln!("{compiler_path}: error[AIF606]: compiler returned non-string value: {}", display_value(&value)); return ExitCode::from(1); }
