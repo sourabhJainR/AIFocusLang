@@ -67,6 +67,13 @@ fn main() -> ExitCode {
                     ExitCode::from(2)
                 }
             },
+            Some("host-seed") => match (args.next(), args.next()) {
+                (Some(source), Some(output)) => bootstrap_host_seed(&source, &output),
+                _ => {
+                    eprintln!("error: bootstrap host-seed requires source and output");
+                    ExitCode::from(2)
+                }
+            },
             Some("verify") => match args.next() {
                 Some(output) => bootstrap_verify(&output),
                 None => {
@@ -114,6 +121,35 @@ fn main() -> ExitCode {
             eprintln!("error: unknown command '{command}'");
             ExitCode::from(2)
         }
+    }
+}
+
+#[rustfmt::skip]
+fn bootstrap_host_seed(source_path: &str, output_path: &str) -> ExitCode {
+    require_ardisa_extension(source_path);
+    let source = match fs::read_to_string(source_path) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{source_path}: error[AIF000]: {error}"); return ExitCode::from(1); }
+    };
+    let module = match ardisa_core::parse(&source) {
+        Ok(value) => value,
+        Err(errors) => { return emit_diagnostics(source_path, &source, false, errors); }
+    };
+    if let Err(errors) = ardisa_core::sema::check(&module) {
+        return emit_diagnostics(source_path, &source, false, errors);
+    }
+    if let Err(errors) = ardisa_core::ownership::infer(&module) {
+        return emit_diagnostics(source_path, &source, false, errors);
+    }
+    let ir = ardisa_core::ir::lower(&module);
+    let program = match ardisa_core::native::compile_program(&ir) {
+        Ok(value) => value,
+        Err(error) => { eprintln!("{source_path}: error[AIF603]: native compilation failed: {error:?}"); return ExitCode::from(1); }
+    };
+    let artifact = ardisa_core::native::encode_program(&program);
+    match fs::write(output_path, artifact) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => { eprintln!("{output_path}: error[AIF000]: {error}"); return ExitCode::from(1); }
     }
 }
 
