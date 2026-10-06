@@ -660,7 +660,7 @@ fn run_function(
         steps += 1;
         if steps > 2_000_000 {
             return Err(NativeError::InvalidProgram(format!(
-                "instruction budget exceeded in function '{}' at pc {}",
+                "instruction budget exceeded at pc {}",
                 pc
             )));
         }
