@@ -505,10 +505,14 @@ pub fn run(
             NativeInstr::Add => {
                 let right = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("add missing right operand".into()))?;
+                    .ok_or_else(|| {
+                        NativeError::InvalidProgram("add missing right operand".into())
+                    })?;
                 let left = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("add missing left operand".into()))?;
+                    .ok_or_else(|| {
+                        NativeError::InvalidProgram("add missing left operand".into())
+                    })?;
                 match (left, right) {
                     (NativeValue::Int(left), NativeValue::Int(right)) => {
                         stack.push(NativeValue::Int(left + right));
@@ -554,10 +558,14 @@ pub fn run(
             | NativeInstr::GreaterEqual => {
                 let right = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("comparison missing right operand".into()))?;
+                    .ok_or_else(|| {
+                        NativeError::InvalidProgram("comparison missing right operand".into())
+                    })?;
                 let left = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("comparison missing left operand".into()))?;
+                    .ok_or_else(|| {
+                        NativeError::InvalidProgram("comparison missing left operand".into())
+                    })?;
                 let result = match instr {
                     NativeInstr::Equal => left == right,
                     NativeInstr::NotEqual => left != right,
