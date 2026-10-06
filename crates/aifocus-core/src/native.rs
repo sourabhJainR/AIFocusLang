@@ -596,15 +596,6 @@ pub fn run(
                     .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack".into()))?;
             }
         }
-        Ok(())
-        })();
-        if let Err(error) = execution_result {
-            return Err(NativeError::InvalidProgram(format!(
-                "native execution failed at pc {}: {:?}; cause={error:?}",
-                pc - 1,
-                function.code.get(pc - 1)
-            )));
-        }
     }
     Err(NativeError::InvalidProgram(
         "program terminated without return".into(),
@@ -719,8 +710,7 @@ fn run_function_with_budget(
         }
         let instr = function.code[pc].clone();
         pc += 1;
-        let execution_result: Result<(), NativeError> = (|| {
-            match instr {
+        match instr {
             NativeInstr::ScopeStart => scopes.push(BTreeMap::new()),
             NativeInstr::ScopeEnd => {
                 let mut tasks = scopes.pop().ok_or_else(|| {
@@ -1062,15 +1052,6 @@ fn run_function_with_budget(
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack".into()))?;
             }
-            }
-            Ok(())
-        })();
-        if let Err(error) = execution_result {
-            return Err(NativeError::InvalidProgram(format!(
-                "native execution failed at pc {}: {:?}; cause={error:?}",
-                pc - 1,
-                function.code.get(pc - 1)
-            )));
         }
     }
     Err(NativeError::InvalidProgram(
