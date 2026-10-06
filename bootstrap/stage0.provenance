@@ -4,6 +4,7 @@ root_artifact: bootstrap/stage0.aexe
 compiler_source: bootstrap/compiler.ardisa
 transition_artifact: bootstrap/stage0.transition.aexe
 artifact_format: ARDISA-EXEC-V1
+transition_repair: normalize Stage 0 pad_token width to 32 bytes plus delimiter, matching token_at's 33-byte record stride.
 trust_boundary: Stage 0 is the checked-in root executable; Rust is executor-only.
-regeneration: bootstrap/regenerate_stage0.sh executes the verified native transition compiler against compiler.ardisa, then installs the resulting native compiler as Stage 0.
+regeneration: bootstrap/regenerate_stage0.sh executes the repaired native transition compiler against compiler.ardisa, then installs the resulting native compiler as Stage 0.
 verification: bootstrap/verify_self_hosting.sh records input and stage hashes and requires Stage 2 == Stage 3.
