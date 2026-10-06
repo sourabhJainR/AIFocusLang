@@ -29,13 +29,17 @@ jobs:
       - name: One-off trusted Stage 0 seed refresh
         run: |
           cargo run -q --release -p ardisa -- bootstrap host-seed bootstrap/compiler.ardisa bootstrap/stage0.aexe
-          python3 - <<'PY'
-          from pathlib import Path
+          git stash push -u -m stage0-refresh
+          git fetch origin feature/native-self-hosting
+          git reset --hard origin/feature/native-self-hosting
+          git stash pop
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bootstrap/stage0.aexe
+          git commit -m "build: refresh native Stage 0 seed"
+          git push origin HEAD:feature/native-self-hosting
 
-          ci = Path(".github/workflows/ci.yml")
-          text = ci.read_text()
-          one_off = text.index("      - name: One-off trusted Stage 0 seed refresh")
-          native = text.index("      - name: Regenerate trusted Stage 0 through native bootstrap", one_off)
+      - name: Regenerate trusted Stage 0 through native bootstrap", one_off)
           text = text[:one_off] + text[native:]
           text = text.replace("timeout-minutes: 2", "timeout-minutes: 15")
           ci.write_text(text)
