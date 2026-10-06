@@ -26,19 +26,6 @@ jobs:
       - name: Compile and test
         run: cargo test --release --workspace --all-targets
 
-      - name: One-off trusted Stage 0 seed refresh
-        run: |
-          cargo run -q --release -p ardisa -- bootstrap host-seed bootstrap/compiler.ardisa bootstrap/stage0.aexe
-          git stash push -u -m stage0-refresh
-          git fetch origin feature/native-self-hosting
-          git reset --hard origin/feature/native-self-hosting
-          git stash pop
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bootstrap/stage0.aexe
-          git commit -m "build: refresh native Stage 0 seed"
-          git push origin HEAD:feature/native-self-hosting
-
       - name: Regenerate trusted Stage 0 through native bootstrap
         timeout-minutes: 15
         run: |
