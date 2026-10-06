@@ -26,6 +26,11 @@ jobs:
       - name: Compile and test
         run: cargo test --release --workspace --all-targets
 
+      - name: One-off trusted Stage 0 seed refresh
+        if: "!contains(github.event.head_commit.message, 'build: regenerate trusted native Stage 0')"
+        run: |
+          cargo run -q --release -p ardisa -- bootstrap host-seed bootstrap/compiler.ardisa bootstrap/stage0.aexe
+
       - name: Regenerate trusted Stage 0 through native bootstrap
         timeout-minutes: 15
         run: |
