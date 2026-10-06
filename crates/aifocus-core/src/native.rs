@@ -504,10 +504,18 @@ pub fn run(
 
             NativeInstr::Add => {
                 let right = stack.pop().ok_or_else(|| {
-                    NativeError::InvalidProgram(format!("add missing right operand; cursor={:?}; offset={:?}", locals.get("cursor"), locals.get("offset")))
+                    NativeError::InvalidProgram(format!(
+                        "add missing right operand; cursor={:?}; offset={:?}",
+                        locals.get("cursor"),
+                        locals.get("offset")
+                    ))
                 })?;
                 let left = stack.pop().ok_or_else(|| {
-                    NativeError::InvalidProgram(format!("add missing left operand; cursor={:?}; offset={:?}", locals.get("cursor"), locals.get("offset")))
+                    NativeError::InvalidProgram(format!(
+                        "add missing left operand; cursor={:?}; offset={:?}",
+                        locals.get("cursor"),
+                        locals.get("offset")
+                    ))
                 })?;
                 match (left, right) {
                     (NativeValue::Int(left), NativeValue::Int(right)) => {
