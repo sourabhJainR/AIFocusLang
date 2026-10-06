@@ -864,10 +864,7 @@ fn validate_semantics(stream: String) -> Bool
 
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
-  if validate_semantics(tokens) == false
-    ""
-  else
-    let cursor = 0
+  let cursor = 0
   let result = "ARDISA-EXEC-V1" + chr(10)
   let function_name = ""
   let params = ""
