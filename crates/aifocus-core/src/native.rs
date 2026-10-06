@@ -627,11 +627,20 @@ pub fn run_program(
     entry: &str,
     args: &[NativeValue],
 ) -> Result<NativeValue, NativeError> {
+    run_program_with_budget(program, entry, args, 2_000_000)
+}
+
+pub fn run_program_with_budget(
+    program: &NativeProgram,
+    entry: &str,
+    args: &[NativeValue],
+    instruction_budget: usize,
+) -> Result<NativeValue, NativeError> {
     let function = program
         .functions
         .get(entry)
         .ok_or_else(|| NativeError::InvalidProgram(format!("unknown function '{entry}'")))?;
-    run_function(program, function, args, None)
+    run_function_with_budget(program, function, args, None, instruction_budget)
 }
 
 fn run_function(
@@ -639,6 +648,16 @@ fn run_function(
     function: &NativeFunction,
     args: &[NativeValue],
     cancellation: Option<Arc<AtomicBool>>,
+) -> Result<NativeValue, NativeError> {
+    run_function_with_budget(program, function, args, cancellation, 2_000_000)
+}
+
+fn run_function_with_budget(
+    program: &NativeProgram,
+    function: &NativeFunction,
+    args: &[NativeValue],
+    cancellation: Option<Arc<AtomicBool>>,
+    instruction_budget: usize,
 ) -> Result<NativeValue, NativeError> {
     if args.len() != function.params.len() {
         return Err(NativeError::InvalidProgram(format!(
@@ -658,7 +677,7 @@ fn run_function(
 
     while pc < function.code.len() {
         steps += 1;
-        if steps > 2_000_000 {
+        if steps > instruction_budget {
             return Err(NativeError::InvalidProgram(format!(
                 "instruction budget exceeded at pc {} of {}: {:?}; offset={:?}; cursor={:?}",
                 pc,
@@ -725,7 +744,7 @@ fn run_function(
                     let function = child_program.functions.get(&callee).ok_or_else(|| {
                         NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                     })?;
-                    run_function(&child_program, function, &call_args, Some(child_token))
+                    run_function_with_budget(&child_program, function, &call_args, Some(child_token), instruction_budget)
                 });
                 scope.insert(
                     name,
@@ -779,7 +798,7 @@ fn run_function(
                 let callee_fn = program.functions.get(&callee).ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                 })?;
-                let value = run_function(program, callee_fn, &call_args, cancellation.clone())?;
+                let value = run_function_with_budget(program, callee_fn, &call_args, cancellation.clone(), instruction_budget)?;
                 stack.push(value);
             }
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
