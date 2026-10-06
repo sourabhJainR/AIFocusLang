@@ -5,7 +5,6 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 seed="bootstrap/stage0.aexe"
-transition="bootstrap/stage0.transition.aexe"
 source="bootstrap/compiler.ardisa"
 candidate="bootstrap/stage0.rebuilt.aexe"
 
@@ -13,16 +12,13 @@ rm -rf bootstrap/evidence
 mkdir -p bootstrap/evidence
 
 test -s "$seed"
-test -s "$transition"
 test -s "$source"
 
 sha256sum "$seed" "$source" > bootstrap/evidence/bootstrap-inputs.sha256
 
-# Stage 0 is the trusted root after regeneration. The transition artifact is
-# the checked-in native repair seed used only to cross the compiler/token-format
-# transition. Rust only decodes and executes ARDISA-EXEC-V1; it never parses,
-# lowers, or constructs the compiler artifact.
-cargo run -q --release -p ardisa -- bootstrap compile-from-executable "$transition" "$source" "$candidate"
+# Stage 0 is the trusted native compiler. Rust only decodes and executes
+# ARDISA-EXEC-V1; it never parses, lowers, or constructs the compiler artifact.
+cargo run -q --release -p ardisa -- bootstrap compile-from-executable "$seed" "$source" "$candidate"
 
 test -s "$candidate"
 grep -q '^ARDISA-EXEC-V1$' "$candidate"
