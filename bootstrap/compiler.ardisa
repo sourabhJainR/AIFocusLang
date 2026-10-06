@@ -780,32 +780,21 @@ fn patch_instruction(code: String, target: Int, replacement: String) -> String
 
 fn contains_exact(list: String, name: String) -> Bool
   let cursor = 0
+  let target = "," + name + ","
   while cursor < len(list)
-    let start = cursor
-    let scanning = true
-    while start < len(list)
-      if scanning == true
-        if list[start] == 44
-          set start = start + 1
-          set cursor = start
-          set scanning = false
+    if list[cursor] == 44
+      let same = true
+      let offset = 0
+      while offset < len(target)
+        if cursor + offset >= len(list)
+          set same = false
         else
-          set start = start + 1
-    let end = cursor
-    let scanning_end = true
-    while end < len(list)
-      if scanning_end == true
-        if list[end] == 44
-          set scanning_end = false
-        else
-          set end = end + 1
-    let candidate = slice(list, cursor, end)
-    if candidate == name
-      return true
-    if end >= len(list)
-      set cursor = len(list)
-    else
-      set cursor = end + 1
+          if list[cursor + offset] != target[offset]
+            set same = false
+        set offset = offset + 1
+      if same == true
+        return true
+    set cursor = cursor + 1
   false
 
 fn validate_semantics(stream: String) -> Bool
@@ -875,7 +864,10 @@ fn validate_semantics(stream: String) -> Bool
 
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
-  let cursor = 0
+  if validate_semantics(tokens) == false
+    ""
+  else
+    let cursor = 0
   let result = "ARDISA-EXEC-V1" + chr(10)
   let function_name = ""
   let params = ""
