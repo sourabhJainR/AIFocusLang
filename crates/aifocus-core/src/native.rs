@@ -970,7 +970,13 @@ fn run_function_with_budget(
             NativeInstr::Store(name) => {
                 let value = stack
                     .pop()
-                    .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
+                    .ok_or_else(|| NativeError::InvalidProgram(format!(
+                        "store from empty stack; pc={}; cursor={:?}; offset={:?}; locals={:?}",
+                        pc - 1,
+                        locals.get("cursor"),
+                        locals.get("offset"),
+                        locals.keys().cloned().collect::<Vec<_>>()
+                    )))?;
                 locals.insert(name, value);
             }
             NativeInstr::StoreIndex(name) => {
