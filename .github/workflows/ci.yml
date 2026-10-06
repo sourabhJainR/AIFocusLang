@@ -41,7 +41,14 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           text = Path("bootstrap/compiler.ardisa").read_text()
-          forbidden = ("fn backend(", "symbolic", "FN\\p")
+          forbidden = (
+              "fn backend(",
+              "symbolic",
+              "LABEL:",
+              "$L",
+              "$W",
+              "JumpIfFalse:$",
+          )
           hits = [item for item in forbidden if item in text]
           if hits:
               raise SystemExit("compiler-specific pseudo-IR remains: " + ", ".join(hits))
