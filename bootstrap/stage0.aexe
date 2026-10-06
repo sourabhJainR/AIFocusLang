@@ -3332,7 +3332,7 @@ I|Jump:46
 I|Load:token
 I|Load:index
 I|Index
-I|PushInt:124
+I|PushInt:1
 I|Equal
 I|JumpIfFalse:38
 I|Load:token
