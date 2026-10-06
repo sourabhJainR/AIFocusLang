@@ -991,10 +991,18 @@ fn run_function_with_budget(
             }
             NativeInstr::Add => {
                 let right = stack.pop().ok_or_else(|| {
-                    NativeError::InvalidProgram("add missing right operand".into())
+                    NativeError::InvalidProgram(format!(
+                        "add missing right operand; cursor={:?}; offset={:?}",
+                        locals.get("cursor"),
+                        locals.get("offset")
+                    ))
                 })?;
                 let left = stack.pop().ok_or_else(|| {
-                    NativeError::InvalidProgram("add missing left operand".into())
+                    NativeError::InvalidProgram(format!(
+                        "add missing left operand; cursor={:?}; offset={:?}",
+                        locals.get("cursor"),
+                        locals.get("offset")
+                    ))
                 })?;
                 stack.push(add_values(left, right)?);
             }
