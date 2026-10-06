@@ -658,7 +658,7 @@ fn compile_statement(stream: String, start: Int) -> String
   else
     if kind == "Set"
       let name = token_value(token_at(stream, next))
-      let value_start = next_cursor(stream, next_cursor(stream, next) + 1) + 1
+      let value_start = next_cursor(stream, next_cursor(stream, next))
       let parsed = parse_expr(stream, value_start, 0)
       let split = find_hash(parsed)
       suffix(parsed, split) + "Store:" + name + chr(10)
