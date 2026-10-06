@@ -5,6 +5,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 seed="bootstrap/stage0.aexe"
+host_seed="bootstrap/stage0.host-transition.aexe"
 source="bootstrap/compiler.ardisa"
 candidate="bootstrap/stage0.rebuilt.aexe"
 
@@ -18,7 +19,9 @@ sha256sum "$seed" "$source" > bootstrap/evidence/bootstrap-inputs.sha256
 
 # Stage 0 is the trusted native compiler. Rust only decodes and executes
 # ARDISA-EXEC-V1; it never parses, lowers, or constructs the compiler artifact.
-cargo run -q --release -p ardisa -- bootstrap compile-from-executable "$seed" "$source" "$candidate"
+cargo run -q --release -p ardisa -- bootstrap compile "$source" "$host_seed"
+cargo run -q --release -p ardisa -- bootstrap compile-from-executable "$host_seed" "$source" "$candidate"
+rm -f "$host_seed"
 
 test -s "$candidate"
 grep -q '^ARDISA-EXEC-V1$' "$candidate"
