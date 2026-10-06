@@ -417,7 +417,7 @@ I|Add
 I|PushInt:10
 I|Chr
 I|Add
-I|Jump:218
+I|Jump:214
 I|Load:kind
 I|PushString:Set
 I|Equal
@@ -451,7 +451,7 @@ I|Add
 I|PushInt:10
 I|Chr
 I|Add
-I|Jump:218
+I|Jump:214
 I|Load:kind
 I|PushString:Return
 I|Equal
@@ -489,7 +489,7 @@ I|Add
 I|PushInt:10
 I|Chr
 I|Add
-I|Jump:218
+I|Jump:214
 I|Load:kind
 I|PushString:If
 I|Equal
@@ -513,7 +513,7 @@ I|Add
 I|PushInt:10
 I|Chr
 I|Add
-I|Jump:218
+I|Jump:214
 I|Load:kind
 I|PushString:While
 I|Equal
@@ -545,7 +545,7 @@ I|Add
 I|PushInt:10
 I|Chr
 I|Add
-I|Jump:218
+I|Jump:214
 I|Load:kind
 I|PushString:Expr
 I|Equal
@@ -566,7 +566,7 @@ I|Add
 I|PushInt:10
 I|Chr
 I|Add
-I|Jump:218
+I|Jump:214
 I|Load:stream
 I|Load:start
 I|PushInt:0
