@@ -1001,9 +1001,10 @@ fn run_function_with_budget(
                 })?;
                 let left = stack.pop().ok_or_else(|| {
                     NativeError::InvalidProgram(format!(
-                        "add missing left operand; cursor={:?}; offset={:?}",
+                        "add missing left operand; cursor={:?}; offset={:?}; locals={:?}",
                         locals.get("cursor"),
-                        locals.get("offset")
+                        locals.get("offset"),
+                        locals.keys().cloned().collect::<Vec<_>>()
                     ))
                 })?;
                 stack.push(add_values(left, right)?);
