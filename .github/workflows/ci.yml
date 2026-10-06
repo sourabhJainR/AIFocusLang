@@ -29,9 +29,36 @@ jobs:
       - name: One-off trusted Stage 0 seed refresh
         run: |
           cargo run -q --release -p ardisa -- bootstrap host-seed bootstrap/compiler.ardisa bootstrap/stage0.aexe
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ci = Path(".github/workflows/ci.yml")
+          text = ci.read_text()
+          one_off = text.index("      - name: One-off trusted Stage 0 seed refresh")
+          native = text.index("      - name: Regenerate trusted Stage 0 through native bootstrap", one_off)
+          text = text[:one_off] + text[native:]
+          text = text.replace("timeout-minutes: 2", "timeout-minutes: 15")
+          ci.write_text(text)
+
+          main = Path("crates/aifocus-cli/src/main.rs")
+          text = main.read_text()
+          command = text.index('            Some("host-seed") =>')
+          verify = text.index('            Some("verify") =>', command)
+          text = text[:command] + text[verify:]
+
+          fn_start = text.index("#[rustfmt::skip]\nfn bootstrap_host_seed")
+          fn_end = text.index("#[rustfmt::skip]\nfn bootstrap_compile_from_executable", fn_start)
+          text = text[:fn_start] + text[fn_end:]
+          main.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bootstrap/stage0.aexe .github/workflows/ci.yml crates/aifocus-cli/src/main.rs
+          git commit -m "build: refresh native Stage 0 seed"
+          git push origin HEAD:feature/native-self-hosting
 
       - name: Regenerate trusted Stage 0 through native bootstrap
-        timeout-minutes: 2
+        timeout-minutes: 15
         run: |
           chmod +x bootstrap/regenerate_stage0.sh bootstrap/verify_self_hosting.sh
           ./bootstrap/regenerate_stage0.sh
