@@ -164,7 +164,11 @@ fn bootstrap_compile_from_executable(compiler_path: &str, source_path: &str, out
     }
     let canonical = ardisa_core::native::encode_program(&program);
     if canonical != output {
-        eprintln!("{compiler_path}: error[AIF610]: compiler output is not canonically encoded");
+        let mut mismatch = String::new();
+        for (index, (expected, actual)) in canonical.lines().zip(output.lines()).enumerate() {
+            if expected != actual { mismatch = format!("line={index} expected={expected:?} actual={actual:?}"); break; }
+        }
+        eprintln!("{compiler_path}: error[AIF610]: compiler output is not canonically encoded; {mismatch}");
         return ExitCode::from(1);
     }
     match fs::write(output_path, canonical) {
