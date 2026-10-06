@@ -755,6 +755,7 @@ fn run_function_with_budget(
                 let child_program = program.clone();
                 let token = Arc::new(AtomicBool::new(false));
                 let child_token = token.clone();
+                let child_budget = Arc::clone(&budget_counter);
                 let join = thread::spawn(move || {
                     let function = child_program.functions.get(&callee).ok_or_else(|| {
                         NativeError::InvalidProgram(format!("unknown function '{callee}'"))
@@ -765,7 +766,7 @@ fn run_function_with_budget(
                         &call_args,
                         Some(child_token),
                         instruction_budget,
-                        Arc::clone(&budget_counter),
+                        child_budget,
                     )
                 });
                 scope.insert(
