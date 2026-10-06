@@ -452,7 +452,7 @@ fn parse_primary(stream: String, start: Int) -> String
   let value = token_value(token)
   let next = next_cursor(stream, start)
   if kind == "Int"
-    itoa(next) + "#" + "PushInt:" + value + chr(10)
+    itoa(next) + chr(2) + "PushInt:" + value + chr(10)
   else
     if kind == "True"
       itoa(next) + "#PushBool:true" + chr(10)
@@ -492,23 +492,23 @@ fn parse_primary(stream: String, start: Int) -> String
               let close = next_cursor(stream, cursor)
               if value == "len"
                 if argc == 1
-                  itoa(close) + "#" + code + "Len" + chr(10)
+                  itoa(close) + chr(2) + code + "Len" + chr(10)
                 else
-                  itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                  itoa(close) + chr(2) + code + "Call:" + value + "," + itoa(argc) + chr(10)
               else
                 if value == "chr"
                   if argc == 1
-                    itoa(close) + "#" + code + "Chr" + chr(10)
+                    itoa(close) + chr(2) + code + "Chr" + chr(10)
                   else
-                    itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                    itoa(close) + chr(2) + code + "Call:" + value + "," + itoa(argc) + chr(10)
                 else
                   if value == "slice"
                     if argc == 3
-                      itoa(close) + "#" + code + "Slice" + chr(10)
+                      itoa(close) + chr(2) + code + "Slice" + chr(10)
                     else
-                      itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                      itoa(close) + chr(2) + code + "Call:" + value + "," + itoa(argc) + chr(10)
                   else
-                    itoa(close) + "#" + code + "Call:" + value + "," + itoa(argc) + chr(10)
+                    itoa(close) + chr(2) + code + "Call:" + value + "," + itoa(argc) + chr(10)
             else
               if after_kind == "LBracket"
                 let cursor = next_cursor(stream, next)
@@ -517,7 +517,7 @@ fn parse_primary(stream: String, start: Int) -> String
                 let after_expr = parse_int(prefix(parsed, split))
                 let code = suffix(parsed, split)
                 let close = next_cursor(stream, after_expr)
-                itoa(close + 1) + "#" + "Load:" + value + chr(10) + code + "Index" + chr(10)
+                itoa(close + 1) + chr(2) + "Load:" + value + chr(10) + code + "Index" + chr(10)
               else
                 itoa(next) + "#Load:" + value + chr(10)
           else
@@ -526,7 +526,7 @@ fn parse_primary(stream: String, start: Int) -> String
               let split = find_hash(parsed)
               let after_expr = parse_int(prefix(parsed, split))
               let close = next_cursor(stream, after_expr)
-              itoa(close + 1) + "#" + suffix(parsed, split)
+              itoa(close + 1) + chr(2) + suffix(parsed, split)
             else
               if kind == "LBracket"
                 let cursor = next
@@ -549,14 +549,14 @@ fn parse_primary(stream: String, start: Int) -> String
                     else
                       if token_kind(separator) == "RBracket"
                         set done = true
-                itoa(next_cursor(stream, cursor)) + "#" + code + "PushList:" + itoa(count) + chr(10)
+                itoa(next_cursor(stream, cursor)) + chr(2) + code + "PushList:" + itoa(count) + chr(10)
               else
                 itoa(next) + "#PushUnit" + chr(10)
 
 fn find_hash(value: String) -> Int
   let index = 0
   while index < len(value)
-    if value[index] == 35
+    if value[index] == 2
       return index
     set index = index + 1
   len(value)
@@ -605,7 +605,7 @@ fn parse_expr(stream: String, start: Int, minimum: Int) -> String
       set cursor = right_cursor
     else
       set scanning = false
-  itoa(cursor) + "#" + code
+  itoa(cursor) + chr(2) + code
 
 fn line_end(stream: String, start: Int) -> Int
   let cursor = start
