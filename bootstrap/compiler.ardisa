@@ -83,7 +83,7 @@ fn keyword(word: String) -> String
 
 fn lex_source(source: String) -> String
   let output = ""
-  let source_length = source_length
+  let source_length = len(source)
   let index = 0
   let indent = 0
   let line_start = true
