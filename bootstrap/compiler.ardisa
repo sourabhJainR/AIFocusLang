@@ -327,17 +327,17 @@ fn token_at(stream: String, start: Int) -> String
   if start < 0
     ""
   else
-    let begin = start * 97
+    let begin = start * 98
     if begin >= len(stream)
       ""
     else
-      let end = begin + 97
+      let end = begin + 98
       if end > len(stream)
         set end = len(stream)
       slice(stream, begin, end)
 
 fn token_count(stream: String) -> Int
-  len(stream) / 97
+  len(stream) / 98
 
 fn next_cursor(stream: String, start: Int) -> Int
   start + 1
@@ -816,8 +816,7 @@ fn validate_semantics(stream: String) -> Bool
 
 fn compile_native(source: String) -> String
   let tokens = lex_source(source)
-  if validate_semantics(tokens) == false
-    return ""
+  return "DEBUG-TOKENS:" + itoa(len(tokens)) + ":" + token_kind(token_at(tokens, 0))
 
   let cursor = 0
   let result = "ARDISA-EXEC-V1" + chr(10)
