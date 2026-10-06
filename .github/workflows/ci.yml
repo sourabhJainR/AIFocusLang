@@ -20,6 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt
+
       - name: Validate formatting
         run: cargo fmt --all -- --check
 
@@ -32,10 +36,11 @@ jobs:
           chmod +x bootstrap/regenerate_stage0.sh bootstrap/verify_self_hosting.sh
           ./bootstrap/regenerate_stage0.sh
 
-      - name: Validate trusted Stage 0 provenance
+      - name: Validate trusted Stage 0 root artifact
         run: |
           test -s bootstrap/stage0.aexe
-          grep -q '^ARDISA-EXEC-V1
+          grep -q '^ARDISA-EXEC-V1$' bootstrap/stage0.aexe
+
       - name: Enforce native compiler target contract
         run: |
           python3 - <<'PY'
@@ -74,126 +79,17 @@ jobs:
               raise SystemExit("Rust Stage-0 construction path detected: " + ", ".join(hits))
           PY
 
-      - name: Upload bootstrap evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ardisa-bootstrap-evidence
-          path: |
-            bootstrap/evidence/
-            bootstrap/stage0.rebuilt.aexe
-            bootstrap/stage0.aexe
-            bootstrap/stage0.sha256
-          if-no-files-found: ignore
-
-      - name: Commit regenerated trusted Stage 0
-        if: success()
+      - name: Verify staged self-hosting
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          sha256sum bootstrap/stage0.aexe | sed 's#  .*#  bootstrap/stage0.aexe#' > bootstrap/stage0.sha256
-          git add bootstrap/stage0.aexe bootstrap/stage0.sha256
-          if git diff --cached --quiet; then
-            echo "Stage 0 seed unchanged"
-          else
-            git commit -m "build: regenerate trusted native Stage 0"
-            git push origin HEAD:${{ github.head_ref || github.ref_name }}
-          fi
- bootstrap/stage0.aexe
-          test -s bootstrap/stage0.sha256
-          sha256sum --check bootstrap/stage0.sha256
+          test -s bootstrap/evidence/stage1.aexe
+          test -s bootstrap/evidence/stage2.aexe
+          test -s bootstrap/evidence/stage3.aexe
+          cmp -s bootstrap/evidence/stage2.aexe bootstrap/evidence/stage3.aexe
 
-      - name: Validate regenerated native Stage 0 seed
+      - name: Record Stage 0 provenance
         run: |
-          test -s bootstrap/stage0.aexe
-          grep -q '^ARDISA-EXEC-V1
-      - name: Enforce native compiler target contract
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path("bootstrap/compiler.ardisa").read_text()
-          forbidden = ("fn backend(", "symbolic", "FN\\p")
-          hits = [item for item in forbidden if item in text]
-          if hits:
-              raise SystemExit("compiler-specific pseudo-IR remains: " + ", ".join(hits))
-          PY
-
-      - name: Host compiler exclusion guard
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path("crates/aifocus-cli/src/main.rs").read_text()
-          start = text.index("fn bootstrap_compile(")
-          end = text.index("fn bootstrap_run(")
-          section = text[start:end]
-          forbidden = (
-              "ardisa_core::parse",
-              "ardisa_core::sema::check",
-              "ardisa_core::ownership::infer",
-              "ardisa_core::ir::lower",
-              "ardisa_core::native::compile_program",
-          )
-          hits = [item for item in forbidden if item in section]
-          if hits:
-              raise SystemExit("Rust Stage-0 construction path detected: " + ", ".join(hits))
-          PY
-
-      - name: Upload bootstrap evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ardisa-bootstrap-evidence
-          path: |
-            bootstrap/evidence/
-            bootstrap/stage0.rebuilt.aexe
-            bootstrap/stage0.aexe
-          if-no-files-found: ignore
-
-      - name: Commit regenerated trusted Stage 0
-        if: success()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bootstrap/stage0.aexe
-          if git diff --cached --quiet; then
-            echo "Stage 0 seed unchanged"
-          else
-            git commit -m "build: regenerate trusted native Stage 0"
-            git push origin HEAD:${{ github.head_ref || github.ref_name }}
-          fi
- bootstrap/stage0.aexe
           sha256sum bootstrap/stage0.aexe | tee bootstrap/evidence/stage0.sha256
-
-      - name: Enforce native compiler target contract
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path("bootstrap/compiler.ardisa").read_text()
-          forbidden = ("fn backend(", "symbolic", "FN\\p")
-          hits = [item for item in forbidden if item in text]
-          if hits:
-              raise SystemExit("compiler-specific pseudo-IR remains: " + ", ".join(hits))
-          PY
-
-      - name: Host compiler exclusion guard
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path("crates/aifocus-cli/src/main.rs").read_text()
-          start = text.index("fn bootstrap_compile(")
-          end = text.index("fn bootstrap_run(")
-          section = text[start:end]
-          forbidden = (
-              "ardisa_core::parse",
-              "ardisa_core::sema::check",
-              "ardisa_core::ownership::infer",
-              "ardisa_core::ir::lower",
-              "ardisa_core::native::compile_program",
-          )
-          hits = [item for item in forbidden if item in section]
-          if hits:
-              raise SystemExit("Rust Stage-0 construction path detected: " + ", ".join(hits))
-          PY
+          sha256sum bootstrap/compiler.ardisa | tee bootstrap/evidence/compiler.ardisa.sha256
 
       - name: Upload bootstrap evidence
         if: always()
@@ -207,7 +103,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Commit regenerated trusted Stage 0
-        if: success()
+        if: success() && github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -216,5 +112,5 @@ jobs:
             echo "Stage 0 seed unchanged"
           else
             git commit -m "build: regenerate trusted native Stage 0"
-            git push origin HEAD:${{ github.head_ref || github.ref_name }}
+            git push origin HEAD:${{ github.ref_name }}
           fi
