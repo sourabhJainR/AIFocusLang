@@ -31,7 +31,7 @@ jobs:
           cargo run -q --release -p ardisa -- bootstrap host-seed bootstrap/compiler.ardisa bootstrap/stage0.aexe
 
       - name: Regenerate trusted Stage 0 through native bootstrap
-        timeout-minutes: 15
+        timeout-minutes: 2
         run: |
           chmod +x bootstrap/regenerate_stage0.sh bootstrap/verify_self_hosting.sh
           ./bootstrap/regenerate_stage0.sh
