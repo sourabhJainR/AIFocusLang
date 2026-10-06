@@ -990,20 +990,6 @@ fn slice(text: String, start: Int, end: Int) -> String
     set index = index + 1
   result
 
-fn resolve_target(code: String, target: String) -> Int
-  let pc = 0
-  let cursor = 0
-  while cursor < len(code)
-    let line = line_at(code, cursor)
-    if line == "LABEL:" + target
-      return pc
-    if len(line) > 0
-      if line[0] != 64
-        if line[0] != 76
-          set pc = pc + 1
-    set cursor = next_line(code, cursor)
-  0
-
 fn encode_function(name: String, params: String, code: String) -> String
   let result = "FN|" + name + "|" + itoa(count_params(params)) + "|" + params + chr(10)
   let cursor = 0
