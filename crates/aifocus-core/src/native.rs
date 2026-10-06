@@ -744,7 +744,13 @@ fn run_function_with_budget(
                     let function = child_program.functions.get(&callee).ok_or_else(|| {
                         NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                     })?;
-                    run_function_with_budget(&child_program, function, &call_args, Some(child_token), instruction_budget)
+                    run_function_with_budget(
+                        &child_program,
+                        function,
+                        &call_args,
+                        Some(child_token),
+                        instruction_budget,
+                    )
                 });
                 scope.insert(
                     name,
@@ -798,7 +804,13 @@ fn run_function_with_budget(
                 let callee_fn = program.functions.get(&callee).ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                 })?;
-                let value = run_function_with_budget(program, callee_fn, &call_args, cancellation.clone(), instruction_budget)?;
+                let value = run_function_with_budget(
+                    program,
+                    callee_fn,
+                    &call_args,
+                    cancellation.clone(),
+                    instruction_budget,
+                )?;
                 stack.push(value);
             }
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
