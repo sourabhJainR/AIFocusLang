@@ -640,7 +640,15 @@ pub fn run_program_with_budget(
         .functions
         .get(entry)
         .ok_or_else(|| NativeError::InvalidProgram(format!("unknown function '{entry}'")))?;
-    run_function_with_budget(program, function, args, None, instruction_budget)
+    let budget_counter = Arc::new(AtomicUsize::new(0));
+    run_function_with_budget(
+        program,
+        function,
+        args,
+        None,
+        instruction_budget,
+        budget_counter,
+    )
 }
 
 fn run_function(
@@ -649,7 +657,14 @@ fn run_function(
     args: &[NativeValue],
     cancellation: Option<Arc<AtomicBool>>,
 ) -> Result<NativeValue, NativeError> {
-    run_function_with_budget(program, function, args, cancellation, 2_000_000)
+    run_function_with_budget(
+        program,
+        function,
+        args,
+        cancellation,
+        2_000_000,
+        Arc::new(AtomicUsize::new(0)),
+    )
 }
 
 fn run_function_with_budget(
@@ -658,6 +673,7 @@ fn run_function_with_budget(
     args: &[NativeValue],
     cancellation: Option<Arc<AtomicBool>>,
     instruction_budget: usize,
+    budget_counter: Arc<AtomicUsize>,
 ) -> Result<NativeValue, NativeError> {
     if args.len() != function.params.len() {
         return Err(NativeError::InvalidProgram(format!(
@@ -667,7 +683,6 @@ fn run_function_with_budget(
         )));
     }
     let mut pc = 0usize;
-    let mut steps = 0usize;
     let mut stack = Vec::new();
     let mut locals = HashMap::new();
     let mut scopes: Vec<BTreeMap<String, NativeTask>> = Vec::new();
@@ -676,7 +691,7 @@ fn run_function_with_budget(
     }
 
     while pc < function.code.len() {
-        steps += 1;
+        let steps = budget_counter.fetch_add(1, Ordering::Relaxed) + 1;
         if steps > instruction_budget {
             return Err(NativeError::InvalidProgram(format!(
                 "instruction budget exceeded at pc {} of {}: {:?}; offset={:?}; cursor={:?}",
@@ -750,6 +765,7 @@ fn run_function_with_budget(
                         &call_args,
                         Some(child_token),
                         instruction_budget,
+                        Arc::clone(&budget_counter),
                     )
                 });
                 scope.insert(
@@ -810,6 +826,7 @@ fn run_function_with_budget(
                     &call_args,
                     cancellation.clone(),
                     instruction_budget,
+                    Arc::clone(&budget_counter),
                 )?;
                 stack.push(value);
             }
