@@ -83,15 +83,16 @@ fn keyword(word: String) -> String
 
 fn lex_source(source: String) -> String
   let output = ""
+  let source_length = source_length
   let index = 0
   let indent = 0
   let line_start = true
-  while index < len(source)
+  while index < source_length
     if line_start
       let spaces = 0
       let scanning_spaces = true
       let pending_index = index
-      while index < len(source)
+      while index < source_length
         if scanning_spaces == true
           if source[index] == 32
             set spaces = spaces + 1
@@ -99,7 +100,7 @@ fn lex_source(source: String) -> String
           else
             set pending_index = index
             set scanning_spaces = false
-            set index = len(source)
+            set index = source_length
       set index = pending_index
       if spaces > indent
         set indent = spaces
@@ -113,7 +114,7 @@ fn lex_source(source: String) -> String
               set indent = 0
             set output = output + token("Dedent", "")
       set line_start = false
-    if index < len(source)
+    if index < source_length
       let c = source[index]
       if c == 10
         set output = output + token("Newline", "")
@@ -124,7 +125,7 @@ fn lex_source(source: String) -> String
           set index = index + 1
         else
           if c == 35
-            while index < len(source)
+            while index < source_length
               if source[index] == 10
                 set line_start = true
                 set index = index + 1
@@ -135,7 +136,7 @@ fn lex_source(source: String) -> String
               let word = ""
               let scanning_word = true
               let pending_index = index
-              while index < len(source)
+              while index < source_length
                 if scanning_word == true
                   if is_letter(source[index])
                     set word = word + chr(source[index])
@@ -147,7 +148,7 @@ fn lex_source(source: String) -> String
                     else
                       set pending_index = index
                       set scanning_word = false
-                      set index = len(source)
+                      set index = source_length
               set index = pending_index
               set output = output + token(keyword(word), word)
             else
@@ -155,7 +156,7 @@ fn lex_source(source: String) -> String
                 let number = ""
                 let scanning_number = true
                 let pending_index = index
-                while index < len(source)
+                while index < source_length
                   if scanning_number == true
                     if is_digit(source[index])
                       set number = number + chr(source[index])
@@ -163,7 +164,7 @@ fn lex_source(source: String) -> String
                     else
                       set pending_index = index
                       set scanning_number = false
-                      set index = len(source)
+                      set index = source_length
                 set index = pending_index
                 set output = output + token("Int", number)
               else
@@ -172,12 +173,12 @@ fn lex_source(source: String) -> String
                   set index = index + 1
                   let closed = false
                   let pending_index = index
-                  while index < len(source)
+                  while index < source_length
                     if closed == false
                       if source[index] == 34
                         set closed = true
                         set pending_index = index + 1
-                        set index = len(source)
+                        set index = source_length
                       else
                         set value = value + chr(source[index])
                         set index = index + 1
@@ -185,7 +186,7 @@ fn lex_source(source: String) -> String
                   set output = output + token("String", value)
                 else
                   if c == 45
-                    if index + 1 < len(source)
+                    if index + 1 < source_length
                       if source[index + 1] == 62
                         set output = output + token("Arrow", "->")
                         set index = index + 2
@@ -197,7 +198,7 @@ fn lex_source(source: String) -> String
                       set index = index + 1
                   else
                     if c == 61
-                      if index + 1 < len(source)
+                      if index + 1 < source_length
                         if source[index + 1] == 61
                           set output = output + token("EqualEqual", "==")
                           set index = index + 2
@@ -209,7 +210,7 @@ fn lex_source(source: String) -> String
                         set index = index + 1
                     else
                       if c == 33
-                        if index + 1 < len(source)
+                        if index + 1 < source_length
                           if source[index + 1] == 61
                             set output = output + token("NotEqual", "!=")
                             set index = index + 2
@@ -221,7 +222,7 @@ fn lex_source(source: String) -> String
                           set index = index + 1
                       else
                         if c == 60
-                          if index + 1 < len(source)
+                          if index + 1 < source_length
                             if source[index + 1] == 61
                               set output = output + token("LessEqual", "<=")
                               set index = index + 2
@@ -233,7 +234,7 @@ fn lex_source(source: String) -> String
                             set index = index + 1
                         else
                           if c == 62
-                            if index + 1 < len(source)
+                            if index + 1 < source_length
                               if source[index + 1] == 61
                                 set output = output + token("GreaterEqual", ">=")
                                 set index = index + 2
