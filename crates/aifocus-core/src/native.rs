@@ -1086,9 +1086,13 @@ fn run_function_with_budget(
             }
         }
     }
-    Err(NativeError::InvalidProgram(
-        "program terminated without return".into(),
-    ))
+    Err(NativeError::InvalidProgram(format!(
+        "program terminated without return; code_len={}; locals={:?}; cursor={:?}; offset={:?}",
+        function.code.len(),
+        locals.keys().cloned().collect::<Vec<_>>(),
+        locals.get("cursor"),
+        locals.get("offset")
+    )))
 }
 
 fn compare_ints(
