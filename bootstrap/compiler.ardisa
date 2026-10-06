@@ -336,6 +336,9 @@ fn token_at(stream: String, start: Int) -> String
         set end = len(stream)
       slice(stream, begin, end)
 
+fn token_count(stream: String) -> Int
+  len(stream) / 98
+
 fn next_cursor(stream: String, start: Int) -> Int
   start + 1
 
@@ -603,7 +606,7 @@ fn parse_expr(stream: String, start: Int, minimum: Int) -> String
 
 fn line_end(stream: String, start: Int) -> Int
   let cursor = start
-  while cursor < len(stream)
+  while cursor < token_count(stream)
     if token_kind(token_at(stream, cursor)) == "Newline"
       return cursor
     set cursor = next_cursor(stream, cursor)
@@ -753,7 +756,7 @@ fn validate_semantics(stream: String) -> Bool
   let function_seen = false
   let body_seen = false
   let valid = true
-  while cursor < len(stream)
+  while cursor < token_count(stream)
     let token = token_at(stream, cursor)
     let kind = token_kind(token)
     if kind == "Unknown"
@@ -825,7 +828,7 @@ fn compile_native(source: String) -> String
   let in_function = false
   let block_stack = ""
   let block_depth = 0
-  while cursor < len(tokens)
+  while cursor < token_count(tokens)
     let token = token_at(tokens, cursor)
     let kind = token_kind(token)
     if kind == "Fn"
