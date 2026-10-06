@@ -1391,11 +1391,11 @@ I|PushInt:0
 I|Store:spaces
 I|PushBool:true
 I|Store:scanning_spaces
-I|Load:index
-I|Store:pending_index
-I|Load:index
 I|Load:source
 I|Len
+I|Store:pending_index
+I|Load:index
+I|Load:pending_index
 I|Less
 I|JumpIfFalse:58
 I|Load:scanning_spaces
