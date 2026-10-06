@@ -24,12 +24,14 @@ jobs:
         run: cargo test --workspace --all-targets
       - name: Native phase contract tests
         run: cargo test -p ardisa-core compiler_engine
-      - name: Bootstrap artifact
+      - name: Native staged bootstrap
         run: |
-          mkdir -p evidence
-          cargo run -q -p ardisa -- bootstrap compile bootstrap/compiler.ardisa evidence/compiler.aexe
-          cargo run -q -p ardisa -- bootstrap verify evidence/compiler.aexe
-          sha256sum evidence/compiler.aexe | tee evidence/compiler.aexe.sha256
+          chmod +x bootstrap/regenerate_stage0.sh bootstrap/verify_self_hosting.sh
+          ./bootstrap/regenerate_stage0.sh
+          cp bootstrap/evidence/stage2.aexe evidence-stage2.aexe
+          cp bootstrap/evidence/stage3.aexe evidence-stage3.aexe
+          cargo run -q -p ardisa -- bootstrap verify bootstrap/stage0.aexe
+          sha256sum bootstrap/stage0.aexe | tee bootstrap/evidence/stage0.native.sha256
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:
