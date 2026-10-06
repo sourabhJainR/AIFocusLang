@@ -526,7 +526,7 @@ fn parse_primary(stream: String, start: Int) -> String
               let split = find_hash(parsed)
               let after_expr = parse_int(prefix(parsed, split))
               let close = next_cursor(stream, after_expr)
-              itoa(close + 1) + chr(2) + suffix(parsed, split)
+              itoa(close) + chr(2) + suffix(parsed, split)
             else
               if kind == "LBracket"
                 let cursor = next
