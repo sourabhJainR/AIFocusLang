@@ -431,11 +431,7 @@ I|Load:stream
 I|Load:stream
 I|Load:next
 I|Call:next_cursor,2
-I|PushInt:1
-I|Add
 I|Call:next_cursor,2
-I|PushInt:1
-I|Add
 I|Store:value_start
 I|Load:stream
 I|Load:value_start
