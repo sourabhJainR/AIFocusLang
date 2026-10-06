@@ -26,6 +26,10 @@ jobs:
       - name: Compile and test
         run: cargo test --release --workspace --all-targets
 
+      - name: One-off trusted Stage 0 seed refresh
+        run: |
+          cargo run -q --release -p ardisa -- bootstrap compile bootstrap/compiler.ardisa bootstrap/stage0.aexe
+
       - name: Regenerate trusted Stage 0 through native bootstrap
         timeout-minutes: 15
         run: |
