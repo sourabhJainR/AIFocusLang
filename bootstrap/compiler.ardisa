@@ -581,8 +581,11 @@ fn parse_int(value: String) -> Int
   let result = 0
   let index = 0
   while index < len(value)
-    set result = result * 10 + (value[index] - 48)
-    set index = index + 1
+    if is_digit(value[index])
+      set result = result * 10 + (value[index] - 48)
+      set index = index + 1
+    else
+      set index = len(value)
   result
 
 fn parse_expr(stream: String, start: Int, minimum: Int) -> String
