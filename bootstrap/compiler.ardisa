@@ -81,6 +81,17 @@ fn keyword(word: String) -> String
                             else
                               "Ident"
 
+fn leading_spaces(source: String, start: Int) -> Int
+  let index = start
+  let spaces = 0
+  while index < len(source)
+    if source[index] == 32
+      set spaces = spaces + 1
+      set index = index + 1
+    else
+      return spaces
+  spaces
+
 fn lex_source(source: String) -> String
   let output = ""
   let index = 0
@@ -88,16 +99,8 @@ fn lex_source(source: String) -> String
   let line_start = true
   while index < len(source)
     if line_start
-      let spaces = 0
-      let pending_index = index
-      while index < len(source)
-        if source[index] == 32
-          set spaces = spaces + 1
-          set index = index + 1
-        else
-          set pending_index = index
-          set index = len(source)
-      set index = pending_index
+      let spaces = leading_spaces(source, index)
+      set index = index + spaces
       if spaces > indent
         set indent = spaces
         set output = output + token("Indent", chr(spaces))
