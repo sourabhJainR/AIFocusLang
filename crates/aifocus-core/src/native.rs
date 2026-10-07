@@ -1028,7 +1028,7 @@ fn run_function_with_budget(
                         locals.keys().cloned().collect::<Vec<_>>()
                     ))
                 })?;
-                stack.push(add_values(left, right).map_err(|error| match error { NativeError::Type(message) => NativeError::Type(format!("{}; function={}; pc={}", message, function.params.join(","), pc - 1)), other => other })?);
+                stack.push(add_values(left, right)?);
             }
             NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div | NativeInstr::Mod => {
                 let right = pop_int(&mut stack)?;
