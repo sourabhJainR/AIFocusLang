@@ -90,7 +90,7 @@ fn leading_spaces(source: String, start: Int) -> Int
       set index = index + 1
     else
       set index = len(source)
-  count
+  return count
 
 fn lex_source(source: String) -> String
   let output = ""
