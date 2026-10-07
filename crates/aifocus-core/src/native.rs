@@ -530,9 +530,13 @@ pub fn run(
                         stack.push(NativeValue::String(left));
                     }
                     _ => {
-                        return Err(NativeError::Type(
-                            "addition requires two Ints or two Strings".into(),
-                        ));
+                        return Err(NativeError::Type(format!(
+                            "addition requires two Ints or two Strings; pc={}; left={:?}; right={:?}; locals={:?}",
+                            pc - 1,
+                            left,
+                            right,
+                            locals,
+                        )));
                     }
                 }
             }
