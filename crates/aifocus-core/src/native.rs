@@ -1122,9 +1122,10 @@ fn add_values(left: NativeValue, right: NativeValue) -> Result<NativeValue, Nati
         (NativeValue::String(left), NativeValue::String(right)) => {
             Ok(NativeValue::String(format!("{left}{right}")))
         }
-        _ => Err(NativeError::Type(
-            "String + String or Int + Int required".into(),
-        )),
+        (left, right) => Err(NativeError::Type(format!(
+            "String + String or Int + Int required; left={:?}; right={:?}",
+            left, right
+        ))),
     }
 }
 
