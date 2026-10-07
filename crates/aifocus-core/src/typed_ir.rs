@@ -375,6 +375,11 @@ fn optimize_value(value: &mut TypedValue) {
             optimize_value(index);
         }
         TypedValueKind::Call { args, .. } => args.iter_mut().for_each(optimize_value),
+        TypedValueKind::If { condition, then_ops, else_ops } => {
+            optimize_value(condition);
+            then_ops.iter_mut().for_each(optimize_op);
+            else_ops.iter_mut().for_each(optimize_op);
+        }
         TypedValueKind::Int(_)
         | TypedValueKind::Bool(_)
         | TypedValueKind::String(_)
