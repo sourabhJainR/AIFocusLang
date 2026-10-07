@@ -521,6 +521,8 @@ pub fn run(
                         locals.keys().cloned().collect::<Vec<_>>()
                     ))
                 })?;
+                let left_debug = format!("{:?}", &left);
+                let right_debug = format!("{:?}", &right);
                 match (left, right) {
                     (NativeValue::Int(left), NativeValue::Int(right)) => {
                         stack.push(NativeValue::Int(left + right));
@@ -531,10 +533,10 @@ pub fn run(
                     }
                     _ => {
                         return Err(NativeError::Type(format!(
-                            "addition requires two Ints or two Strings; pc={}; left={:?}; right={:?}; locals={:?}",
+                            "addition requires two Ints or two Strings; pc={}; left={}; right={}; locals={:?}",
                             pc - 1,
-                            left,
-                            right,
+                            left_debug,
+                            right_debug,
                             locals,
                         )));
                     }
