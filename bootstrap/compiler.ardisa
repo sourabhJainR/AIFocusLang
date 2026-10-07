@@ -82,15 +82,13 @@ fn keyword(word: String) -> String
                               "Ident"
 
 fn leading_spaces(source: String, start: Int) -> Int
-  let count = 0
-  let index = start
-  while index < len(source)
-    if source[index] == 32
-      set count = count + 1
-      set index = index + 1
+  if start >= len(source)
+    return 0
+  else
+    if source[start] == 32
+      return 1 + leading_spaces(source, start + 1)
     else
-      set index = len(source)
-  return count
+      return 0
 
 fn lex_source(source: String) -> String
   let output = ""
