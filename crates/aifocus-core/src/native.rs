@@ -184,6 +184,24 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
             code.push(NativeInstr::Return);
         }
         IrOp::Expr(value) => {
+            if let IrValue::If {
+                condition,
+                then_ops,
+                else_ops,
+            } = value
+            {
+                if else_ops.is_empty() {
+                    emit_value(condition, code)?;
+                    let jump_if = code.len();
+                    code.push(NativeInstr::JumpIfFalse(usize::MAX));
+                    for op in then_ops {
+                        emit_op(op, code)?;
+                    }
+                    let end = code.len();
+                    code[jump_if] = NativeInstr::JumpIfFalse(end);
+                    return Ok(());
+                }
+            }
             emit_value(value, code)?;
             code.push(NativeInstr::Pop);
         }
