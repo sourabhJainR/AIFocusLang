@@ -19,7 +19,9 @@ jobs:
           toolchain: stable
           components: rustfmt
       - name: Format check
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --all
+          cargo fmt --all -- --check
       - name: Workspace tests
         run: cargo test --workspace --all-targets
       - name: Native phase contract tests
