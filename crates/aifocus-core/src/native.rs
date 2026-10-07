@@ -184,24 +184,6 @@ fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
             code.push(NativeInstr::Return);
         }
         IrOp::Expr(value) => {
-            if let IrValue::If {
-                condition,
-                then_ops,
-                else_ops,
-            } = value
-            {
-                if else_ops.is_empty() {
-                    emit_value(condition, code)?;
-                    let jump_if = code.len();
-                    code.push(NativeInstr::JumpIfFalse(usize::MAX));
-                    for op in then_ops {
-                        emit_op(op, code)?;
-                    }
-                    let end = code.len();
-                    code[jump_if] = NativeInstr::JumpIfFalse(end);
-                    return Ok(());
-                }
-            }
             emit_value(value, code)?;
             code.push(NativeInstr::Pop);
         }
@@ -539,8 +521,6 @@ pub fn run(
                         locals.keys().cloned().collect::<Vec<_>>()
                     ))
                 })?;
-                let left_debug = format!("{:?}", &left);
-                let right_debug = format!("{:?}", &right);
                 match (left, right) {
                     (NativeValue::Int(left), NativeValue::Int(right)) => {
                         stack.push(NativeValue::Int(left + right));
@@ -550,13 +530,9 @@ pub fn run(
                         stack.push(NativeValue::String(left));
                     }
                     _ => {
-                        return Err(NativeError::Type(format!(
-                            "addition requires two Ints or two Strings; pc={}; left={}; right={}; locals={:?}",
-                            pc - 1,
-                            left_debug,
-                            right_debug,
-                            locals,
-                        )));
+                        return Err(NativeError::Type(
+                            "addition requires two Ints or two Strings".into(),
+                        ));
                     }
                 }
             }
@@ -1140,10 +1116,9 @@ fn add_values(left: NativeValue, right: NativeValue) -> Result<NativeValue, Nati
         (NativeValue::String(left), NativeValue::String(right)) => {
             Ok(NativeValue::String(format!("{left}{right}")))
         }
-        (left, right) => Err(NativeError::Type(format!(
-            "String + String or Int + Int required; left={:?}; right={:?}",
-            left, right
-        ))),
+        _ => Err(NativeError::Type(
+            "String + String or Int + Int required".into(),
+        )),
     }
 }
 
