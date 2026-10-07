@@ -20,6 +20,7 @@ sha256sum "$seed" "$source" > bootstrap/evidence/bootstrap-inputs.sha256
 # Stage 0 is the trusted native compiler. Rust only decodes and executes
 # ARDISA-EXEC-V1; it never parses, lowers, or constructs the compiler artifact.
 cargo run -q --release -p ardisa -- bootstrap host-compile "$source" "$host_seed"
+awk 'BEGIN{p=0} /^FN\|lex_source\|/{p=1} p{print} p && /^END$/{exit}' "$host_seed" | nl -ba | sed -n "1,140p"
 cargo run -q --release -p ardisa -- bootstrap compile-from-executable "$host_seed" "$source" "$candidate"
 rm -f "$host_seed"
 
