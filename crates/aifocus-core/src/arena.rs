@@ -3,9 +3,13 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ArenaId(pub u32);
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Arena<T> {
     values: Vec<T>,
+}
+
+impl<T> Default for Arena<T> {
+    fn default() -> Self { Self::new() }
 }
 
 impl<T> Arena<T> {

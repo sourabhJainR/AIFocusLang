@@ -199,7 +199,7 @@ pub fn lower_cfg(module: &Module) -> Result<TypedIrModule, Vec<String>> {
         let mut locals = BTreeMap::new();
         for p in &function.params { locals.insert(p.name.clone(), p.ty.kind.clone()); }
         let mut blocks = Vec::new();
-        let entry = build_cfg_block(&function.body, &analysis.inferred_types, &mut locals, &mut blocks, &mut errors);
+        let entry = build_cfg_block(&function.body, &analysis.inferred_types, &mut locals, &mut blocks, &mut errors, true);
         if entry != 0 { errors.push(format!("internal CFG error: entry block is {entry}")); }
         functions.push(TypedIrFunction {
             name: function.name.clone(),
@@ -223,6 +223,7 @@ fn build_cfg_block(
     locals: &mut BTreeMap<String, TypeKind>,
     blocks: &mut Vec<TypedBasicBlock>,
     errors: &mut Vec<String>,
+    finalize_return: bool,
 ) -> u32 {
     let current = new_cfg_block(blocks);
     let mut cursor = current;
@@ -238,7 +239,7 @@ fn build_cfg_block(
                     };
                 }
                 let mut scoped = locals.clone();
-                let nested_entry = build_cfg_block(body, types, &mut scoped, blocks, errors);
+                let nested_entry = build_cfg_block(body, types, &mut scoped, blocks, errors, false);
                 if nested_entry != body_block {
                     blocks[body_block as usize] = blocks[nested_entry as usize].clone();
                     blocks[body_block as usize].id = body_block;
@@ -283,7 +284,7 @@ fn build_cfg_block(
             StmtKind::Cancel { name } => blocks[cursor as usize].ops.push(TypedIrOp::Cancel(name.clone())),
         }
     }
-    if matches!(blocks[cursor as usize].terminator, TypedTerminator::Fallthrough) {
+    if finalize_return && matches!(blocks[cursor as usize].terminator, TypedTerminator::Fallthrough) {
         let value = blocks[cursor as usize].ops.last().and_then(|op| match op { TypedIrOp::Expr(v) => Some(v.clone()), _ => None });
         blocks[cursor as usize].terminator = TypedTerminator::Return(value);
     }
@@ -375,6 +376,11 @@ fn optimize_value(value: &mut TypedValue) {
             optimize_value(index);
         }
         TypedValueKind::Call { args, .. } => args.iter_mut().for_each(optimize_value),
+        TypedValueKind::If { condition, then_ops, else_ops } => {
+            optimize_value(condition);
+            then_ops.iter_mut().for_each(optimize_op);
+            else_ops.iter_mut().for_each(optimize_op);
+        }
         TypedValueKind::Int(_)
         | TypedValueKind::Bool(_)
         | TypedValueKind::String(_)
