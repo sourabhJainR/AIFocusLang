@@ -118,19 +118,7 @@ fn leading_spaces(source: String, start: Int) -> Int
               if source[start + 5] != 32
                 return 5
               else
-              if start + 6 >= len(source)
-                return 6
-              else
-                if source[start + 6] != 32
-                  return 6
-                else
-                if start + 7 >= len(source)
-                  return 7
-                else
-                  if source[start + 7] != 32
-                    return 7
-                  else
-                  return 8
+              return 6
 
 fn lex_source(source: String) -> String
   let output = ""
