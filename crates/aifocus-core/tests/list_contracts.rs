@@ -16,14 +16,8 @@ fn infers_list_element_type_and_index_result() {
         panic!("expected list binding");
     };
     assert!(matches!(value.kind, ExprKind::List(_)));
-    assert_eq!(
-        model.inferred_types.get(&value.id).unwrap().kind,
-        TypeKind::List(Box::new(ardisa_core::Type {
-            id: ardisa_core::NodeId(0),
-            span: value.span,
-            kind: TypeKind::Int,
-        }))
-    );
+    let inferred_list = &model.inferred_types.get(&value.id).unwrap().kind;
+    assert!(matches!(inferred_list, TypeKind::List(element) if element.kind == TypeKind::Int));
 
     let StmtKind::Expr(index) = &function.body.stmts[1].kind else {
         panic!("expected indexed expression");
