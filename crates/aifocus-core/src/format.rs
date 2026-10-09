@@ -31,6 +31,40 @@ fn format_item(item: &Item, out: &mut String) {
             out.push('\n');
             format_block(&function.body, 2, out);
         }
+        Item::Trace(decl) => format_construct("trace", decl, out),
+        Item::Cell(decl) => format_construct("cell", decl, out),
+        Item::Vault(decl) => format_construct("vault", decl, out),
+        Item::Proof(decl) => format_construct("proof", decl, out),
+        Item::Phase(decl) => format_construct("phase", decl, out),
+    }
+}
+
+fn format_construct(kind: &str, decl: &ConstructDeclaration, out: &mut String) {
+    out.push_str("\\n");
+    out.push_str(kind);
+    out.push(' ');
+    out.push_str(&decl.name);
+    out.push('\\n');
+    for member in &decl.members {
+        out.push_str("  ");
+        match member {
+            ConstructMember::Field { name, ty, .. } => {
+                out.push_str(name);
+                out.push_str(": ");
+                out.push_str(&ty.display_name());
+            }
+            ConstructMember::Clause { name, value, .. } => {
+                out.push_str(name);
+                out.push_str(": ");
+                out.push_str(value);
+            }
+            ConstructMember::Transition { from, to, .. } => {
+                out.push_str(from);
+                out.push_str(" -> ");
+                out.push_str(to);
+            }
+        }
+        out.push('\\n');
     }
 }
 
