@@ -154,7 +154,12 @@ mod tests {
             "compiler-change",
             "passed",
             "deep",
-            vec!["ci:green".into()],
+            vec![
+                "ci:green".into(),
+                "source_uri=https://example.invalid/build-report.json".into(),
+                format!("source_sha256={}", "a".repeat(64)),
+                "verification_receipt=ci-run-1".into(),
+            ],
         ));
         assert_eq!(
             graph.can_promote("ownership-analysis", true, 100).decision,
@@ -207,7 +212,7 @@ mod tests {
                 "verification_receipt=ci-run-37953217310".into(),
             ],
         );
-        assert_eq!(envelope.evidence.len(), 2);
+        assert_eq!(envelope.evidence.len(), 5);
         assert_eq!(envelope.episode_id, "episode-1");
     }
 }
