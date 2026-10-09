@@ -14,6 +14,26 @@ pub struct Module {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
     Function(Function),
+    Trace(ConstructDeclaration),
+    Cell(ConstructDeclaration),
+    Vault(ConstructDeclaration),
+    Proof(ConstructDeclaration),
+    Phase(ConstructDeclaration),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstructDeclaration {
+    pub id: NodeId,
+    pub span: Span,
+    pub name: String,
+    pub members: Vec<ConstructMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstructMember {
+    Field { name: String, ty: Type, span: Span },
+    Clause { name: String, value: String, span: Span },
+    Transition { from: String, to: String, span: Span },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
