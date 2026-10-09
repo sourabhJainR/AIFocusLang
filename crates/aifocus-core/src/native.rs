@@ -712,7 +712,7 @@ fn run_function(
         let executed = state.instructions.fetch_add(1, Ordering::AcqRel);
         if executed >= state.limits.max_instructions {
             return Err(NativeError::ResourceLimit(format!(
-                "instruction budget exceeded (limit {})", state.limits.max_instructions
+                "instruction budget exceeded after {} instructions (limit {})", executed + 1, state.limits.max_instructions
             )));
         }
         if cancellation
