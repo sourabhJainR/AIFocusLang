@@ -69,7 +69,7 @@ pub use protocol::{
 };
 
 pub use ast::{
-    BinaryOp, Block, ConstructDeclaration, ConstructMember, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
+    BinaryOp, Block, ConstructDeclaration, ConstructKind, ConstructMember, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
     Type, TypeKind,
 };
 pub use token::{Token, TokenKind, lex};
@@ -116,12 +116,19 @@ impl Parser {
         self.expect(TokenKind::Newline, "end of module declaration")?;
 
         let mut items = Vec::new();
+        let mut constructs = Vec::new();
         while !self.at(TokenKind::Eof) {
             self.skip_newlines();
             if self.at(TokenKind::Eof) {
                 break;
             }
-            if let Some(item) = self.parse_item() {
+            if self.at(TokenKind::Ident) && matches!(self.current().lexeme.as_str(), "trace" | "cell" | "vault" | "proof" | "phase") {
+                if let Some(declaration) = self.parse_construct() {
+                    constructs.push(declaration);
+                } else {
+                    self.recover_top_level();
+                }
+            } else if let Some(item) = self.parse_item() {
                 items.push(item);
             } else {
                 self.recover_top_level();
@@ -133,24 +140,20 @@ impl Parser {
             span: source::Span::new(start, self.previous_span().end),
             name,
             items,
+            constructs,
         })
     }
 
     fn parse_item(&mut self) -> Option<Item> {
         if self.at(TokenKind::Fn) {
-            return self.parse_function().map(Item::Function);
+            self.parse_function().map(Item::Function)
+        } else {
+            self.error("AIF201", "expected a top-level function");
+            None
         }
-        if self.at(TokenKind::Ident) {
-            let kind = self.current().lexeme.as_str();
-            if matches!(kind, "trace" | "cell" | "vault" | "proof" | "phase") {
-                return self.parse_construct();
-            }
-        }
-        self.error("AIF201", "expected a top-level function or AI Mode declaration");
-        None
     }
 
-    fn parse_construct(&mut self) -> Option<Item> {
+    fn parse_construct(&mut self) -> Option<ConstructDeclaration> {
         let start_token = self.bump();
         let kind = start_token.lexeme.as_str();
         let name_token = self.expect(TokenKind::Ident, "AI Mode declaration name")?;
@@ -206,19 +209,20 @@ impl Parser {
             self.skip_newlines();
         }
         let end = if self.eat(TokenKind::Dedent) { self.previous_span().end } else { self.current().span.end };
-        let declaration = ConstructDeclaration {
+        let construct_kind = match kind {
+            "trace" => ConstructKind::Trace,
+            "cell" => ConstructKind::Cell,
+            "vault" => ConstructKind::Vault,
+            "proof" => ConstructKind::Proof,
+            "phase" => ConstructKind::Phase,
+            _ => unreachable!("construct kind was checked before parsing"),
+        };
+        Some(ConstructDeclaration {
             id: self.id(kind, &name),
             span: source::Span::new(start_token.span.start, end),
+            kind: construct_kind,
             name,
             members,
-        };
-        Some(match kind {
-            "trace" => Item::Trace(declaration),
-            "cell" => Item::Cell(declaration),
-            "vault" => Item::Vault(declaration),
-            "proof" => Item::Proof(declaration),
-            "phase" => Item::Phase(declaration),
-            _ => unreachable!("construct kind was checked before parsing"),
         })
     }
 
@@ -850,13 +854,13 @@ mod ai_mode_declaration_parser_tests {
     fn parses_and_round_trips_all_five_ai_mode_declaration_kinds() {
         let source = "module ai_constructs\ntrace BuildEvidence\n  source_digest: String\ncell Percentage\n  value: Int\n  invariant: true\nvault ReadOnlyCatalog\n  capabilities: catalog_read\nproof NonNegativeTotal\n  requires: true\nphase Payment\n  Pending -> Authorized\n  Pending -> Cancelled\n";
         let module = parse(source).expect("AI Mode declarations should parse");
-        assert_eq!(module.items.len(), 5);
-        assert!(matches!(module.items[0], Item::Trace(_)));
-        assert!(matches!(module.items[1], Item::Cell(_)));
-        assert!(matches!(module.items[2], Item::Vault(_)));
-        assert!(matches!(module.items[3], Item::Proof(_)));
-        assert!(matches!(module.items[4], Item::Phase(_)));
-        let Item::Phase(phase) = &module.items[4] else { panic!("expected phase declaration"); };
+        assert_eq!(module.constructs.len(), 5);
+        assert_eq!(module.constructs[0].kind, super::ConstructKind::Trace);
+        assert_eq!(module.constructs[1].kind, super::ConstructKind::Cell);
+        assert_eq!(module.constructs[2].kind, super::ConstructKind::Vault);
+        assert_eq!(module.constructs[3].kind, super::ConstructKind::Proof);
+        assert_eq!(module.constructs[4].kind, super::ConstructKind::Phase);
+        let phase = &module.constructs[4];
         assert!(matches!(phase.members[0], ConstructMember::Transition { ref from, ref to, .. } if from == "Pending" && to == "Authorized"));
         let formatted = format_module(&module);
         let reparsed = parse(&formatted).expect("formatted AI declarations should parse");
