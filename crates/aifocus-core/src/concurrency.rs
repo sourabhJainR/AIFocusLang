@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 
-use crate::{Block, ExprKind, Item, Module, StmtKind, resource_guard::{ResourceBudget, ResourceLease}, source::Diagnostic};
+use crate::{Block, ExprKind, Item, Module, StmtKind, resource_guard::ResourceBudget, source::Diagnostic};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskTerminal {
@@ -226,11 +226,11 @@ impl StructuredScope {
         let Some((handle, state)) = self.tasks.remove(name) else {
             return Err(format!("AIF502: unknown task '{name}'"));
         };
-        self.leases.remove(name);
+        let lease = self.leases.remove(name);
         if state != TaskState::Running {
             return Err(format!("AIF504: task '{name}' is already terminal"));
         }
-        match handle.join() {
+        let result = match handle.join() {
             Ok(()) => {
                 self.events.push(ScopeEvent::Joined(name.into()));
                 Ok(())
@@ -242,7 +242,9 @@ impl StructuredScope {
                     "AIF505: task '{name}' panicked; siblings cancelled"
                 ))
             }
-        }
+        };
+        drop(lease);
+        result
     }
 
     pub fn cancel(&mut self, name: &str) -> Result<(), String> {
@@ -262,8 +264,10 @@ impl StructuredScope {
         let names = self.tasks.keys().cloned().collect::<Vec<_>>();
         for name in names {
             let (handle, state) = self.tasks.remove(&name).expect("task disappeared");
-            self.leases.remove(&name);
-            if handle.join().is_err() {
+            let lease = self.leases.remove(&name);
+            let join_result = handle.join();
+            drop(lease);
+            if join_result.is_err() {
                 return Err(format!("AIF505: task '{name}' panicked"));
             }
             if state == TaskState::Running {
