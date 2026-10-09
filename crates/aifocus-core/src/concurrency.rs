@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 
-use crate::{Block, ExprKind, Item, Module, StmtKind, resource_guard::ResourceBudget, source::Diagnostic};
+use crate::{Block, ExprKind, Item, Module, StmtKind, resource_guard::{ResourceBudget, ResourceLease}, source::Diagnostic};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskTerminal {
