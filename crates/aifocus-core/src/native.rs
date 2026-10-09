@@ -246,11 +246,6 @@ fn validate_input_values(values: &[NativeValue], limits: ExecutionLimits) -> Res
         validate_value(value, limits)?;
     }
     Ok(())
-}fn validate_input_values(values: &[NativeValue], limits: ExecutionLimits) -> Result<(), NativeError> {
-    for value in values {
-        validate_value(value, limits)?;
-    }
-    Ok(())
 }
 
 /// Compile the first function for the legacy single-function API.
