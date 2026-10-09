@@ -2,6 +2,7 @@
 
 pub mod ai;
 pub mod ai_types;
+pub mod ai_mode;
 pub mod arena;
 pub mod ast;
 pub mod benchmark;
@@ -31,6 +32,7 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
+pub use ai_mode::{AiModePolicy, Capability, PolicyViolation, ProofPolicy, ProofRequirement, ProofStatus, TracePolicy, UnknownProofPolicy, VaultPolicy};
 pub use ai_types::{Alternative, Guaranteed, GraphConflictPolicy, GraphTensor, GraphTensorEdge, GraphTensorNode, Probabilistic};
 pub use ai::{
     Distribution, Embedding, Modality, Probability, Quantization, RuntimeError, SemanticValue,
