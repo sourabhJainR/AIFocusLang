@@ -69,7 +69,7 @@ pub use protocol::{
 };
 
 pub use ast::{
-    BinaryOp, Block, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
+    BinaryOp, Block, ConstructDeclaration, ConstructMember, Expr, ExprKind, Function, Item, Module, NodeId, Parameter, Stmt, StmtKind,
     Type, TypeKind,
 };
 pub use token::{Token, TokenKind, lex};
@@ -138,11 +138,88 @@ impl Parser {
 
     fn parse_item(&mut self) -> Option<Item> {
         if self.at(TokenKind::Fn) {
-            self.parse_function().map(Item::Function)
-        } else {
-            self.error("AIF201", "expected a top-level function");
-            None
+            return self.parse_function().map(Item::Function);
         }
+        if self.at(TokenKind::Ident) {
+            let kind = self.current().lexeme.as_str();
+            if matches!(kind, "trace" | "cell" | "vault" | "proof" | "phase") {
+                return self.parse_construct();
+            }
+        }
+        self.error("AIF201", "expected a top-level function or AI Mode declaration");
+        None
+    }
+
+    fn parse_construct(&mut self) -> Option<Item> {
+        let start_token = self.bump();
+        let kind = start_token.lexeme.as_str();
+        let name_token = self.expect(TokenKind::Ident, "AI Mode declaration name")?;
+        let name = name_token.lexeme.clone();
+        self.expect(TokenKind::Newline, "end of AI Mode declaration header")?;
+        if !matches!(self.current().kind, TokenKind::Indent(_)) {
+            self.error("AIF610", format!("expected an indented body for {kind} declaration"));
+            return None;
+        }
+        self.bump();
+        let mut members = Vec::new();
+        self.skip_newlines();
+        while !self.at(TokenKind::Dedent) && !self.at(TokenKind::Eof) {
+            let member_start = self.current().span.start;
+            if kind == "phase" {
+                let from = self.expect(TokenKind::Ident, "source phase")?;
+                self.expect(TokenKind::Arrow, "'->' in phase transition")?;
+                let to = self.expect(TokenKind::Ident, "destination phase")?;
+                let span = source::Span::new(member_start, to.span.end);
+                members.push(ConstructMember::Transition {
+                    from: from.lexeme,
+                    to: to.lexeme,
+                    span,
+                });
+                self.expect(TokenKind::Newline, "end of phase transition")?;
+            } else {
+                let member_name = self.expect(TokenKind::Ident, "field or policy clause name")?;
+                self.expect(TokenKind::Colon, "':' after field or policy clause name")?;
+                let member_key = member_name.lexeme.clone();
+                if matches!(member_key.as_str(), "invariant" | "capabilities" | "denies" | "requires" | "ensures" | "on_unknown" | "required" | "signature") {
+                    let mut parts = Vec::new();
+                    while !self.at(TokenKind::Newline) && !self.at(TokenKind::Dedent) && !self.at(TokenKind::Eof) {
+                        parts.push(self.bump().lexeme);
+                    }
+                    let span = source::Span::new(member_start, self.previous_span().end);
+                    members.push(ConstructMember::Clause {
+                        name: member_key,
+                        value: parts.join(" "),
+                        span,
+                    });
+                    self.expect(TokenKind::Newline, "end of policy clause")?;
+                } else {
+                    let ty = self.parse_type()?;
+                    let span = source::Span::new(member_start, ty.span.end);
+                    members.push(ConstructMember::Field {
+                        name: member_key,
+                        ty,
+                        span,
+                    });
+                    self.expect(TokenKind::Newline, "end of field declaration")?;
+                }
+            }
+            self.skip_newlines();
+        }
+        let end = if self.eat(TokenKind::Dedent) { self.previous_span().end } else { self.current().span.end };
+        let declaration = ConstructDeclaration {
+            id: self.id(kind, &name),
+            span: source::Span::new(start_token.span.start, end),
+            name,
+            members,
+        };
+        Some(match kind {
+            "trace" => Item::Trace(declaration),
+            "cell" => Item::Cell(declaration),
+            "vault" => Item::Vault(declaration),
+            "proof" => Item::Proof(declaration),
+            "phase" => Item::Phase(declaration),
+            _ => unreachable!("construct kind was checked before parsing"),
+        })
     }
 
     fn parse_function(&mut self) -> Option<Function> {
