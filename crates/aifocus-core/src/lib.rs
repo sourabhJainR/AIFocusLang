@@ -742,11 +742,12 @@ mod ai_native_type_syntax_tests {
 
     #[test]
     fn parses_formats_and_type_checks_ai_native_generic_types() {
-        let source = "module ai_types\nfn accept(value: Probabilistic<Int>) -> Guaranteed<String>\n  \"ok\"\nfn graph(value: GraphTensor) -> GraphTensor\n  value\n";
+        let source = "module ai_types\nfn accept(value: Probabilistic<Int>) -> Probabilistic<Int>\n  value\nfn guaranteed(value: Guaranteed<String>) -> Guaranteed<String>\n  value\nfn graph(value: GraphTensor) -> GraphTensor\n  value\n";
         let module = parse(source).expect("AI-native type syntax should parse");
         let formatted = format_module(&module);
         assert!(formatted.contains("value: Probabilistic<Int>"));
-        assert!(formatted.contains("-> Guaranteed<String>"));
+        assert!(formatted.contains("-> Probabilistic<Int>"));
+        assert!(formatted.contains("value: Guaranteed<String>"));
         assert!(formatted.contains("value: GraphTensor"));
         assert!(sema::check(&module).is_ok());
         let reparsed = parse(&formatted).expect("formatted AI-native type syntax should parse");
