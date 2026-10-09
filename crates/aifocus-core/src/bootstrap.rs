@@ -308,7 +308,7 @@ fn main(a: Int) -> Int
         native::NativeValue::String(value) if value.starts_with("IR[") => value,
         _ => return Err("self-hosted compiler produced an invalid IR artifact"),
     };
-    let self_compile_repeat = native::run_program(
+    let self_compile_repeat = run_native(
         compiler_program,
         "compile",
         &[native::NativeValue::String(compiler_source)],
@@ -322,7 +322,7 @@ fn main(a: Int) -> Int
         return Err("self-hosted compiler rebuild is not deterministic");
     }
 
-    let tokens = native::run_program(lexer, "lex", &[native::NativeValue::String(source.into())])
+    let tokens = run_native(lexer, "lex", &[native::NativeValue::String(source.into())])
         .unwrap_or_else(|error| panic!("self-hosted lexer native error: {:?}", error));
     let tokens = match tokens {
         native::NativeValue::String(value) => value,
@@ -331,7 +331,7 @@ fn main(a: Int) -> Int
     if !lexer_output_matches_native(&tokens, source) {
         return Err("self-hosted lexer output differs from the native lexer");
     }
-    let parsed = native::run_program(
+    let parsed = run_native(
         parser,
         "parse",
         &[native::NativeValue::String(tokens.clone())],
@@ -341,13 +341,13 @@ fn main(a: Int) -> Int
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted parser returned non-string AST"),
     };
-    let ast_value = native::run_program(ast, "build", &[native::NativeValue::String(parsed)])
+    let ast_value = run_native(ast, "build", &[native::NativeValue::String(parsed)])
         .map_err(|_| "self-hosted AST construction failed")?;
     let ast_value = match ast_value {
         native::NativeValue::String(value) => value,
         _ => return Err("self-hosted AST returned non-string representation"),
     };
-    let semantic_value = native::run_program(
+    let semantic_value = run_native(
         semantic,
         "check",
         &[native::NativeValue::String(ast_value.clone())],
@@ -362,7 +362,7 @@ fn main(a: Int) -> Int
         eprintln!("self-hosted AST: {ast_value:?}");
         return Err("self-hosted semantic analysis rejected its own AST");
     }
-    let lowered_value = native::run_program(
+    let lowered_value = run_native(
         ir_program,
         "lower",
         &[native::NativeValue::String(ast_value)],
@@ -375,7 +375,7 @@ fn main(a: Int) -> Int
 
     let mut replay_fingerprint = fingerprint(&format!("{tokens}:{lowered_value}:{self_compile}"));
     for (name, source) in SELF_HOSTED_SOURCES {
-        let replay_tokens = match native::run_program(
+        let replay_tokens = match run_native(
             lexer,
             "lex",
             &[native::NativeValue::String((*source).into())],
@@ -385,7 +385,7 @@ fn main(a: Int) -> Int
             native::NativeValue::String(value) => value,
             _ => return Err("self-hosted compiler source lexer returned non-string"),
         };
-        let replay_parsed = match native::run_program(
+        let replay_parsed = match run_native(
             parser,
             "parse",
             &[native::NativeValue::String(replay_tokens.clone())],
@@ -396,13 +396,13 @@ fn main(a: Int) -> Int
             _ => return Err("self-hosted compiler source parser returned non-string"),
         };
         let replay_ast =
-            match native::run_program(ast, "build", &[native::NativeValue::String(replay_parsed)])
+            match run_native(ast, "build", &[native::NativeValue::String(replay_parsed)])
                 .map_err(|_| "self-hosted compiler source AST replay failed")?
             {
                 native::NativeValue::String(value) => value,
                 _ => return Err("self-hosted compiler source AST returned non-string"),
             };
-        let replay_semantic = match native::run_program(
+        let replay_semantic = match run_native(
             semantic,
             "check",
             &[native::NativeValue::String(replay_ast.clone())],
@@ -417,7 +417,7 @@ fn main(a: Int) -> Int
             eprintln!("replayed AST: {replay_ast:?}");
             return Err("self-hosted compiler source failed semantic replay");
         }
-        let replay_ir = match native::run_program(
+        let replay_ir = match run_native(
             ir_program,
             "lower",
             &[native::NativeValue::String(replay_ast)],
