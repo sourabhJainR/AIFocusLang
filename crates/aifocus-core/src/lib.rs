@@ -840,3 +840,33 @@ mod ai_native_type_syntax_tests {
         assert!(sema::check(&module).is_ok());
     }
 }
+
+
+#[cfg(test)]
+mod ai_mode_declaration_parser_tests {
+    use super::{format::format_module, parse, sema, ConstructMember, Item};
+
+    #[test]
+    fn parses_and_round_trips_all_five_ai_mode_declaration_kinds() {
+        let source = "module ai_constructs\ntrace BuildEvidence\n  source_digest: String\ncell Percentage\n  value: Int\n  invariant: true\nvault ReadOnlyCatalog\n  capabilities: catalog_read\nproof NonNegativeTotal\n  requires: true\nphase Payment\n  Pending -> Authorized\n  Pending -> Cancelled\n";
+        let module = parse(source).expect("AI Mode declarations should parse");
+        assert_eq!(module.items.len(), 5);
+        assert!(matches!(module.items[0], Item::Trace(_)));
+        assert!(matches!(module.items[1], Item::Cell(_)));
+        assert!(matches!(module.items[2], Item::Vault(_)));
+        assert!(matches!(module.items[3], Item::Proof(_)));
+        assert!(matches!(module.items[4], Item::Phase(_)));
+        let Item::Phase(phase) = &module.items[4] else { panic!("expected phase declaration"); };
+        assert!(matches!(phase.members[0], ConstructMember::Transition { ref from, ref to, .. } if from == "Pending" && to == "Authorized"));
+        let formatted = format_module(&module);
+        let reparsed = parse(&formatted).expect("formatted AI declarations should parse");
+        assert_eq!(format_module(&reparsed), formatted);
+    }
+
+    #[test]
+    fn semantic_pipeline_rejects_constructs_until_enforcement_exists() {
+        let module = parse("module guarded\nvault NoNetwork\n  denies: network\n").unwrap();
+        let errors = sema::check(&module).expect_err("unimplemented security declarations must fail closed");
+        assert!(errors.iter().any(|error| error.code == "AIF610"));
+    }
+}
