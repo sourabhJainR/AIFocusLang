@@ -106,24 +106,37 @@ impl EvidenceGraph {
                 };
             }
         }
-        evaluate(canary_passed, holdout_pass_rate, false)
+        evaluate_verified_gates(canary_passed, holdout_pass_rate)
     }}
 
+/// Evaluate policy thresholds without source authentication.
+/// This function never authorizes promotion: use EvidenceGraph::can_promote_with_verifier.
 pub fn evaluate(
-    canary_passed: bool,
-    holdout_pass_rate: u8,
+    _canary_passed: bool,
+    _holdout_pass_rate: u8,
     rollback_requested: bool,
 ) -> CapabilityEvaluation {
     if rollback_requested {
-        return CapabilityEvaluation {
+        CapabilityEvaluation {
             decision: CapabilityDecision::Rollback,
             reason: "rollback requested by verification evidence".into(),
-        };
+        }
+    } else {
+        CapabilityEvaluation {
+            decision: CapabilityDecision::Hold,
+            reason: "policy thresholds alone are insufficient; trusted source verification is required".into(),
+        }
     }
+}
+
+fn evaluate_verified_gates(
+    canary_passed: bool,
+    holdout_pass_rate: u8,
+) -> CapabilityEvaluation {
     if canary_passed && holdout_pass_rate >= 95 {
         CapabilityEvaluation {
             decision: CapabilityDecision::Promote,
-            reason: "canary passed and holdout pass rate is at least 95%".into(),
+            reason: "trusted source verification passed, canary passed, and holdout pass rate is at least 95%".into(),
         }
     } else {
         CapabilityEvaluation {
@@ -177,9 +190,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn promotes_only_after_canary_and_holdout_gate() {
-        let result = evaluate(true, 95, false);
-        assert_eq!(result.decision, CapabilityDecision::Promote);
+    fn policy_thresholds_alone_never_authorize_promotion() {
+        let result = evaluate(true, 100, false);
+        assert_eq!(result.decision, CapabilityDecision::Hold);
     }
 
     #[test]
