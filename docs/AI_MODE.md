@@ -125,3 +125,89 @@ The report must distinguish test evidence from proof evidence and never convert 
 6. **Independent CI:** run workspace tests, native-phase tests, mutation/fuzz tests, differential/holdout corpus, bootstrap reproducibility, and artifact attestation checks before promotion.
 
 No stage may silently lower a security declaration to a comment or discard it in generated code. Until the relevant stage is implemented and tested, the compiler must reject the construct or emit a clear unsupported-feature diagnostic.
+
+
+## First-class declaration model (required, not optional sugar)
+
+These five names are **language-level declaration forms**, comparable in status to `record`, `class`, and `interface`; they are not merely built-in runtime types, comments, annotations, or a hard-coded collection of policy presets. A user must be able to declare named constructs, refer to them from other declarations and function signatures, compose them, and use values governed by them. AI-generated source uses exactly the same grammar, type checker, diagnostics, and enforcement path as human-authored source. There is no privileged “AI bypass” API.
+
+The compiler should model them as dedicated AST declaration nodes, not flatten them into `Item::Function` or ordinary `TypeKind::Named`. Each declaration needs a name, source span, generic parameters where applicable, members/clauses, and references to other declared types. Name resolution must distinguish a declaration from a value of that declaration's type. Duplicate names, unknown members, invalid clauses, recursive definitions, and illegal transitions must produce source diagnostics.
+
+### Proposed user-facing shape
+
+The following is an illustrative target syntax; it is **not accepted by the current parser yet**:
+
+```ardisa
+module checkout
+
+record Receipt
+  id: String
+  total_cents: Int
+
+interface Authorizer
+  fn authorize(receipt: Receipt) -> Result<Approval, AuthError>
+
+class CheckoutService
+  authorizer: Authorizer
+  fn submit(receipt: Receipt) -> Result<Receipt, CheckoutError>
+
+trace BuildEvidence
+  source_digest: String
+  compiler_version: String
+  dependency_digest: String
+  verification_report: String
+
+cell Percentage
+  value: Int
+  invariant: value >= 0 && value <= 100
+
+vault ReadOnlyCatalog
+  capabilities: [catalog_read]
+  denies: [network, filesystem_write, process]
+
+proof NonNegativeTotal
+  requires: receipt.total_cents >= 0
+  ensures: result.total_cents >= 0
+
+phase Payment
+  Pending -> Authorized
+  Authorized -> Captured
+  Pending -> Cancelled
+
+fn discount(value: Percentage) -> Percentage
+  value
+```
+
+The exact syntax may be adjusted to fit Ardisa's indentation grammar, but the semantics below are mandatory. These forms must be usable together: for example, a `class` may depend on a user-defined `interface`, a function may accept a user-defined `Cell` type, a `Proof` may constrain a function over a `record`, a `Vault` may bound effects of a method, and a `Phase` may type a workflow transition. Generic declarations should be supported when useful (for example `Cell<T>` or `Trace<Event>`), without confusing declaration names with built-in generic container syntax.
+
+### Required semantics by construct
+
+- **`Trace Name`** declares a user-named provenance/evidence schema and its validation policy. User code may pass, return, compose, and serialize trace values through an explicit safe API. Build attestations are created/verified by configured tooling; a user-defined trace schema cannot forge trusted signatures.
+- **`Cell Name`** declares a user-named constrained value type with an invariant. Safe construction and mutation must validate the invariant; unproven dynamic predicates must become explicit runtime checks or fail compilation under a proof-required policy.
+- **`Vault Name`** declares a named capability/effect boundary. Functions or methods must declare/use the vault, and semantic analysis must reject undeclared effects. Merely writing a vault declaration cannot sandbox code unless the execution backend/runtime enforces it.
+- **`Proof Name`** declares reusable named preconditions, postconditions, invariants, or resource requirements. A function can reference/apply a proof. The compiler records whether each obligation is proved, runtime-checked, unknown, or failed; tests must not be reported as formal proof.
+- **`Phase Name`** declares a named state machine with explicit transitions. Values carry a phase/state identity; transitions consume the prior state token or otherwise prevent stale-token reuse. Authorization and distributed transaction guarantees remain separate checks.
+
+### Shared type-system requirements
+
+1. All five declarations enter ordinary symbol resolution and support user-defined names; where the type is valid, it may appear in parameter/return types, fields, collections, records, and generic arguments.
+2. Each declaration has a dedicated typed-IR representation that preserves its semantics through lowering. Unsupported backends must emit a diagnostic, never silently erase the declaration.
+3. Public constructors and mutation/transition APIs are generated or explicitly declared, and every generated API is subject to the same ownership, effects, and verification rules as handwritten code.
+4. Diagnostics identify the exact source span and failed obligation. The compiler emits machine-readable evidence for CI and independent evaluators.
+5. AI code generation is not trusted input. Generated source is parsed, type-checked, capability-checked, and tested like any other source; model claims or comments never count as evidence.
+6. Add compile-pass and compile-fail fixtures for declaration/use/composition, duplicate/unknown names, invariant violations, undeclared effects, unproven contracts, illegal/replayed transitions, formatter round-trips, and native-backend behavior.
+
+### Implementation gates
+
+Implement in vertical slices rather than declaring all five complete at once:
+
+1. **Declaration infrastructure:** dedicated AST nodes, parser, formatter, symbol tables, name resolution, generic parameters, and source diagnostics. Add fixture coverage for all five declaration forms.
+2. **Type use and records/interfaces/classes:** field/method declarations and references in function signatures; establish consistent nominal type identity.
+3. **Cell:** invariant expressions, checked construction/mutation, negative tests, and typed-IR preservation.
+4. **Vault:** effect inference/checking and capability enforcement at callable boundaries.
+5. **Proof:** reusable contracts and honest evidence status; start with a clearly bounded supported subset.
+6. **Phase:** transition graph validation and non-reusable transition tokens.
+7. **Trace:** canonical evidence schema and integration with signed build attestations.
+8. **Native execution and promotion:** ABI/runtime integration, differential/holdout/security tests, reproducible bootstrap, and fail-closed promotion checks.
+
+A PR may implement one vertical slice, but its description must say precisely which constructs are enforced and which remain unsupported. Do not mark the whole AI Mode complete until all gates have evidence.
