@@ -108,6 +108,10 @@ pub struct ExecutionLimits {
     pub max_stack_values: usize,
     /// Maximum local bindings in one VM frame.
     pub max_locals: usize,
+    /// Aggregate nested value nodes across one frame's locals and operand stack.
+    pub max_frame_value_nodes: usize,
+    /// Aggregate string payload bytes across one frame's locals and operand stack.
+    pub max_frame_string_bytes: usize,
 }
 
 impl Default for ExecutionLimits {
@@ -122,6 +126,8 @@ impl Default for ExecutionLimits {
             max_value_depth: 64,
             max_stack_values: 16_384,
             max_locals: 4_096,
+            max_frame_value_nodes: 65_536,
+            max_frame_string_bytes: 8_388_608,
         }
     }
 }
@@ -183,6 +189,54 @@ fn validate_value(value: &NativeValue, limits: ExecutionLimits) -> Result<(), Na
                 pending.push((inner, depth + 1));
             }
             _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn value_footprint(value: &NativeValue) -> Result<(usize, usize), NativeError> {
+    let mut pending = vec![value];
+    let mut nodes = 0usize;
+    let mut string_bytes = 0usize;
+    while let Some(value) = pending.pop() {
+        nodes = nodes.checked_add(1)
+            .ok_or_else(|| NativeError::ResourceLimit("value node count overflow".into()))?;
+        match value {
+            NativeValue::String(value) => {
+                string_bytes = string_bytes.checked_add(value.len())
+                    .ok_or_else(|| NativeError::ResourceLimit("string byte accounting overflow".into()))?;
+            }
+            NativeValue::List(items) => pending.extend(items.iter()),
+            NativeValue::ResultOk(inner) | NativeValue::ResultErr(inner) => pending.push(inner),
+            _ => {}
+        }
+    }
+    Ok((nodes, string_bytes))
+}
+
+fn check_frame_value_budget(
+    locals: &HashMap<String, NativeValue>,
+    stack: &[NativeValue],
+    limits: ExecutionLimits,
+) -> Result<(), NativeError> {
+    let mut nodes = 0usize;
+    let mut string_bytes = 0usize;
+    for value in locals.values().chain(stack.iter()) {
+        validate_value(value, limits)?;
+        let (value_nodes, value_string_bytes) = value_footprint(value)?;
+        nodes = nodes.checked_add(value_nodes)
+            .ok_or_else(|| NativeError::ResourceLimit("frame value node accounting overflow".into()))?;
+        string_bytes = string_bytes.checked_add(value_string_bytes)
+            .ok_or_else(|| NativeError::ResourceLimit("frame string accounting overflow".into()))?;
+        if nodes > limits.max_frame_value_nodes {
+            return Err(NativeError::ResourceLimit(format!(
+                "aggregate frame value node limit exceeded (limit {})", limits.max_frame_value_nodes
+            )));
+        }
+        if string_bytes > limits.max_frame_string_bytes {
+            return Err(NativeError::ResourceLimit(format!(
+                "aggregate frame string byte limit exceeded (limit {})", limits.max_frame_string_bytes
+            )));
         }
     }
     Ok(())
@@ -551,6 +605,7 @@ fn run_function(
         locals.insert(name.clone(), value.clone());
     }
 
+    check_frame_value_budget(&locals, &stack, state.limits)?;
     while pc < function.code.len() {
         if stack.len() > state.limits.max_stack_values {
             return Err(NativeError::ResourceLimit("operand stack limit exceeded".into()));
@@ -571,6 +626,27 @@ fn run_function(
             return Err(NativeError::Cancelled("task cancelled".into()));
         }
         let instr = function.code[pc].clone();
+        let check_values_after = matches!(
+            &instr,
+            NativeInstr::PushInt(_)
+                | NativeInstr::PushBool(_)
+                | NativeInstr::PushUnit
+                | NativeInstr::PushString(_)
+                | NativeInstr::PushList(_)
+                | NativeInstr::Index
+                | NativeInstr::Len
+                | NativeInstr::Append(_)
+                | NativeInstr::MakeOk
+                | NativeInstr::MakeErr
+                | NativeInstr::Chr
+                | NativeInstr::Unwrap
+                | NativeInstr::Load(_)
+                | NativeInstr::AddAssign(_)
+                | NativeInstr::StoreIndex(_)
+                | NativeInstr::Add
+                | NativeInstr::Call { .. }
+                | NativeInstr::Join { .. }
+        );
         pc += 1;
         match instr {
             NativeInstr::ScopeStart => scopes.push(BTreeMap::new()),
@@ -914,6 +990,9 @@ fn run_function(
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack".into()))?;
             }
+        }
+        if check_values_after {
+            check_frame_value_budget(&locals, &stack, state.limits)?;
         }
     }
     Err(NativeError::InvalidProgram(
@@ -1648,6 +1727,55 @@ fn fact(n: Int) -> Int
         assert!(matches!(
             run_program(&program, "main", &[]),
             Err(NativeError::Type(message)) if message.contains("overflow")
+        ));
+    }
+
+    #[test]
+    fn aggregate_frame_value_budget_bounds_combined_locals() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction {
+                    params: vec!["left".into(), "right".into()],
+                    code: vec![NativeInstr::PushUnit, NativeInstr::Return],
+                },
+            )]),
+        };
+        let list = || NativeValue::List(vec![NativeValue::Int(1), NativeValue::Int(2)]);
+        let limits = ExecutionLimits {
+            max_value_nodes: 3,
+            max_frame_value_nodes: 5,
+            ..ExecutionLimits::default()
+        };
+        assert!(matches!(
+            run_program_with_limits(&program, "main", &[list(), list()], limits),
+            Err(NativeError::ResourceLimit(message)) if message.contains("aggregate frame value node")
+        ));
+    }
+
+    #[test]
+    fn aggregate_frame_string_budget_bounds_combined_strings() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction {
+                    params: vec!["left".into(), "right".into()],
+                    code: vec![NativeInstr::PushUnit, NativeInstr::Return],
+                },
+            )]),
+        };
+        let limits = ExecutionLimits {
+            max_string_bytes: 8,
+            max_frame_string_bytes: 10,
+            ..ExecutionLimits::default()
+        };
+        assert!(matches!(
+            run_program_with_limits(
+                &program, "main",
+                &[NativeValue::String("123456".into()), NativeValue::String("abcdef".into())],
+                limits
+            ),
+            Err(NativeError::ResourceLimit(message)) if message.contains("aggregate frame string byte")
         ));
     }
 }
