@@ -1623,7 +1623,7 @@ fn fact(n: Int) -> Int
             ]),
         };
         let error = run_program_with_limits(&program, "main", &[], ExecutionLimits {
-            max_instructions: 10_000,
+            max_instructions: usize::MAX,
             max_tasks: 1,
             ..ExecutionLimits::default()
         }).unwrap_err();
