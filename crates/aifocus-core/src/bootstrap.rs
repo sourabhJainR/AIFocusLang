@@ -55,6 +55,8 @@ const BOOTSTRAP_EXECUTION_LIMITS: native::ExecutionLimits = native::ExecutionLim
     max_value_depth: 512,
     max_stack_values: 1_000_000,
     max_locals: 65_536,
+    max_frame_value_nodes: 4_000_000,
+    max_frame_string_bytes: 256 * 1024 * 1024,
 };
 
 fn run_native(
