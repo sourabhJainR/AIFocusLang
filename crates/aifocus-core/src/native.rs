@@ -886,7 +886,7 @@ fn run_function(
             NativeInstr::AddAssign(name) => {
                 let right = stack.pop().ok_or_else(|| NativeError::InvalidProgram("add assignment value missing".into()))?;
                 let left = locals.remove(&name).ok_or_else(|| NativeError::InvalidProgram(format!("unknown local '{name}'")))?;
-                let value = add_values(left, right)?;
+                let value = add_values(left, right, state.limits)?;
                 if matches!(&value, NativeValue::String(s) if s.len() > state.limits.max_string_bytes) {
                     return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
                 }
@@ -922,7 +922,7 @@ fn run_function(
                 let left = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
-                let value = add_values(left, right)?;
+                let value = add_values(left, right, state.limits)?;
                 validate_value(&value, state.limits)?;
                 stack.push(value);
             }
@@ -1013,14 +1013,32 @@ fn compare_ints(
     Ok(predicate(*left, *right))
 }
 
-fn add_values(left: NativeValue, right: NativeValue) -> Result<NativeValue, NativeError> {
+fn add_values(
+    left: NativeValue,
+    right: NativeValue,
+    limits: ExecutionLimits,
+) -> Result<NativeValue, NativeError> {
     match (left, right) {
         (NativeValue::Int(left), NativeValue::Int(right)) => Ok(NativeValue::Int(
             left.checked_add(right)
                 .ok_or_else(|| NativeError::Type("integer overflow in addition".into()))?,
         )),
         (NativeValue::String(left), NativeValue::String(right)) => {
-            Ok(NativeValue::String(format!("{left}{right}")))
+            // Check the byte limit before allocating the combined buffer. String::len()
+            // reports UTF-8 bytes, matching the VM's configured resource limits.
+            let combined_len = left.len().checked_add(right.len()).ok_or_else(|| {
+                NativeError::ResourceLimit("string concatenation length overflow".into())
+            })?;
+            if combined_len > limits.max_string_bytes {
+                return Err(NativeError::ResourceLimit(format!(
+                    "string concatenation exceeds byte limit ({} > {})",
+                    combined_len, limits.max_string_bytes
+                )));
+            }
+            let mut combined = String::with_capacity(combined_len);
+            combined.push_str(&left);
+            combined.push_str(&right);
+            Ok(NativeValue::String(combined))
         }
         _ => Err(NativeError::Type(
             "String + String or Int + Int required".into(),
@@ -1376,6 +1394,54 @@ fn main(a: Int) -> Int
         let program = compile_program(&ir).unwrap();
         let result = run_program(&program, "main", &[NativeValue::Int(0)]).unwrap();
         assert_eq!(result, NativeValue::Int(7));
+    }
+
+    #[test]
+    fn string_concatenation_checks_limit_before_allocating() {
+        let limits = ExecutionLimits {
+            max_string_bytes: 5,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            add_values(
+                NativeValue::String("ab".into()),
+                NativeValue::String("cde".into()),
+                limits,
+            ).unwrap(),
+            NativeValue::String("abcde".into())
+        );
+        assert!(matches!(
+            add_values(
+                NativeValue::String("abc".into()),
+                NativeValue::String("def".into()),
+                limits,
+            ),
+            Err(NativeError::ResourceLimit(message)) if message.contains("concatenation")
+        ));
+    }
+
+    #[test]
+    fn string_concatenation_limit_uses_utf8_byte_length() {
+        let limits = ExecutionLimits {
+            max_string_bytes: 4,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            add_values(
+                NativeValue::String("é".into()),
+                NativeValue::String("ab".into()),
+                limits,
+            ).unwrap(),
+            NativeValue::String("éab".into())
+        );
+        assert!(matches!(
+            add_values(
+                NativeValue::String("é".into()),
+                NativeValue::String("abc".into()),
+                limits,
+            ),
+            Err(NativeError::ResourceLimit(_))
+        ));
     }
 
     #[test]
