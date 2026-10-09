@@ -48,6 +48,7 @@ pub enum TypeKind {
     String,
     Unit,
     Named(String),
+    Generic(String, Vec<Type>),
     Result(Box<Type>, Box<Type>),
     List(Box<Type>),
 }
@@ -66,6 +67,7 @@ impl TypeKind {
             Self::String => "String".into(),
             Self::Unit => "()".into(),
             Self::Named(name) => name.clone(),
+            Self::Generic(name, args) => format!("{}<{}>", name, args.iter().map(Type::display_name).collect::<Vec<_>>().join(", ")),
             Self::Result(ok, err) => {
                 format!("Result<{}, {}>", ok.display_name(), err.display_name())
             }
