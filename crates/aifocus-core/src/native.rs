@@ -222,6 +222,7 @@ fn check_frame_value_budget(
     let mut nodes = 0usize;
     let mut string_bytes = 0usize;
     for value in locals.values().chain(stack.iter()) {
+        validate_value(value, limits)?;
         let (value_nodes, value_string_bytes) = value_footprint(value)?;
         nodes = nodes.checked_add(value_nodes)
             .ok_or_else(|| NativeError::ResourceLimit("frame value node accounting overflow".into()))?;
@@ -604,8 +605,8 @@ fn run_function(
         locals.insert(name.clone(), value.clone());
     }
 
+    check_frame_value_budget(&locals, &stack, state.limits)?;
     while pc < function.code.len() {
-        check_frame_value_budget(&locals, &stack, state.limits)?;
         if stack.len() > state.limits.max_stack_values {
             return Err(NativeError::ResourceLimit("operand stack limit exceeded".into()));
         }
@@ -625,6 +626,27 @@ fn run_function(
             return Err(NativeError::Cancelled("task cancelled".into()));
         }
         let instr = function.code[pc].clone();
+        let check_values_after = matches!(
+            &instr,
+            NativeInstr::PushInt(_)
+                | NativeInstr::PushBool(_)
+                | NativeInstr::PushUnit
+                | NativeInstr::PushString(_)
+                | NativeInstr::PushList(_)
+                | NativeInstr::Index
+                | NativeInstr::Len
+                | NativeInstr::Append(_)
+                | NativeInstr::MakeOk
+                | NativeInstr::MakeErr
+                | NativeInstr::Chr
+                | NativeInstr::Unwrap
+                | NativeInstr::Load(_)
+                | NativeInstr::AddAssign(_)
+                | NativeInstr::StoreIndex(_)
+                | NativeInstr::Add
+                | NativeInstr::Call { .. }
+                | NativeInstr::Join { .. }
+        );
         pc += 1;
         match instr {
             NativeInstr::ScopeStart => scopes.push(BTreeMap::new()),
@@ -968,6 +990,9 @@ fn run_function(
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("pop from empty stack".into()))?;
             }
+        }
+        if check_values_after {
+            check_frame_value_budget(&locals, &stack, state.limits)?;
         }
     }
     Err(NativeError::InvalidProgram(
