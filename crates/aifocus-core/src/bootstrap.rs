@@ -303,7 +303,7 @@ fn main(a: Int) -> Int
         "compile",
         &[native::NativeValue::String(compiler_source.clone())],
     )
-    .map_err(|_| "self-hosted compiler failed to compile its own source")?;
+    .map_err(|error| { eprintln!("bounded self-compile failed: {error:?}"); "self-hosted compiler failed to compile its own source" })?;
     let self_compile = match self_compile {
         native::NativeValue::String(value) if value.starts_with("IR[") => value,
         _ => return Err("self-hosted compiler produced an invalid IR artifact"),
