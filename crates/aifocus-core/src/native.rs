@@ -968,13 +968,16 @@ fn run_function(
                 let value = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("push value missing".into()))?;
-                let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
-                    return Err(NativeError::Type("push requires a List binding".into()));
-                };
-                if items.len() >= state.limits.max_collection_items {
-                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
+                {
+                    let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
+                        return Err(NativeError::Type("push requires a List binding".into()));
+                    };
+                    if items.len() >= state.limits.max_collection_items {
+                        return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
+                    }
+                    items.push(value);
                 }
-                items.push(value);
+                validate_value(locals.get(&name).expect("list binding retained"), state.limits)?;
                 stack.push(NativeValue::Unit);
             }
             NativeInstr::Chr => {
@@ -1016,6 +1019,10 @@ fn run_function(
                 let value = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
+                validate_value(&value, state.limits)?;
+                if !locals.contains_key(&name) && locals.len() >= state.limits.max_locals {
+                    return Err(NativeError::ResourceLimit("local binding limit exceeded".into()));
+                }
                 locals.insert(name, value);
             }
             NativeInstr::AddAssign(name) => {
@@ -1725,5 +1732,79 @@ fn fact(n: Int) -> Int
         assert_eq!(run_program(&program, "main", &[]).unwrap(), NativeValue::String("hello".into()));
         let decoded = decode_program(&encode_program(&program)).unwrap();
         assert_eq!(decoded, program);
+    }
+
+    #[test]
+    fn nested_value_depth_and_node_budgets_reject_adversarial_inputs() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec!["value".into()], code: vec![
+                    NativeInstr::Load("value".into()),
+                    NativeInstr::Return,
+                ] },
+            )]),
+        };
+        let depth_limited = ExecutionLimits {
+            max_value_depth: 2,
+            ..ExecutionLimits::default()
+        };
+        let nested = NativeValue::List(vec![NativeValue::List(vec![
+            NativeValue::List(vec![NativeValue::Int(1)])
+        ])]);
+        assert!(matches!(
+            run_program_with_limits(&program, "main", &[nested], depth_limited),
+            Err(NativeError::ResourceLimit(message)) if message.contains("nesting depth")
+        ));
+
+        let node_limited = ExecutionLimits {
+            max_value_nodes: 2,
+            ..ExecutionLimits::default()
+        };
+        let broad = NativeValue::List(vec![NativeValue::Int(1), NativeValue::Int(2)]);
+        assert!(matches!(
+            run_program_with_limits(&program, "main", &[broad], node_limited),
+            Err(NativeError::ResourceLimit(message)) if message.contains("node limit")
+        ));
+    }
+
+    #[test]
+    fn vm_frame_stack_and_local_limits_fail_closed() {
+        let stack_program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec![], code: vec![
+                    NativeInstr::PushInt(1),
+                    NativeInstr::PushInt(2),
+                    NativeInstr::PushInt(3),
+                    NativeInstr::Return,
+                ] },
+            )]),
+        };
+        assert!(matches!(
+            run_program_with_limits(&stack_program, "main", &[], ExecutionLimits {
+                max_stack_values: 1,
+                ..ExecutionLimits::default()
+            }),
+            Err(NativeError::ResourceLimit(message)) if message.contains("operand stack")
+        ));
+
+        let local_program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec![], code: vec![
+                    NativeInstr::PushInt(1), NativeInstr::Store("a".into()),
+                    NativeInstr::PushInt(2), NativeInstr::Store("b".into()),
+                    NativeInstr::Return,
+                ] },
+            )]),
+        };
+        assert!(matches!(
+            run_program_with_limits(&local_program, "main", &[], ExecutionLimits {
+                max_locals: 1,
+                ..ExecutionLimits::default()
+            }),
+            Err(NativeError::ResourceLimit(message)) if message.contains("local binding")
+        ));
     }
 }
