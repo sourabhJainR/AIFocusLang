@@ -555,12 +555,17 @@ pub fn run_program(
 
 /// Execute with explicit instruction, recursion, task, collection, and string bounds.
 /// Limits are shared by all calls and child tasks in this execution.
+///
+/// Program representation limits are independent of runtime value limits. They
+/// bound function/code counts and embedded names/literals, but do not account for
+/// allocator capacity, allocator metadata, host allocations, or concurrent programs.
 pub fn run_program_with_limits(
     program: &NativeProgram,
     entry: &str,
     args: &[NativeValue],
     limits: ExecutionLimits,
 ) -> Result<NativeValue, NativeError> {
+    validate_native_program(program)?;
     validate_input_values(args, limits)?;
     let program = Arc::new(program.clone());
     let function = program.functions.get(entry)
@@ -1047,6 +1052,67 @@ fn add_values(
 }
 
 
+/// Hard limits for the serialized/in-memory executable representation.
+/// These are intentionally separate from ExecutionLimits, which bound runtime state.
+pub const MAX_PROGRAM_FUNCTIONS: usize = 16_384;
+pub const MAX_FUNCTION_INSTRUCTIONS: usize = 250_000;
+pub const MAX_PROGRAM_INSTRUCTIONS: usize = 1_000_000;
+pub const MAX_PROGRAM_EMBEDDED_STRING_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
+
+/// Validate an executable before cloning it into the shared runtime state.
+/// The byte budget covers function names, parameter names, and string operands;
+/// it is not a claim about total heap usage or allocator overhead.
+fn validate_native_program(program: &NativeProgram) -> Result<(), NativeError> {
+    if program.functions.len() > MAX_PROGRAM_FUNCTIONS {
+        return Err(NativeError::ResourceLimit(format!(
+            "program function limit exceeded (limit {MAX_PROGRAM_FUNCTIONS})"
+        )));
+    }
+    let mut total_instructions = 0usize;
+    let mut embedded_bytes = 0usize;
+    let mut add_bytes = |value: &str| -> Result<(), NativeError> {
+        embedded_bytes = embedded_bytes.checked_add(value.len()).ok_or_else(|| {
+            NativeError::ResourceLimit("program embedded string byte count overflow".into())
+        })?;
+        if embedded_bytes > MAX_PROGRAM_EMBEDDED_STRING_BYTES {
+            return Err(NativeError::ResourceLimit(format!(
+                "program embedded string byte limit exceeded (limit {MAX_PROGRAM_EMBEDDED_STRING_BYTES})"
+            )));
+        }
+        Ok(())
+    };
+    for (name, function) in &program.functions {
+        add_bytes(name)?;
+        if function.code.len() > MAX_FUNCTION_INSTRUCTIONS {
+            return Err(NativeError::ResourceLimit(format!(
+                "function instruction limit exceeded (limit {MAX_FUNCTION_INSTRUCTIONS})"
+            )));
+        }
+        total_instructions = total_instructions.checked_add(function.code.len()).ok_or_else(|| {
+            NativeError::ResourceLimit("program instruction count overflow".into())
+        })?;
+        if total_instructions > MAX_PROGRAM_INSTRUCTIONS {
+            return Err(NativeError::ResourceLimit(format!(
+                "program instruction limit exceeded (limit {MAX_PROGRAM_INSTRUCTIONS})"
+            )));
+        }
+        for param in &function.params { add_bytes(param)?; }
+        for instr in &function.code {
+            match instr {
+                NativeInstr::PushString(s) | NativeInstr::Append(s) |
+                NativeInstr::Load(s) | NativeInstr::Store(s) |
+                NativeInstr::AddAssign(s) | NativeInstr::StoreIndex(s) |
+                NativeInstr::Join { name: s } | NativeInstr::Cancel { name: s } => add_bytes(s)?,
+                NativeInstr::Call { callee, .. } => add_bytes(callee)?,
+                NativeInstr::Spawn { name, callee, .. } => { add_bytes(name)?; add_bytes(callee)?; }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Stable, dependency-free serialization for bootstrap artifacts.
 ///
 /// The format is deliberately textual and line-oriented so an existing
@@ -1075,6 +1141,11 @@ pub fn encode_program(program: &NativeProgram) -> String {
 }
 
 pub fn decode_program(input: &str) -> Result<NativeProgram, NativeError> {
+    if input.len() > MAX_ARTIFACT_BYTES {
+        return Err(NativeError::ResourceLimit(format!(
+            "executable artifact byte limit exceeded (limit {MAX_ARTIFACT_BYTES})"
+        )));
+    }
     let mut lines = input.lines();
     if lines.next() != Some(ARTIFACT_MAGIC) {
         return Err(NativeError::InvalidProgram("invalid Ardisa executable magic".into()));
@@ -1111,7 +1182,9 @@ pub fn decode_program(input: &str) -> Result<NativeProgram, NativeError> {
     if current.is_some() {
         return Err(NativeError::InvalidProgram("unterminated executable function".into()));
     }
-    Ok(NativeProgram { functions })
+    let program = NativeProgram { functions };
+    validate_native_program(&program)?;
+    Ok(program)
 }
 
 fn escape_artifact(value: &str) -> String {
@@ -1872,6 +1945,47 @@ fn fact(n: Int) -> Int
         assert!(matches!(
             run_program(&program, "main", &[]),
             Err(NativeError::Type(message)) if message.contains("overflow")
+        ));
+    }
+
+    #[test]
+    fn native_program_rejects_oversized_instruction_payload_before_execution() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction {
+                    params: vec![],
+                    code: vec![
+                        NativeInstr::PushString("x".repeat(MAX_PROGRAM_EMBEDDED_STRING_BYTES + 1)),
+                        NativeInstr::Return,
+                    ],
+                },
+            )]),
+        };
+        assert!(matches!(
+            run_program(&program, "main", &[]),
+            Err(NativeError::ResourceLimit(message)) if message.contains("embedded string byte")
+        ));
+    }
+
+    #[test]
+    fn decoder_rejects_oversized_artifact_before_parsing_records() {
+        let input = format!("{}\\n{}", ARTIFACT_MAGIC, "x".repeat(MAX_ARTIFACT_BYTES));
+        assert!(matches!(
+            decode_program(&input),
+            Err(NativeError::ResourceLimit(message)) if message.contains("artifact byte")
+        ));
+    }
+
+    #[test]
+    fn native_program_rejects_excessive_function_count() {
+        let functions = (0..=MAX_PROGRAM_FUNCTIONS)
+            .map(|i| (format!("f{i}"), NativeFunction { params: vec![], code: vec![] }))
+            .collect();
+        let program = NativeProgram { functions };
+        assert!(matches!(
+            run_program(&program, "f0", &[]),
+            Err(NativeError::ResourceLimit(message)) if message.contains("function limit")
         ));
     }
 
