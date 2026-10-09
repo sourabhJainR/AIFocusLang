@@ -1621,7 +1621,7 @@ fn fact(n: Int) -> Int
             };
             let result = run_program(&program, "main", &[]);
             assert!(
-                matches!(result, Err(NativeError::Type(message)) if message.contains("overflow")),
+                matches!(&result, Err(NativeError::Type(message)) if message.contains("overflow")),
                 "expected explicit {label} overflow error, got {result:?}"
             );
         }
