@@ -48,7 +48,7 @@ pub use diagnostic_memory::{DiagnosticHistoryEntry, DiagnosticMemory};
 pub use differential::{CORPUS as DIFFERENTIAL_CORPUS, DifferentialCase};
 pub use effects::{EffectKind, EffectModel, FunctionEffects};
 pub use engineering_feedback::{CapabilityFeedback, EpisodeOutcome, VerificationDepth};
-pub use evidence::{CapabilityDecision, CapabilityEvaluation, EvidenceEnvelope, EvidenceGraph};
+pub use evidence::{CapabilityDecision, CapabilityEvaluation, EvidenceEnvelope, EvidenceGraph, EvidenceSourceVerifier};
 pub use fuzz::{GeneratedCase, generate as generate_fuzz_case};
 pub use interop::{
     AbiParameterContract, InteropType, OwnershipContract, RustFunction, SafeRustBoundary,
