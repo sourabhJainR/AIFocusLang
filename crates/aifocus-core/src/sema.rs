@@ -31,7 +31,13 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
     };
 
     for item in &module.items {
-        let Item::Function(function) = item;
+        let function = match item {
+            Item::Function(function) => function,
+            other => {
+                checker.error("AIF610", format!("AI Mode declaration '{}' is parsed but not yet semantically enforced", item_name(other)), item_span(other));
+                continue;
+            }
+        };
         let signature = FunctionSignature {
             params: function.params.iter().map(|p| p.ty.clone()).collect(),
             return_type: function.return_type.clone(),
@@ -54,7 +60,7 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
     for _ in 0..module.items.len().max(1) {
         let before = checker.function_returns.clone();
         for item in &module.items {
-            let Item::Function(function) = item;
+            let Item::Function(function) = item else { continue; };
             if function.return_type.is_none() {
                 let mut locals = function
                     .params
@@ -74,8 +80,9 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
     }
 
     for item in &module.items {
-        let Item::Function(function) = item;
-        checker.check_function(function);
+        if let Item::Function(function) = item {
+            checker.check_function(function);
+        }
     }
 
     if checker.errors.is_empty() {
@@ -85,6 +92,20 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
         })
     } else {
         Err(checker.errors)
+    }
+}
+
+fn item_name(item: &Item) -> &str {
+    match item {
+        Item::Function(value) => &value.name,
+        Item::Trace(value) | Item::Cell(value) | Item::Vault(value) | Item::Proof(value) | Item::Phase(value) => &value.name,
+    }
+}
+
+fn item_span(item: &Item) -> Span {
+    match item {
+        Item::Function(value) => value.span,
+        Item::Trace(value) | Item::Cell(value) | Item::Vault(value) | Item::Proof(value) | Item::Phase(value) => value.span,
     }
 }
 
