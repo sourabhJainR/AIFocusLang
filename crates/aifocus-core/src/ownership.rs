@@ -433,7 +433,7 @@ fn validate_borrow_regions(regions: &[BorrowRegion]) -> Result<(), &'static str>
 fn ownership_of(ty: &Type) -> OwnershipClass {
     match ty.kind {
         TypeKind::Int | TypeKind::Bool | TypeKind::Unit => OwnershipClass::Copy,
-        TypeKind::String | TypeKind::Named(_) | TypeKind::Result(_, _) | TypeKind::List(_) => {
+        TypeKind::String | TypeKind::Named(_) | TypeKind::Generic(_, _) | TypeKind::Result(_, _) | TypeKind::List(_) => {
             OwnershipClass::Move
         }
     }

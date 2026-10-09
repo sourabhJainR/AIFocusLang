@@ -554,7 +554,23 @@ fn is_kind(ty: &Type, kind: &TypeKind) -> bool {
 }
 
 fn same_type(left: &Type, right: &Type) -> bool {
-    left.kind == right.kind
+    match (&left.kind, &right.kind) {
+        (TypeKind::Int, TypeKind::Int)
+        | (TypeKind::Bool, TypeKind::Bool)
+        | (TypeKind::String, TypeKind::String)
+        | (TypeKind::Unit, TypeKind::Unit) => true,
+        (TypeKind::Named(left), TypeKind::Named(right)) => left == right,
+        (TypeKind::Generic(left_name, left_args), TypeKind::Generic(right_name, right_args)) => {
+            left_name == right_name
+                && left_args.len() == right_args.len()
+                && left_args.iter().zip(right_args).all(|(left, right)| same_type(left, right))
+        }
+        (TypeKind::List(left), TypeKind::List(right)) => same_type(left, right),
+        (TypeKind::Result(left_ok, left_err), TypeKind::Result(right_ok, right_err)) => {
+            same_type(left_ok, right_ok) && same_type(left_err, right_err)
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
