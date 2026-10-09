@@ -6,6 +6,9 @@ pub fn format_module(module: &Module) -> String {
     for item in &module.items {
         format_item(item, &mut out);
     }
+    for declaration in &module.constructs {
+        format_construct(declaration, &mut out);
+    }
     out
 }
 
@@ -31,11 +34,6 @@ fn format_item(item: &Item, out: &mut String) {
             out.push('\n');
             format_block(&function.body, 2, out);
         }
-        Item::Trace(decl) => format_construct("trace", decl, out),
-        Item::Cell(decl) => format_construct("cell", decl, out),
-        Item::Vault(decl) => format_construct("vault", decl, out),
-        Item::Proof(decl) => format_construct("proof", decl, out),
-        Item::Phase(decl) => format_construct("phase", decl, out),
     }
 }
 
