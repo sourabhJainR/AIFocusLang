@@ -30,14 +30,16 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
         errors: Vec::new(),
     };
 
+    for declaration in &module.constructs {
+        checker.error(
+            "AIF610",
+            format!("AI Mode declaration '{}' is parsed but not yet semantically enforced", declaration.name),
+            declaration.span,
+        );
+    }
+
     for item in &module.items {
-        let function = match item {
-            Item::Function(function) => function,
-            other => {
-                checker.error("AIF610", format!("AI Mode declaration '{}' is parsed but not yet semantically enforced", item_name(other)), item_span(other));
-                continue;
-            }
-        };
+        let Item::Function(function) = item;
         let signature = FunctionSignature {
             params: function.params.iter().map(|p| p.ty.clone()).collect(),
             return_type: function.return_type.clone(),
@@ -92,20 +94,6 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
         })
     } else {
         Err(checker.errors)
-    }
-}
-
-fn item_name(item: &Item) -> &str {
-    match item {
-        Item::Function(value) => &value.name,
-        Item::Trace(value) | Item::Cell(value) | Item::Vault(value) | Item::Proof(value) | Item::Phase(value) => &value.name,
-    }
-}
-
-fn item_span(item: &Item) -> Span {
-    match item {
-        Item::Function(value) => value.span,
-        Item::Trace(value) | Item::Cell(value) | Item::Vault(value) | Item::Proof(value) | Item::Phase(value) => value.span,
     }
 }
 
