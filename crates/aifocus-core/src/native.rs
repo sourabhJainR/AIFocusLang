@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use std::thread::{self, JoinHandle};
 
@@ -89,6 +89,79 @@ pub enum NativeError {
     Cancelled(String),
     InvalidProgram(String),
     Type(String),
+    ResourceLimit(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionLimits {
+    pub max_instructions: usize,
+    pub max_call_depth: usize,
+    pub max_tasks: usize,
+    pub max_collection_items: usize,
+    pub max_string_bytes: usize,
+}
+
+impl Default for ExecutionLimits {
+    fn default() -> Self {
+        Self {
+            max_instructions: 1_000_000,
+            max_call_depth: 128,
+            max_tasks: 64,
+            max_collection_items: 16_384,
+            max_string_bytes: 1_048_576,
+        }
+    }
+}
+
+struct ExecutionState {
+    limits: ExecutionLimits,
+    instructions: AtomicUsize,
+    active_tasks: AtomicUsize,
+}
+
+struct ActiveTaskLease(Arc<ExecutionState>);
+
+impl Drop for ActiveTaskLease {
+    fn drop(&mut self) {
+        self.0.active_tasks.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+fn reserve_task(state: &Arc<ExecutionState>) -> Result<ActiveTaskLease, NativeError> {
+    let mut current = state.active_tasks.load(Ordering::Acquire);
+    loop {
+        if current >= state.limits.max_tasks {
+            return Err(NativeError::ResourceLimit(format!(
+                "active task limit exceeded (limit {})",
+                state.limits.max_tasks
+            )));
+        }
+        match state.active_tasks.compare_exchange_weak(
+            current, current + 1, Ordering::AcqRel, Ordering::Acquire
+        ) {
+            Ok(_) => return Ok(ActiveTaskLease(Arc::clone(state))),
+            Err(observed) => current = observed,
+        }
+    }
+}
+
+fn validate_input_values(values: &[NativeValue], limits: ExecutionLimits) -> Result<(), NativeError> {
+    let mut pending = values.iter().collect::<Vec<_>>();
+    while let Some(value) = pending.pop() {
+        match value {
+            NativeValue::String(s) if s.len() > limits.max_string_bytes => {
+                return Err(NativeError::ResourceLimit("input string exceeds byte limit".into()));
+            }
+            NativeValue::List(items) => {
+                if items.len() > limits.max_collection_items {
+                    return Err(NativeError::ResourceLimit("input collection exceeds item limit".into()));
+                }
+                pending.extend(items.iter());
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// Compile the first function for the legacy single-function API.
@@ -351,8 +424,16 @@ pub fn run(
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
             NativeInstr::PushUnit => stack.push(NativeValue::Unit),
-            NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
+            NativeInstr::PushString(value) => {
+                if value.len() > state.limits.max_string_bytes {
+                    return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
+                }
+                stack.push(NativeValue::String(value));
+            },
             NativeInstr::PushList(len) => {
+                if len > state.limits.max_collection_items {
+                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
+                }
                 if stack.len() < len {
                     return Err(NativeError::InvalidProgram(
                         "list has insufficient stack values".into(),
@@ -410,6 +491,9 @@ pub fn run(
                 let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
                     return Err(NativeError::Type("push requires a List binding".into()));
                 };
+                if items.len() >= state.limits.max_collection_items {
+                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
+                }
                 items.push(value);
                 stack.push(NativeValue::Unit);
             }
@@ -584,19 +668,42 @@ pub fn run_program(
     entry: &str,
     args: &[NativeValue],
 ) -> Result<NativeValue, NativeError> {
-    let function = program
-        .functions
-        .get(entry)
+    run_program_with_limits(program, entry, args, ExecutionLimits::default())
+}
+
+/// Execute with explicit instruction, recursion, task, collection, and string bounds.
+/// Limits are shared by all calls and child tasks in this execution.
+pub fn run_program_with_limits(
+    program: &NativeProgram,
+    entry: &str,
+    args: &[NativeValue],
+    limits: ExecutionLimits,
+) -> Result<NativeValue, NativeError> {
+    validate_input_values(args, limits)?;
+    let program = Arc::new(program.clone());
+    let function = program.functions.get(entry)
         .ok_or_else(|| NativeError::InvalidProgram(format!("unknown function '{entry}'")))?;
-    run_function(program, function, args, None)
+    let state = Arc::new(ExecutionState {
+        limits,
+        instructions: AtomicUsize::new(0),
+        active_tasks: AtomicUsize::new(0),
+    });
+    run_function(&program, function, args, None, state, 0)
 }
 
 fn run_function(
-    program: &NativeProgram,
+    program: &Arc<NativeProgram>,
     function: &NativeFunction,
     args: &[NativeValue],
     cancellation: Option<Arc<AtomicBool>>,
+    state: Arc<ExecutionState>,
+    depth: usize,
 ) -> Result<NativeValue, NativeError> {
+    if depth > state.limits.max_call_depth {
+        return Err(NativeError::ResourceLimit(format!(
+            "call depth limit exceeded (limit {})", state.limits.max_call_depth
+        )));
+    }
     if args.len() != function.params.len() {
         return Err(NativeError::InvalidProgram(format!(
             "function expects {} argument(s), got {}",
@@ -613,6 +720,12 @@ fn run_function(
     }
 
     while pc < function.code.len() {
+        let executed = state.instructions.fetch_add(1, Ordering::AcqRel);
+        if executed >= state.limits.max_instructions {
+            return Err(NativeError::ResourceLimit(format!(
+                "instruction budget exceeded (limit {})", state.limits.max_instructions
+            )));
+        }
         if cancellation
             .as_ref()
             .is_some_and(|token| token.load(Ordering::Acquire))
@@ -663,15 +776,19 @@ fn run_function(
                 }
                 let start = stack.len() - argc;
                 let call_args = stack.split_off(start);
-                let child_program = program.clone();
+                let task_lease = reserve_task(&state)?;
+                let child_program = Arc::clone(program);
+                let child_state = Arc::clone(&state);
+                let child_depth = depth + 1;
                 let token = Arc::new(AtomicBool::new(false));
                 let child_token = token.clone();
-                let join = thread::spawn(move || {
+                let join = thread::Builder::new().name(format!("ardisa-{name}")).spawn(move || {
+                    let _task_lease = task_lease;
                     let function = child_program.functions.get(&callee).ok_or_else(|| {
                         NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                     })?;
-                    run_function(&child_program, function, &call_args, Some(child_token))
-                });
+                    run_function(&child_program, function, &call_args, Some(child_token), child_state, child_depth)
+                }).map_err(|error| NativeError::ResourceLimit(format!("worker creation failed: {error}")))?;
                 scope.insert(
                     name,
                     NativeTask {
@@ -724,7 +841,7 @@ fn run_function(
                 let callee_fn = program.functions.get(&callee).ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                 })?;
-                let value = run_function(program, callee_fn, &call_args, cancellation.clone())?;
+                let value = run_function(program, callee_fn, &call_args, cancellation.clone(), Arc::clone(&state), depth + 1)?;
                 stack.push(value);
             }
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
@@ -856,7 +973,11 @@ fn run_function(
                 let left = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
-                stack.push(add_values(left, right)?);
+                let value = add_values(left, right)?;
+                if matches!(&value, NativeValue::String(s) if s.len() > state.limits.max_string_bytes) {
+                    return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
+                }
+                stack.push(value);
             }
             NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div | NativeInstr::Mod => {
                 let right = pop_int(&mut stack)?;
