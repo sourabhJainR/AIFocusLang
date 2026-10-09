@@ -149,7 +149,7 @@ fn is_native_type(ty: &TypeKind) -> bool {
         TypeKind::Int | TypeKind::Bool | TypeKind::String | TypeKind::Unit => true,
         TypeKind::List(element) => is_native_type(&element.kind),
         TypeKind::Result(ok, err) => is_native_type(&ok.kind) && is_native_type(&err.kind),
-        TypeKind::Named(_) => false,
+        TypeKind::Named(_) | TypeKind::Generic(_, _) => false,
     }
 }
 
