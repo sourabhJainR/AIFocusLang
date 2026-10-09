@@ -681,8 +681,9 @@ fn run_function(
                     ));
                 }
                 let start = stack.len() - len;
-                let values = stack.drain(start..).collect();
-                stack.push(NativeValue::List(values));
+                let value = NativeValue::List(stack.drain(start..).collect());
+                validate_value(&value, state.limits)?;
+                stack.push(value);
             }
             NativeInstr::Index => {
                 let index = pop_int(&mut stack)?;
@@ -747,13 +748,17 @@ fn run_function(
                 let value = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("ok value missing".into()))?;
-                stack.push(NativeValue::ResultOk(Box::new(value)));
+                let result = NativeValue::ResultOk(Box::new(value));
+                validate_value(&result, state.limits)?;
+                stack.push(result);
             }
             NativeInstr::MakeErr => {
                 let value = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("err value missing".into()))?;
-                stack.push(NativeValue::ResultErr(Box::new(value)));
+                let result = NativeValue::ResultErr(Box::new(value));
+                validate_value(&result, state.limits)?;
+                stack.push(result);
             }
             NativeInstr::Unwrap => {
                 match stack
