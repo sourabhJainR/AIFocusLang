@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use std::thread::{self, JoinHandle};
 
@@ -24,6 +24,7 @@ pub enum NativeInstr {
     Unwrap,
     Load(String),
     Store(String),
+    AddAssign(String),
     StoreIndex(String),
     Add,
     Sub,
@@ -89,6 +90,79 @@ pub enum NativeError {
     Cancelled(String),
     InvalidProgram(String),
     Type(String),
+    ResourceLimit(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionLimits {
+    pub max_instructions: usize,
+    pub max_call_depth: usize,
+    pub max_tasks: usize,
+    pub max_collection_items: usize,
+    pub max_string_bytes: usize,
+}
+
+impl Default for ExecutionLimits {
+    fn default() -> Self {
+        Self {
+            max_instructions: 1_000_000,
+            max_call_depth: 128,
+            max_tasks: 64,
+            max_collection_items: 16_384,
+            max_string_bytes: 1_048_576,
+        }
+    }
+}
+
+struct ExecutionState {
+    limits: ExecutionLimits,
+    instructions: AtomicUsize,
+    active_tasks: AtomicUsize,
+}
+
+struct ActiveTaskLease(Arc<ExecutionState>);
+
+impl Drop for ActiveTaskLease {
+    fn drop(&mut self) {
+        self.0.active_tasks.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+fn reserve_task(state: &Arc<ExecutionState>) -> Result<ActiveTaskLease, NativeError> {
+    let mut current = state.active_tasks.load(Ordering::Acquire);
+    loop {
+        if current >= state.limits.max_tasks {
+            return Err(NativeError::ResourceLimit(format!(
+                "active task limit exceeded (limit {})",
+                state.limits.max_tasks
+            )));
+        }
+        match state.active_tasks.compare_exchange_weak(
+            current, current + 1, Ordering::AcqRel, Ordering::Acquire
+        ) {
+            Ok(_) => return Ok(ActiveTaskLease(Arc::clone(state))),
+            Err(observed) => current = observed,
+        }
+    }
+}
+
+fn validate_input_values(values: &[NativeValue], limits: ExecutionLimits) -> Result<(), NativeError> {
+    let mut pending = values.iter().collect::<Vec<_>>();
+    while let Some(value) = pending.pop() {
+        match value {
+            NativeValue::String(s) if s.len() > limits.max_string_bytes => {
+                return Err(NativeError::ResourceLimit("input string exceeds byte limit".into()));
+            }
+            NativeValue::List(items) => {
+                if items.len() > limits.max_collection_items {
+                    return Err(NativeError::ResourceLimit("input collection exceeds item limit".into()));
+                }
+                pending.extend(items.iter());
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// Compile the first function for the legacy single-function API.
@@ -155,7 +229,23 @@ fn is_native_type(ty: &TypeKind) -> bool {
 
 fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
     match op {
-        IrOp::Let { name, value } | IrOp::Set { name, value } => {
+        IrOp::Let { name, value } => {
+            emit_value(value, code)?;
+            code.push(NativeInstr::Store(name.clone()));
+        }
+        IrOp::Set { name, value } => {
+            if let IrValue::Binary {
+                op: crate::BinaryOp::Add,
+                left,
+                right,
+            } = value
+            {
+                if matches!(left.as_ref(), IrValue::Name(existing) if existing == name) {
+                    emit_value(right, code)?;
+                    code.push(NativeInstr::AddAssign(name.clone()));
+                    return Ok(());
+                }
+            }
             emit_value(value, code)?;
             code.push(NativeInstr::Store(name.clone()));
         }
@@ -454,6 +544,11 @@ pub fn run(
                     .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
                 locals.insert(name, value);
             }
+            NativeInstr::AddAssign(name) => {
+                let right = stack.pop().ok_or_else(|| NativeError::InvalidProgram("add assignment value missing".into()))?;
+                let left = locals.remove(&name).ok_or_else(|| NativeError::InvalidProgram(format!("unknown local '{name}'")))?;
+                locals.insert(name, add_values(left, right)?);
+            }
             NativeInstr::StoreIndex(name) => {
                 let value = stack.pop().ok_or_else(|| {
                     NativeError::InvalidProgram("indexed store value missing".into())
@@ -584,19 +679,42 @@ pub fn run_program(
     entry: &str,
     args: &[NativeValue],
 ) -> Result<NativeValue, NativeError> {
-    let function = program
-        .functions
-        .get(entry)
+    run_program_with_limits(program, entry, args, ExecutionLimits::default())
+}
+
+/// Execute with explicit instruction, recursion, task, collection, and string bounds.
+/// Limits are shared by all calls and child tasks in this execution.
+pub fn run_program_with_limits(
+    program: &NativeProgram,
+    entry: &str,
+    args: &[NativeValue],
+    limits: ExecutionLimits,
+) -> Result<NativeValue, NativeError> {
+    validate_input_values(args, limits)?;
+    let program = Arc::new(program.clone());
+    let function = program.functions.get(entry)
         .ok_or_else(|| NativeError::InvalidProgram(format!("unknown function '{entry}'")))?;
-    run_function(program, function, args, None)
+    let state = Arc::new(ExecutionState {
+        limits,
+        instructions: AtomicUsize::new(0),
+        active_tasks: AtomicUsize::new(0),
+    });
+    run_function(&program, function, args, None, state, 0)
 }
 
 fn run_function(
-    program: &NativeProgram,
+    program: &Arc<NativeProgram>,
     function: &NativeFunction,
     args: &[NativeValue],
     cancellation: Option<Arc<AtomicBool>>,
+    state: Arc<ExecutionState>,
+    depth: usize,
 ) -> Result<NativeValue, NativeError> {
+    if depth > state.limits.max_call_depth {
+        return Err(NativeError::ResourceLimit(format!(
+            "call depth limit exceeded (limit {})", state.limits.max_call_depth
+        )));
+    }
     if args.len() != function.params.len() {
         return Err(NativeError::InvalidProgram(format!(
             "function expects {} argument(s), got {}",
@@ -613,6 +731,12 @@ fn run_function(
     }
 
     while pc < function.code.len() {
+        let executed = state.instructions.fetch_add(1, Ordering::AcqRel);
+        if executed >= state.limits.max_instructions {
+            return Err(NativeError::ResourceLimit(format!(
+                "instruction budget exceeded after {} instructions (limit {})", executed + 1, state.limits.max_instructions
+            )));
+        }
         if cancellation
             .as_ref()
             .is_some_and(|token| token.load(Ordering::Acquire))
@@ -663,15 +787,19 @@ fn run_function(
                 }
                 let start = stack.len() - argc;
                 let call_args = stack.split_off(start);
-                let child_program = program.clone();
+                let task_lease = reserve_task(&state)?;
+                let child_program = Arc::clone(program);
+                let child_state = Arc::clone(&state);
+                let child_depth = depth + 1;
                 let token = Arc::new(AtomicBool::new(false));
                 let child_token = token.clone();
-                let join = thread::spawn(move || {
+                let join = thread::Builder::new().name(format!("ardisa-{name}")).spawn(move || {
+                    let _task_lease = task_lease;
                     let function = child_program.functions.get(&callee).ok_or_else(|| {
                         NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                     })?;
-                    run_function(&child_program, function, &call_args, Some(child_token))
-                });
+                    run_function(&child_program, function, &call_args, Some(child_token), child_state, child_depth)
+                }).map_err(|error| NativeError::ResourceLimit(format!("worker creation failed: {error}")))?;
                 scope.insert(
                     name,
                     NativeTask {
@@ -724,14 +852,22 @@ fn run_function(
                 let callee_fn = program.functions.get(&callee).ok_or_else(|| {
                     NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                 })?;
-                let value = run_function(program, callee_fn, &call_args, cancellation.clone())?;
+                let value = run_function(program, callee_fn, &call_args, cancellation.clone(), Arc::clone(&state), depth + 1)?;
                 stack.push(value);
             }
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
             NativeInstr::PushUnit => stack.push(NativeValue::Unit),
-            NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
+            NativeInstr::PushString(value) => {
+                if value.len() > state.limits.max_string_bytes {
+                    return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
+                }
+                stack.push(NativeValue::String(value));
+            }
             NativeInstr::PushList(len) => {
+                if len > state.limits.max_collection_items {
+                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
+                }
                 if stack.len() < len {
                     return Err(NativeError::InvalidProgram(
                         "list has insufficient stack values".into(),
@@ -785,6 +921,9 @@ fn run_function(
                 let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
                     return Err(NativeError::Type("push requires a List binding".into()));
                 };
+                if items.len() >= state.limits.max_collection_items {
+                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
+                }
                 items.push(value);
                 stack.push(NativeValue::Unit);
             }
@@ -829,6 +968,15 @@ fn run_function(
                     .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
                 locals.insert(name, value);
             }
+            NativeInstr::AddAssign(name) => {
+                let right = stack.pop().ok_or_else(|| NativeError::InvalidProgram("add assignment value missing".into()))?;
+                let left = locals.remove(&name).ok_or_else(|| NativeError::InvalidProgram(format!("unknown local '{name}'")))?;
+                let value = add_values(left, right)?;
+                if matches!(&value, NativeValue::String(s) if s.len() > state.limits.max_string_bytes) {
+                    return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
+                }
+                locals.insert(name, value);
+            }
             NativeInstr::StoreIndex(name) => {
                 let value = stack.pop().ok_or_else(|| {
                     NativeError::InvalidProgram("indexed store value missing".into())
@@ -856,7 +1004,11 @@ fn run_function(
                 let left = stack
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("empty stack".into()))?;
-                stack.push(add_values(left, right)?);
+                let value = add_values(left, right)?;
+                if matches!(&value, NativeValue::String(s) if s.len() > state.limits.max_string_bytes) {
+                    return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
+                }
+                stack.push(value);
             }
             NativeInstr::Sub | NativeInstr::Mul | NativeInstr::Div | NativeInstr::Mod => {
                 let right = pop_int(&mut stack)?;
@@ -1054,6 +1206,7 @@ fn encode_instr(instr: &NativeInstr) -> String {
         NativeInstr::MakeErr => "MakeErr".into(), NativeInstr::Unwrap => "Unwrap".into(),
         NativeInstr::Load(v) => format!("Load:{}", escape_artifact(v)),
         NativeInstr::Store(v) => format!("Store:{}", escape_artifact(v)),
+        NativeInstr::AddAssign(v) => format!("AddAssign:{}", escape_artifact(v)),
         NativeInstr::StoreIndex(v) => format!("StoreIndex:{}", escape_artifact(v)),
         NativeInstr::Add => "Add".into(), NativeInstr::Sub => "Sub".into(),
         NativeInstr::Mul => "Mul".into(), NativeInstr::Div => "Div".into(),
@@ -1084,6 +1237,7 @@ fn decode_instr(s: &str) -> Result<NativeInstr, NativeError> {
         "PushList"=>NativeInstr::PushList(int(arg)?),"Append"=>NativeInstr::Append(unescape_artifact(arg)?),
         "MakeOk"=>NativeInstr::MakeOk,"Chr"=>NativeInstr::Chr,"MakeErr"=>NativeInstr::MakeErr,"Unwrap"=>NativeInstr::Unwrap,
         "Load"=>NativeInstr::Load(unescape_artifact(arg)?),"Store"=>NativeInstr::Store(unescape_artifact(arg)?),
+        "AddAssign"=>NativeInstr::AddAssign(unescape_artifact(arg)?),
         "StoreIndex"=>NativeInstr::StoreIndex(unescape_artifact(arg)?),"Add"=>NativeInstr::Add,"Sub"=>NativeInstr::Sub,
         "Mul"=>NativeInstr::Mul,"Div"=>NativeInstr::Div,"Mod"=>NativeInstr::Mod,"Equal"=>NativeInstr::Equal,
         "NotEqual"=>NativeInstr::NotEqual,"Less"=>NativeInstr::Less,"LessEqual"=>NativeInstr::LessEqual,
@@ -1424,5 +1578,101 @@ fn fact(n: Int) -> Int
         let program = compile_program(&ir).unwrap();
         let result = run_program(&program, "fact", &[NativeValue::Int(5)]).unwrap();
         assert_eq!(result, NativeValue::Int(120));
+    }
+
+    #[test]
+    fn instruction_budget_stops_infinite_loops() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec![], code: vec![NativeInstr::Jump(0)] },
+            )]),
+        };
+        let error = run_program_with_limits(&program, "main", &[], ExecutionLimits {
+            max_instructions: 12,
+            ..ExecutionLimits::default()
+        }).unwrap_err();
+        assert!(matches!(error, NativeError::ResourceLimit(message) if message.contains("instruction budget")));
+    }
+
+    #[test]
+    fn call_depth_limit_stops_unbounded_recursion() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec![], code: vec![
+                    NativeInstr::Call { callee: "main".into(), argc: 0 },
+                    NativeInstr::Return,
+                ] },
+            )]),
+        };
+        let error = run_program_with_limits(&program, "main", &[], ExecutionLimits {
+            max_instructions: 100,
+            max_call_depth: 3,
+            ..ExecutionLimits::default()
+        }).unwrap_err();
+        assert!(matches!(error, NativeError::ResourceLimit(message) if message.contains("call depth")));
+    }
+
+    #[test]
+    fn input_collection_and_string_limits_fail_closed() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec!["value".into()], code: vec![
+                    NativeInstr::Load("value".into()),
+                    NativeInstr::Return,
+                ] },
+            )]),
+        };
+        let limits = ExecutionLimits {
+            max_string_bytes: 3,
+            max_collection_items: 1,
+            ..ExecutionLimits::default()
+        };
+        assert!(matches!(
+            run_program_with_limits(&program, "main", &[NativeValue::String("long".into())], limits),
+            Err(NativeError::ResourceLimit(_))
+        ));
+        assert!(matches!(
+            run_program_with_limits(&program, "main", &[NativeValue::List(vec![NativeValue::Int(1), NativeValue::Int(2)])], limits),
+            Err(NativeError::ResourceLimit(_))
+        ));
+    }
+
+    #[test]
+    fn task_limit_stops_excess_workers_and_cleans_up() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([
+                ("worker".into(), NativeFunction { params: vec![], code: vec![NativeInstr::Jump(0)] }),
+                ("main".into(), NativeFunction { params: vec![], code: vec![
+                    NativeInstr::ScopeStart,
+                    NativeInstr::Spawn { name: "one".into(), callee: "worker".into(), argc: 0 },
+                    NativeInstr::Spawn { name: "two".into(), callee: "worker".into(), argc: 0 },
+                    NativeInstr::ScopeEnd,
+                    NativeInstr::PushInt(1),
+                    NativeInstr::Return,
+                ] }),
+            ]),
+        };
+        let error = run_program_with_limits(&program, "main", &[], ExecutionLimits {
+            max_instructions: usize::MAX,
+            max_tasks: 1,
+            ..ExecutionLimits::default()
+        }).unwrap_err();
+        assert!(matches!(error, NativeError::ResourceLimit(message) if message.contains("active task limit")));
+    }
+
+    #[test]
+    fn self_appending_string_assignment_uses_in_place_add_assign() {
+        let module = crate::parse(
+            "module x\nfn main() -> String\n  let output = \"\"\n  set output = output + \"hello\"\n  output\n",
+        ).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        let main = &program.functions["main"];
+        assert!(main.code.iter().any(|instr| matches!(instr, NativeInstr::AddAssign(name) if name == "output")));
+        assert_eq!(run_program(&program, "main", &[]).unwrap(), NativeValue::String("hello".into()));
+        let decoded = decode_program(&encode_program(&program)).unwrap();
+        assert_eq!(decoded, program);
     }
 }
