@@ -1662,4 +1662,17 @@ fn fact(n: Int) -> Int
         }).unwrap_err();
         assert!(matches!(error, NativeError::ResourceLimit(message) if message.contains("active task limit")));
     }
+
+    #[test]
+    fn self_appending_string_assignment_uses_in_place_add_assign() {
+        let module = crate::parse(
+            "module x\nfn main() -> String\n  let output = \"\"\n  set output = output + \"hello\"\n  output\n",
+        ).unwrap();
+        let program = compile_program(&crate::ir::lower(&module)).unwrap();
+        let main = &program.functions["main"];
+        assert!(main.code.iter().any(|instr| matches!(instr, NativeInstr::AddAssign(name) if name == "output")));
+        assert_eq!(run_program(&program, "main", &[]).unwrap(), NativeValue::String("hello".into()));
+        let decoded = decode_program(&encode_program(&program)).unwrap();
+        assert_eq!(decoded, program);
+    }
 }
