@@ -424,16 +424,8 @@ pub fn run(
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
             NativeInstr::PushUnit => stack.push(NativeValue::Unit),
-            NativeInstr::PushString(value) => {
-                if value.len() > state.limits.max_string_bytes {
-                    return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
-                }
-                stack.push(NativeValue::String(value));
-            },
+            NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
             NativeInstr::PushList(len) => {
-                if len > state.limits.max_collection_items {
-                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
-                }
                 if stack.len() < len {
                     return Err(NativeError::InvalidProgram(
                         "list has insufficient stack values".into(),
@@ -491,9 +483,6 @@ pub fn run(
                 let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
                     return Err(NativeError::Type("push requires a List binding".into()));
                 };
-                if items.len() >= state.limits.max_collection_items {
-                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
-                }
                 items.push(value);
                 stack.push(NativeValue::Unit);
             }
@@ -847,8 +836,16 @@ fn run_function(
             NativeInstr::PushInt(value) => stack.push(NativeValue::Int(value)),
             NativeInstr::PushBool(value) => stack.push(NativeValue::Bool(value)),
             NativeInstr::PushUnit => stack.push(NativeValue::Unit),
-            NativeInstr::PushString(value) => stack.push(NativeValue::String(value)),
+            NativeInstr::PushString(value) => {
+                if value.len() > state.limits.max_string_bytes {
+                    return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
+                }
+                stack.push(NativeValue::String(value));
+            }
             NativeInstr::PushList(len) => {
+                if len > state.limits.max_collection_items {
+                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
+                }
                 if stack.len() < len {
                     return Err(NativeError::InvalidProgram(
                         "list has insufficient stack values".into(),
@@ -902,6 +899,9 @@ fn run_function(
                 let Some(NativeValue::List(items)) = locals.get_mut(&name) else {
                     return Err(NativeError::Type("push requires a List binding".into()));
                 };
+                if items.len() >= state.limits.max_collection_items {
+                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
+                }
                 items.push(value);
                 stack.push(NativeValue::Unit);
             }
