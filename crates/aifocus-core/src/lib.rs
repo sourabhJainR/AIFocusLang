@@ -749,7 +749,7 @@ mod ai_native_type_syntax_tests {
         assert!(formatted.contains("-> Probabilistic<Int>"));
         assert!(formatted.contains("value: Guaranteed<String>"));
         assert!(formatted.contains("value: GraphTensor"));
-        assert!(sema::check(&module).is_ok());
+        assert!(sema::check(&module).is_ok(), "semantic errors: {:?}", sema::check(&module).err());
         let reparsed = parse(&formatted).expect("formatted AI-native type syntax should parse");
         assert_eq!(format_module(&reparsed), formatted);
     }
