@@ -62,7 +62,7 @@ pub use learning::{
     ProvenanceKind,
 };
 pub use module_graph::{ModuleGraph, ModuleGraphError, ModuleNode};
-pub use native::{NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
+pub use native::{run_program_with_limits, ExecutionLimits, NativeError, NativeFunction, NativeInstr, NativeProgram, NativeValue};
 pub use ownership::{AccessKind, BorrowKind, OwnershipClass, OwnershipModel, OwnershipTransition};
 pub use resource_guard::{ResourceBudget, ResourceKind, ResourceLease, ResourceLimitExceeded, ResourceLimits, ResourceSnapshot};
 pub use protocol::{
