@@ -37,9 +37,15 @@ fn format_item(item: &Item, out: &mut String) {
     }
 }
 
-fn format_construct(kind: &str, decl: &ConstructDeclaration, out: &mut String) {
+fn format_construct(decl: &ConstructDeclaration, out: &mut String) {
     out.push_str("\n");
-    out.push_str(kind);
+    out.push_str(match decl.kind {
+        ConstructKind::Trace => "trace",
+        ConstructKind::Cell => "cell",
+        ConstructKind::Vault => "vault",
+        ConstructKind::Proof => "proof",
+        ConstructKind::Phase => "phase",
+    });
     out.push(' ');
     out.push_str(&decl.name);
     out.push('\n');
