@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvidenceEnvelope {
     pub episode_id: String,
@@ -44,6 +46,32 @@ impl EvidenceGraph {
         self.edges.push((from_episode.into(), to_episode.into()));
     }
 
+    /// Check episode identity and edge references before treating the graph as evidence.
+    /// Public fields remain available for serialization, so validation is repeated at use time.
+    pub fn validate_integrity(&self) -> Result<(), String> {
+        let mut episode_ids = BTreeSet::new();
+        for envelope in &self.envelopes {
+            if envelope.episode_id.trim().is_empty() {
+                return Err("evidence graph contains an empty episode ID".into());
+            }
+            if !episode_ids.insert(envelope.episode_id.as_str()) {
+                return Err(format!("duplicate episode ID '{}'", envelope.episode_id));
+            }
+        }
+        for (from, to) in &self.edges {
+            if from == to {
+                return Err(format!("self-referential evidence edge for episode '{from}'"));
+            }
+            if !episode_ids.contains(from.as_str()) {
+                return Err(format!("evidence edge references missing source episode '{from}'"));
+            }
+            if !episode_ids.contains(to.as_str()) {
+                return Err(format!("evidence edge references missing target episode '{to}'"));
+            }
+        }
+        Ok(())
+    }
+
     /// Fail-closed promotion check. String metadata is not proof of source authenticity.
     /// Call `can_promote_with_verifier` with a trusted verifier to authorize promotion.
     pub fn can_promote(
@@ -83,6 +111,12 @@ impl EvidenceGraph {
         holdout_pass_rate: u8,
         verifier: &V,
     ) -> CapabilityEvaluation {
+        if let Err(reason) = self.validate_integrity() {
+            return CapabilityEvaluation {
+                decision: CapabilityDecision::Hold,
+                reason: format!("evidence graph integrity failure: {reason}"),
+            };
+        }
         let envelopes = self.envelopes.iter()
             .filter(|e| e.capability == capability)
             .collect::<Vec<_>>();
@@ -313,4 +347,40 @@ mod tests {
         assert_eq!(result.decision, CapabilityDecision::Hold);
         assert!(result.reason.contains("trusted evidence verification failed"));
     }
+
+    #[test]
+    fn promotion_rejects_dangling_duplicate_and_self_referential_edges() {
+        struct AcceptAll;
+        impl EvidenceSourceVerifier for AcceptAll {
+            fn verify_source_backing(&self, _envelope: &EvidenceEnvelope) -> Result<(), String> {
+                Ok(())
+            }
+        }
+        let backed = |episode: &str| EvidenceEnvelope::new(
+            episode, "capability", "test", "passed", "verified",
+            vec![
+                "source_uri=https://example.com/source".into(),
+                format!("source_sha256={}", "b".repeat(64)),
+                "verification_receipt=receipt-1".into(),
+            ],
+        );
+
+        let mut dangling = EvidenceGraph::default();
+        dangling.add(backed("one"));
+        dangling.link("one", "missing");
+        assert_eq!(dangling.can_promote_with_verifier("capability", true, 100, &AcceptAll).decision, CapabilityDecision::Hold);
+        assert!(dangling.validate_integrity().unwrap_err().contains("missing target"));
+
+        let mut duplicate = EvidenceGraph::default();
+        duplicate.add(backed("same"));
+        duplicate.add(backed("same"));
+        assert!(duplicate.validate_integrity().unwrap_err().contains("duplicate episode ID"));
+        assert_eq!(duplicate.can_promote_with_verifier("capability", true, 100, &AcceptAll).decision, CapabilityDecision::Hold);
+
+        let mut self_edge = EvidenceGraph::default();
+        self_edge.add(backed("one"));
+        self_edge.link("one", "one");
+        assert!(self_edge.validate_integrity().unwrap_err().contains("self-referential"));
+    }
+
 }
