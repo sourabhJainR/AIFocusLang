@@ -1,6 +1,7 @@
 //! Core language model, parser, and AI-native structural editing API for Ardisa.
 
 pub mod ai;
+pub mod ai_types;
 pub mod arena;
 pub mod ast;
 pub mod benchmark;
@@ -30,6 +31,7 @@ pub mod sema;
 pub mod source;
 pub mod token;
 
+pub use ai_types::{Alternative, Guaranteed, GraphConflictPolicy, GraphTensor, GraphTensorEdge, GraphTensorNode, Probabilistic};
 pub use ai::{
     Distribution, Embedding, Modality, Probability, Quantization, RuntimeError, SemanticValue,
     Tensor, TraceBuffer, TraceEvent, TraceLevel,
