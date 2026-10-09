@@ -471,6 +471,26 @@ pub fn run(
     run_program_with_limits(&program, "main", &values, ExecutionLimits::default())
 }
 
+struct NativeTask {
+    cancel: Arc<AtomicBool>,
+    join: Option<JoinHandle<Result<NativeValue, NativeError>>>,
+}
+
+impl NativeTask {
+    fn cancel(&self) {
+        self.cancel.store(true, Ordering::Release);
+    }
+}
+
+impl Drop for NativeTask {
+    fn drop(&mut self) {
+        self.cancel();
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
+    }
+}
+
 pub fn run_program(
     program: &NativeProgram,
     entry: &str,
