@@ -45,6 +45,22 @@ pub struct BootstrapReport {
 }
 
 // Bootstrap verification follows the native function representation.
+const BOOTSTRAP_EXECUTION_LIMITS: native::ExecutionLimits = native::ExecutionLimits {
+    max_instructions: 10_000_000,
+    max_call_depth: 512,
+    max_tasks: 128,
+    max_collection_items: 1_000_000,
+    max_string_bytes: 64 * 1024 * 1024,
+};
+
+fn run_native(
+    program: &native::NativeProgram,
+    entry: &str,
+    args: &[native::NativeValue],
+) -> Result<native::NativeValue, native::NativeError> {
+    native::run_program_with_limits(program, entry, args, BOOTSTRAP_EXECUTION_LIMITS)
+}
+
 pub fn verify() -> BootstrapReport {
     let Ok(module) = parse(BOOTSTRAP_SOURCE) else {
         return failed("bootstrap source does not parse");
@@ -282,7 +298,7 @@ fn main(a: Int) -> Int
         .map(|(_, source)| (*source).to_string())
         .ok_or("missing compiler source")?;
 
-    let self_compile = native::run_program(
+    let self_compile = run_native(
         compiler_program,
         "compile",
         &[native::NativeValue::String(compiler_source.clone())],
