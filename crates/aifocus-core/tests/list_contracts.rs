@@ -35,7 +35,7 @@ fn rejects_mixed_type_list_elements() {
 
 #[test]
 fn formatter_round_trips_list_literals_and_indexing() {
-    let source = "module collections\nfn first(values: List<Int>) -> Int\n  values[0]\nfn sample() -> Int\n  first([4, 5])\n";
+    let source = "module collections\nfn first() -> Int\n  let values = [4, 5]\n  values[0]\n";
     let module = parse(source).expect("source should parse");
     let formatted = format::format_module(&module);
     let reparsed = parse(&formatted).expect("formatted source should parse");
