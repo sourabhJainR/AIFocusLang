@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 
-use crate::{Block, ExprKind, Item, Module, StmtKind, source::Diagnostic};
+use crate::{Block, ExprKind, Item, Module, StmtKind, resource_guard::{ResourceBudget, ResourceLease}, source::Diagnostic};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskTerminal {
@@ -185,13 +185,23 @@ pub enum ScopeEvent {
 
 pub struct StructuredScope {
     tasks: BTreeMap<String, (TaskHandle<()>, TaskState)>,
+    leases: BTreeMap<String, ResourceLease>,
+    budget: ResourceBudget,
     events: Vec<ScopeEvent>,
 }
 
 impl StructuredScope {
     pub fn new() -> Self {
+        Self::with_budget(ResourceBudget::default())
+    }
+
+    /// Create a scope using a caller-provided shared budget. Cloned budgets share
+    /// counters, allowing multiple scopes to obey one process/session limit.
+    pub fn with_budget(budget: ResourceBudget) -> Self {
         Self {
             tasks: BTreeMap::new(),
+            leases: BTreeMap::new(),
+            budget,
             events: Vec::new(),
         }
     }
@@ -204,8 +214,10 @@ impl StructuredScope {
         if self.tasks.contains_key(&name) {
             return Err(format!("AIF501: duplicate task '{name}'"));
         }
+        let lease = self.budget.reserve_task().map_err(|error| format!("AIF506: {error}"))?;
         self.tasks
             .insert(name.clone(), (spawn(task), TaskState::Running));
+        self.leases.insert(name.clone(), lease);
         self.events.push(ScopeEvent::Spawned(name));
         Ok(())
     }
@@ -214,12 +226,14 @@ impl StructuredScope {
         let Some((handle, state)) = self.tasks.remove(name) else {
             return Err(format!("AIF502: unknown task '{name}'"));
         };
-        if state != TaskState::Running {
-            return Err(format!("AIF504: task '{name}' is already terminal"));
-        }
-        match handle.join() {
+        let lease = self.leases.remove(name);
+        // Cancellation is cooperative: a cancelled worker still has to be joined
+        // before its resource reservation can be released.
+        let result = match handle.join() {
             Ok(()) => {
-                self.events.push(ScopeEvent::Joined(name.into()));
+                if state == TaskState::Running {
+                    self.events.push(ScopeEvent::Joined(name.into()));
+                }
                 Ok(())
             }
             Err(_) => {
@@ -229,7 +243,9 @@ impl StructuredScope {
                     "AIF505: task '{name}' panicked; siblings cancelled"
                 ))
             }
-        }
+        };
+        drop(lease);
+        result
     }
 
     pub fn cancel(&mut self, name: &str) -> Result<(), String> {
@@ -249,7 +265,10 @@ impl StructuredScope {
         let names = self.tasks.keys().cloned().collect::<Vec<_>>();
         for name in names {
             let (handle, state) = self.tasks.remove(&name).expect("task disappeared");
-            if handle.join().is_err() {
+            let lease = self.leases.remove(&name);
+            let join_result = handle.join();
+            drop(lease);
+            if join_result.is_err() {
                 return Err(format!("AIF505: task '{name}' panicked"));
             }
             if state == TaskState::Running {
@@ -296,6 +315,7 @@ impl Drop for StructuredScope {
         for (_, (handle, _)) in std::mem::take(&mut self.tasks) {
             let _ = handle.join();
         }
+        self.leases.clear();
     }
 }
 
@@ -455,5 +475,41 @@ fn main()
         });
         handle.cancel();
         assert_eq!(handle.join().unwrap(), 7);
+    }
+
+    #[test]
+    fn structured_scope_enforces_shared_task_budget() {
+        use crate::resource_guard::{ResourceBudget, ResourceLimits};
+        let budget = ResourceBudget::new(ResourceLimits {
+            max_tasks: 1,
+            max_reserved_bytes: 1024,
+            max_operations: 100,
+        });
+        let mut first = StructuredScope::with_budget(budget.clone());
+        first.spawn("worker", |token| {
+            while !token.is_cancelled() {
+                thread::yield_now();
+            }
+        }).unwrap();
+        let mut second = StructuredScope::with_budget(budget.clone());
+        assert!(second.spawn("blocked", |_token| {}).unwrap_err().contains("AIF506"));
+        first.cancel("worker").unwrap();
+        first.finish().unwrap();
+        second.spawn("allowed", |_token| {}).unwrap();
+        second.finish().unwrap();
+        assert_eq!(budget.snapshot().active_tasks, 0);
+    }
+
+    #[test]
+    fn cancelled_worker_is_joined_before_budget_is_released() {
+        use crate::resource_guard::{ResourceBudget, ResourceLimits};
+        let budget = ResourceBudget::new(ResourceLimits { max_tasks: 1, max_reserved_bytes: 0, max_operations: 0 });
+        let mut scope = StructuredScope::with_budget(budget.clone());
+        scope.spawn("worker", |token| {
+            while !token.is_cancelled() { thread::yield_now(); }
+        }).unwrap();
+        scope.cancel("worker").unwrap();
+        assert!(scope.join("worker").is_ok());
+        assert_eq!(budget.snapshot().active_tasks, 0);
     }
 }
