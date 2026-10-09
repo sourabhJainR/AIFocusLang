@@ -27,6 +27,14 @@ pub struct EvidenceGraph {
     pub edges: Vec<(String, String)>,
 }
 
+/// Trust boundary for validating evidence source authenticity and receipt provenance.
+/// Implementations must verify fetched source bytes against the SHA-256 digest and validate
+/// receipt authenticity using configured trusted identities. Returning Ok is an authorization
+/// decision; the default evidence graph deliberately does not implement this trait.
+pub trait EvidenceSourceVerifier {
+    fn verify_source_backing(&self, envelope: &EvidenceEnvelope) -> Result<(), String>;
+}
+
 impl EvidenceGraph {
     pub fn add(&mut self, envelope: EvidenceEnvelope) {
         self.envelopes.push(envelope);
@@ -36,6 +44,8 @@ impl EvidenceGraph {
         self.edges.push((from_episode.into(), to_episode.into()));
     }
 
+    /// Fail-closed promotion check. String metadata is not proof of source authenticity.
+    /// Call `can_promote_with_verifier` with a trusted verifier to authorize promotion.
     pub fn can_promote(
         &self,
         capability: &str,
@@ -51,15 +61,53 @@ impl EvidenceGraph {
                 reason: "no evidence envelope exists for capability".into(),
             };
         }
-        if !envelopes.iter().any(|e| e.has_structural_source_backing()) {
+        if !envelopes.iter().all(|e| e.has_structural_source_backing()) {
             return CapabilityEvaluation {
                 decision: CapabilityDecision::Hold,
-                reason: "evidence lacks a source URI, SHA-256 digest, and verification receipt reference".into(),
+                reason: "evidence lacks a source URI, SHA-256 digest, or verification receipt reference".into(),
             };
         }
-        evaluate(canary_passed, holdout_pass_rate, false)
+        CapabilityEvaluation {
+            decision: CapabilityDecision::Hold,
+            reason: "source metadata is only structural; a trusted source and receipt verifier is required".into(),
+        }
     }
-}
+
+    /// Evaluate promotion only after a trusted verifier authenticates every matching envelope.
+    /// The verifier is the trust boundary: implementations must validate the actual source
+    /// content/digest and the receipt against configured trusted identities, not just string shape.
+    pub fn can_promote_with_verifier<V: EvidenceSourceVerifier>(
+        &self,
+        capability: &str,
+        canary_passed: bool,
+        holdout_pass_rate: u8,
+        verifier: &V,
+    ) -> CapabilityEvaluation {
+        let envelopes = self.envelopes.iter()
+            .filter(|e| e.capability == capability)
+            .collect::<Vec<_>>();
+        if envelopes.is_empty() {
+            return CapabilityEvaluation {
+                decision: CapabilityDecision::Hold,
+                reason: "no evidence envelope exists for capability".into(),
+            };
+        }
+        for envelope in &envelopes {
+            if !envelope.has_structural_source_backing() {
+                return CapabilityEvaluation {
+                    decision: CapabilityDecision::Hold,
+                    reason: "evidence lacks structurally valid source backing".into(),
+                };
+            }
+            if let Err(reason) = verifier.verify_source_backing(envelope) {
+                return CapabilityEvaluation {
+                    decision: CapabilityDecision::Hold,
+                    reason: format!("trusted evidence verification failed: {reason}"),
+                };
+            }
+        }
+        evaluate(canary_passed, holdout_pass_rate, false)
+    }}
 
 pub fn evaluate(
     canary_passed: bool,
@@ -163,6 +211,20 @@ mod tests {
         ));
         assert_eq!(
             graph.can_promote("ownership-analysis", true, 100).decision,
+            CapabilityDecision::Hold
+        );
+        struct TestVerifier;
+        impl EvidenceSourceVerifier for TestVerifier {
+            fn verify_source_backing(&self, envelope: &EvidenceEnvelope) -> Result<(), String> {
+                if envelope.episode_id == "episode-1" {
+                    Ok(())
+                } else {
+                    Err("unrecognized test receipt".into())
+                }
+            }
+        }
+        assert_eq!(
+            graph.can_promote_with_verifier("ownership-analysis", true, 100, &TestVerifier).decision,
             CapabilityDecision::Promote
         );
     }
@@ -214,5 +276,28 @@ mod tests {
         );
         assert_eq!(envelope.evidence.len(), 5);
         assert_eq!(envelope.episode_id, "episode-1");
+    }
+
+    #[test]
+    fn structurally_plausible_but_unverified_receipt_cannot_promote() {
+        struct RejectAll;
+        impl EvidenceSourceVerifier for RejectAll {
+            fn verify_source_backing(&self, _envelope: &EvidenceEnvelope) -> Result<(), String> {
+                Err("receipt signature is not trusted".into())
+            }
+        }
+        let mut graph = EvidenceGraph::default();
+        graph.add(EvidenceEnvelope::new(
+            "episode-untrusted", "capability", "test", "passed", "claimed-verified",
+            vec![
+                "source_uri=https://example.invalid/source".into(),
+                format!("source_sha256={}", "a".repeat(64)),
+                "verification_receipt=made-up-run-id".into(),
+            ],
+        ));
+        assert_eq!(graph.can_promote("capability", true, 100).decision, CapabilityDecision::Hold);
+        let result = graph.can_promote_with_verifier("capability", true, 100, &RejectAll);
+        assert_eq!(result.decision, CapabilityDecision::Hold);
+        assert!(result.reason.contains("trusted evidence verification failed"));
     }
 }
