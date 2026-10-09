@@ -100,6 +100,14 @@ pub struct ExecutionLimits {
     pub max_tasks: usize,
     pub max_collection_items: usize,
     pub max_string_bytes: usize,
+    /// Maximum total nodes in any single nested runtime value.
+    pub max_value_nodes: usize,
+    /// Maximum nesting depth for List and Result values (root depth is zero).
+    pub max_value_depth: usize,
+    /// Maximum values held on one VM frame's operand stack.
+    pub max_stack_values: usize,
+    /// Maximum local bindings in one VM frame.
+    pub max_locals: usize,
 }
 
 impl Default for ExecutionLimits {
@@ -110,6 +118,10 @@ impl Default for ExecutionLimits {
             max_tasks: 64,
             max_collection_items: 16_384,
             max_string_bytes: 1_048_576,
+            max_value_nodes: 16_384,
+            max_value_depth: 64,
+            max_stack_values: 16_384,
+            max_locals: 4_096,
         }
     }
 }
@@ -146,21 +158,39 @@ fn reserve_task(state: &Arc<ExecutionState>) -> Result<ActiveTaskLease, NativeEr
     }
 }
 
-fn validate_input_values(values: &[NativeValue], limits: ExecutionLimits) -> Result<(), NativeError> {
-    let mut pending = values.iter().collect::<Vec<_>>();
-    while let Some(value) = pending.pop() {
+fn validate_value(value: &NativeValue, limits: ExecutionLimits) -> Result<(), NativeError> {
+    let mut pending = vec![(value, 0usize)];
+    let mut nodes = 0usize;
+    while let Some((value, depth)) = pending.pop() {
+        nodes = nodes.checked_add(1).ok_or_else(|| NativeError::ResourceLimit("value node count overflow".into()))?;
+        if nodes > limits.max_value_nodes {
+            return Err(NativeError::ResourceLimit(format!("nested value node limit exceeded (limit {})", limits.max_value_nodes)));
+        }
+        if depth > limits.max_value_depth {
+            return Err(NativeError::ResourceLimit(format!("value nesting depth exceeded (limit {})", limits.max_value_depth)));
+        }
         match value {
             NativeValue::String(s) if s.len() > limits.max_string_bytes => {
-                return Err(NativeError::ResourceLimit("input string exceeds byte limit".into()));
+                return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
             }
             NativeValue::List(items) => {
                 if items.len() > limits.max_collection_items {
-                    return Err(NativeError::ResourceLimit("input collection exceeds item limit".into()));
+                    return Err(NativeError::ResourceLimit("collection exceeds item limit".into()));
                 }
-                pending.extend(items.iter());
+                pending.extend(items.iter().map(|item| (item, depth + 1)));
+            }
+            NativeValue::ResultOk(inner) | NativeValue::ResultErr(inner) => {
+                pending.push((inner, depth + 1));
             }
             _ => {}
         }
+    }
+    Ok(())
+}
+
+fn validate_input_values(values: &[NativeValue], limits: ExecutionLimits) -> Result<(), NativeError> {
+    for value in values {
+        validate_value(value, limits)?;
     }
     Ok(())
 }
