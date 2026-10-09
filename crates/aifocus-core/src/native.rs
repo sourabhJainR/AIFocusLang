@@ -24,6 +24,7 @@ pub enum NativeInstr {
     Unwrap,
     Load(String),
     Store(String),
+    AddAssign(String),
     StoreIndex(String),
     Add,
     Sub,
@@ -228,7 +229,23 @@ fn is_native_type(ty: &TypeKind) -> bool {
 
 fn emit_op(op: &IrOp, code: &mut Vec<NativeInstr>) -> Result<(), NativeError> {
     match op {
-        IrOp::Let { name, value } | IrOp::Set { name, value } => {
+        IrOp::Let { name, value } => {
+            emit_value(value, code)?;
+            code.push(NativeInstr::Store(name.clone()));
+        }
+        IrOp::Set { name, value } => {
+            if let IrValue::Binary {
+                op: crate::BinaryOp::Add,
+                left,
+                right,
+            } = value
+            {
+                if matches!(left.as_ref(), IrValue::Name(existing) if existing == name) {
+                    emit_value(right, code)?;
+                    code.push(NativeInstr::AddAssign(name.clone()));
+                    return Ok(());
+                }
+            }
             emit_value(value, code)?;
             code.push(NativeInstr::Store(name.clone()));
         }
@@ -526,6 +543,11 @@ pub fn run(
                     .pop()
                     .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
                 locals.insert(name, value);
+            }
+            NativeInstr::AddAssign(name) => {
+                let right = stack.pop().ok_or_else(|| NativeError::InvalidProgram("add assignment value missing".into()))?;
+                let left = locals.remove(&name).ok_or_else(|| NativeError::InvalidProgram(format!("unknown local '{name}'")))?;
+                locals.insert(name, add_values(left, right)?);
             }
             NativeInstr::StoreIndex(name) => {
                 let value = stack.pop().ok_or_else(|| {
@@ -1175,6 +1197,7 @@ fn encode_instr(instr: &NativeInstr) -> String {
         NativeInstr::MakeErr => "MakeErr".into(), NativeInstr::Unwrap => "Unwrap".into(),
         NativeInstr::Load(v) => format!("Load:{}", escape_artifact(v)),
         NativeInstr::Store(v) => format!("Store:{}", escape_artifact(v)),
+        NativeInstr::AddAssign(v) => format!("AddAssign:{}", escape_artifact(v)),
         NativeInstr::StoreIndex(v) => format!("StoreIndex:{}", escape_artifact(v)),
         NativeInstr::Add => "Add".into(), NativeInstr::Sub => "Sub".into(),
         NativeInstr::Mul => "Mul".into(), NativeInstr::Div => "Div".into(),
@@ -1205,6 +1228,7 @@ fn decode_instr(s: &str) -> Result<NativeInstr, NativeError> {
         "PushList"=>NativeInstr::PushList(int(arg)?),"Append"=>NativeInstr::Append(unescape_artifact(arg)?),
         "MakeOk"=>NativeInstr::MakeOk,"Chr"=>NativeInstr::Chr,"MakeErr"=>NativeInstr::MakeErr,"Unwrap"=>NativeInstr::Unwrap,
         "Load"=>NativeInstr::Load(unescape_artifact(arg)?),"Store"=>NativeInstr::Store(unescape_artifact(arg)?),
+        "AddAssign"=>NativeInstr::AddAssign(unescape_artifact(arg)?),
         "StoreIndex"=>NativeInstr::StoreIndex(unescape_artifact(arg)?),"Add"=>NativeInstr::Add,"Sub"=>NativeInstr::Sub,
         "Mul"=>NativeInstr::Mul,"Div"=>NativeInstr::Div,"Mod"=>NativeInstr::Mod,"Equal"=>NativeInstr::Equal,
         "NotEqual"=>NativeInstr::NotEqual,"Less"=>NativeInstr::Less,"LessEqual"=>NativeInstr::LessEqual,
