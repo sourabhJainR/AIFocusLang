@@ -227,12 +227,13 @@ impl StructuredScope {
             return Err(format!("AIF502: unknown task '{name}'"));
         };
         let lease = self.leases.remove(name);
-        if state != TaskState::Running {
-            return Err(format!("AIF504: task '{name}' is already terminal"));
-        }
+        // Cancellation is cooperative: a cancelled worker still has to be joined
+        // before its resource reservation can be released.
         let result = match handle.join() {
             Ok(()) => {
-                self.events.push(ScopeEvent::Joined(name.into()));
+                if state == TaskState::Running {
+                    self.events.push(ScopeEvent::Joined(name.into()));
+                }
                 Ok(())
             }
             Err(_) => {
@@ -496,6 +497,19 @@ fn main()
         first.finish().unwrap();
         second.spawn("allowed", |_token| {}).unwrap();
         second.finish().unwrap();
+        assert_eq!(budget.snapshot().active_tasks, 0);
+    }
+
+    #[test]
+    fn cancelled_worker_is_joined_before_budget_is_released() {
+        use crate::resource_guard::{ResourceBudget, ResourceLimits};
+        let budget = ResourceBudget::new(ResourceLimits { max_tasks: 1, max_reserved_bytes: 0, max_operations: 0 });
+        let mut scope = StructuredScope::with_budget(budget.clone());
+        scope.spawn("worker", |token| {
+            while !token.is_cancelled() { thread::yield_now(); }
+        }).unwrap();
+        scope.cancel("worker").unwrap();
+        assert!(scope.join("worker").is_ok());
         assert_eq!(budget.snapshot().active_tasks, 0);
     }
 }
