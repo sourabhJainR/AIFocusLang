@@ -968,6 +968,15 @@ fn run_function(
                     .ok_or_else(|| NativeError::InvalidProgram("store from empty stack".into()))?;
                 locals.insert(name, value);
             }
+            NativeInstr::AddAssign(name) => {
+                let right = stack.pop().ok_or_else(|| NativeError::InvalidProgram("add assignment value missing".into()))?;
+                let left = locals.remove(&name).ok_or_else(|| NativeError::InvalidProgram(format!("unknown local '{name}'")))?;
+                let value = add_values(left, right)?;
+                if matches!(&value, NativeValue::String(s) if s.len() > state.limits.max_string_bytes) {
+                    return Err(NativeError::ResourceLimit("string exceeds byte limit".into()));
+                }
+                locals.insert(name, value);
+            }
             NativeInstr::StoreIndex(name) => {
                 let value = stack.pop().ok_or_else(|| {
                     NativeError::InvalidProgram("indexed store value missing".into())
