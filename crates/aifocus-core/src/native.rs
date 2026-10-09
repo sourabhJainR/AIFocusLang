@@ -1397,6 +1397,85 @@ fn main(a: Int) -> Int
     }
 
     #[test]
+    fn child_runtime_error_cancels_and_joins_running_sibling() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([
+                ("fail".into(), NativeFunction {
+                    params: vec![],
+                    code: vec![
+                        NativeInstr::PushBool(true),
+                        NativeInstr::PushInt(1),
+                        NativeInstr::Add,
+                        NativeInstr::Return,
+                    ],
+                }),
+                ("worker".into(), NativeFunction {
+                    params: vec![],
+                    code: vec![NativeInstr::Jump(0)],
+                }),
+                ("main".into(), NativeFunction {
+                    params: vec![],
+                    code: vec![
+                        NativeInstr::ScopeStart,
+                        NativeInstr::Spawn { name: "a_fail".into(), callee: "fail".into(), argc: 0 },
+                        NativeInstr::Spawn { name: "z_worker".into(), callee: "worker".into(), argc: 0 },
+                        NativeInstr::ScopeEnd,
+                        NativeInstr::PushInt(1),
+                        NativeInstr::Return,
+                    ],
+                }),
+            ]),
+        };
+        let error = run_program_with_limits(
+            &program,
+            "main",
+            &[],
+            ExecutionLimits { max_instructions: usize::MAX, ..ExecutionLimits::default() },
+        ).unwrap_err();
+        assert!(matches!(error, NativeError::Type(_)), "unexpected result: {error:?}");
+    }
+
+    #[test]
+    fn cancelled_child_does_not_mask_sibling_runtime_error() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([
+                ("fail".into(), NativeFunction {
+                    params: vec![],
+                    code: vec![
+                        NativeInstr::PushBool(true),
+                        NativeInstr::PushInt(1),
+                        NativeInstr::Add,
+                        NativeInstr::Return,
+                    ],
+                }),
+                ("worker".into(), NativeFunction {
+                    params: vec![],
+                    code: vec![NativeInstr::Jump(0)],
+                }),
+                ("main".into(), NativeFunction {
+                    params: vec![],
+                    code: vec![
+                        NativeInstr::ScopeStart,
+                        NativeInstr::Spawn { name: "a_cancel".into(), callee: "worker".into(), argc: 0 },
+                        NativeInstr::Spawn { name: "z_fail".into(), callee: "fail".into(), argc: 0 },
+                        NativeInstr::Cancel { name: "a_cancel".into() },
+                        NativeInstr::ScopeEnd,
+                        NativeInstr::PushInt(1),
+                        NativeInstr::Return,
+                    ],
+                }),
+            ]),
+        };
+        let error = run_program_with_limits(
+            &program,
+            "main",
+            &[],
+            ExecutionLimits { max_instructions: usize::MAX, ..ExecutionLimits::default() },
+        ).unwrap_err();
+        assert!(matches!(error, NativeError::Type(_)), "unexpected result: {error:?}");
+    }
+
+    #[test]
     fn string_concatenation_checks_limit_before_allocating() {
         let limits = ExecutionLimits {
             max_string_bytes: 5,
