@@ -40,11 +40,11 @@ fn format_item(item: &Item, out: &mut String) {
 }
 
 fn format_construct(kind: &str, decl: &ConstructDeclaration, out: &mut String) {
-    out.push_str("\\n");
+    out.push_str("\n");
     out.push_str(kind);
     out.push(' ');
     out.push_str(&decl.name);
-    out.push('\\n');
+    out.push('\n');
     for member in &decl.members {
         out.push_str("  ");
         match member {
@@ -64,7 +64,7 @@ fn format_construct(kind: &str, decl: &ConstructDeclaration, out: &mut String) {
                 out.push_str(to);
             }
         }
-        out.push('\\n');
+        out.push('\n');
     }
 }
 
