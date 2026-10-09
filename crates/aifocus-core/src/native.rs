@@ -854,21 +854,23 @@ fn run_function(
                 let right = pop_int(&mut stack)?;
                 let left = pop_int(&mut stack)?;
                 let value = match instr {
-                    NativeInstr::Sub => left - right,
-                    NativeInstr::Mul => left * right,
+                    NativeInstr::Sub => left.checked_sub(right)
+                        .ok_or_else(|| NativeError::Type("integer overflow in subtraction".into()))?,
+                    NativeInstr::Mul => left.checked_mul(right)
+                        .ok_or_else(|| NativeError::Type("integer overflow in multiplication".into()))?,
                     NativeInstr::Div => {
                         if right == 0 {
                             return Err(NativeError::Type("division by zero".into()));
-                        } else {
-                            left / right
                         }
+                        left.checked_div(right)
+                            .ok_or_else(|| NativeError::Type("integer overflow in division".into()))?
                     }
                     NativeInstr::Mod => {
                         if right == 0 {
                             return Err(NativeError::Type("modulo by zero".into()));
-                        } else {
-                            left % right
                         }
+                        left.checked_rem(right)
+                            .ok_or_else(|| NativeError::Type("integer overflow in modulo".into()))?
                     }
                     _ => unreachable!(),
                 };
@@ -934,7 +936,10 @@ fn compare_ints(
 
 fn add_values(left: NativeValue, right: NativeValue) -> Result<NativeValue, NativeError> {
     match (left, right) {
-        (NativeValue::Int(left), NativeValue::Int(right)) => Ok(NativeValue::Int(left + right)),
+        (NativeValue::Int(left), NativeValue::Int(right)) => Ok(NativeValue::Int(
+            left.checked_add(right)
+                .ok_or_else(|| NativeError::Type("integer overflow in addition".into()))?,
+        )),
         (NativeValue::String(left), NativeValue::String(right)) => {
             Ok(NativeValue::String(format!("{left}{right}")))
         }
@@ -1587,6 +1592,62 @@ fn fact(n: Int) -> Int
                 ..ExecutionLimits::default()
             }),
             Err(NativeError::ResourceLimit(message)) if message.contains("local binding")
+        ));
+    }
+
+    #[test]
+    fn integer_overflow_returns_errors_instead_of_panicking() {
+        let cases = [
+            (NativeInstr::Add, i64::MAX, 1, "addition"),
+            (NativeInstr::Sub, i64::MIN, 1, "subtraction"),
+            (NativeInstr::Mul, i64::MAX, 2, "multiplication"),
+            (NativeInstr::Div, i64::MIN, -1, "division"),
+            (NativeInstr::Mod, i64::MIN, -1, "modulo"),
+        ];
+        for (operation, left, right, label) in cases {
+            let program = NativeProgram {
+                functions: BTreeMap::from([(
+                    "main".into(),
+                    NativeFunction {
+                        params: vec![],
+                        code: vec![
+                            NativeInstr::PushInt(left),
+                            NativeInstr::PushInt(right),
+                            operation,
+                            NativeInstr::Return,
+                        ],
+                    },
+                )]),
+            };
+            let result = run_program(&program, "main", &[]);
+            assert!(
+                matches!(&result, Err(NativeError::Type(message)) if message.contains("overflow")),
+                "expected explicit {label} overflow error, got {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn self_appending_integer_assignment_checks_overflow() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction {
+                    params: vec![],
+                    code: vec![
+                        NativeInstr::PushInt(i64::MAX),
+                        NativeInstr::Store("value".into()),
+                        NativeInstr::PushInt(1),
+                        NativeInstr::AddAssign("value".into()),
+                        NativeInstr::Load("value".into()),
+                        NativeInstr::Return,
+                    ],
+                },
+            )]),
+        };
+        assert!(matches!(
+            run_program(&program, "main", &[]),
+            Err(NativeError::Type(message)) if message.contains("overflow")
         ));
     }
 }
