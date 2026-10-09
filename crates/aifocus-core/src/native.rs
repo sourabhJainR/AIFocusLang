@@ -1546,4 +1546,87 @@ fn fact(n: Int) -> Int
         let result = run_program(&program, "fact", &[NativeValue::Int(5)]).unwrap();
         assert_eq!(result, NativeValue::Int(120));
     }
+
+    #[test]
+    fn instruction_budget_stops_infinite_loops() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec![], code: vec![NativeInstr::Jump(0)] },
+            )]),
+        };
+        let error = run_program_with_limits(&program, "main", &[], ExecutionLimits {
+            max_instructions: 12,
+            ..ExecutionLimits::default()
+        }).unwrap_err();
+        assert!(matches!(error, NativeError::ResourceLimit(message) if message.contains("instruction budget")));
+    }
+
+    #[test]
+    fn call_depth_limit_stops_unbounded_recursion() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec![], code: vec![
+                    NativeInstr::Call { callee: "main".into(), argc: 0 },
+                    NativeInstr::Return,
+                ] },
+            )]),
+        };
+        let error = run_program_with_limits(&program, "main", &[], ExecutionLimits {
+            max_instructions: 100,
+            max_call_depth: 3,
+            ..ExecutionLimits::default()
+        }).unwrap_err();
+        assert!(matches!(error, NativeError::ResourceLimit(message) if message.contains("call depth")));
+    }
+
+    #[test]
+    fn input_collection_and_string_limits_fail_closed() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([(
+                "main".into(),
+                NativeFunction { params: vec!["value".into()], code: vec![
+                    NativeInstr::Load("value".into()),
+                    NativeInstr::Return,
+                ] },
+            )]),
+        };
+        let limits = ExecutionLimits {
+            max_string_bytes: 3,
+            max_collection_items: 1,
+            ..ExecutionLimits::default()
+        };
+        assert!(matches!(
+            run_program_with_limits(&program, "main", &[NativeValue::String("long".into())], limits),
+            Err(NativeError::ResourceLimit(_))
+        ));
+        assert!(matches!(
+            run_program_with_limits(&program, "main", &[NativeValue::List(vec![NativeValue::Int(1), NativeValue::Int(2)])], limits),
+            Err(NativeError::ResourceLimit(_))
+        ));
+    }
+
+    #[test]
+    fn task_limit_stops_excess_workers_and_cleans_up() {
+        let program = NativeProgram {
+            functions: BTreeMap::from([
+                ("worker".into(), NativeFunction { params: vec![], code: vec![NativeInstr::Jump(0)] }),
+                ("main".into(), NativeFunction { params: vec![], code: vec![
+                    NativeInstr::ScopeStart,
+                    NativeInstr::Spawn { name: "one".into(), callee: "worker".into(), argc: 0 },
+                    NativeInstr::Spawn { name: "two".into(), callee: "worker".into(), argc: 0 },
+                    NativeInstr::ScopeEnd,
+                    NativeInstr::PushInt(1),
+                    NativeInstr::Return,
+                ] }),
+            ]),
+        };
+        let error = run_program_with_limits(&program, "main", &[], ExecutionLimits {
+            max_instructions: 10_000,
+            max_tasks: 1,
+            ..ExecutionLimits::default()
+        }).unwrap_err();
+        assert!(matches!(error, NativeError::ResourceLimit(message) if message.contains("active task limit")));
+    }
 }
