@@ -23,7 +23,9 @@ pub fn lower(module: &Module) -> LoweredModule {
         source_map: Vec::new(),
     };
     for item in &module.items {
-        lowerer.item(item);
+        if let Item::Function(function) = item {
+            lowerer.function(function);
+        }
     }
     LoweredModule {
         rust: lowerer.out,
@@ -37,8 +39,7 @@ struct Lowerer {
 }
 
 impl Lowerer {
-    fn item(&mut self, item: &Item) {
-        let Item::Function(function) = item;
+    fn function(&mut self, function: &crate::ast::Function) {
         self.record(function.id, function.span);
         self.out.push_str("fn ");
         self.out.push_str(&function.name);

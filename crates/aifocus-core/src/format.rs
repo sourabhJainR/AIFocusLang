@@ -6,6 +6,9 @@ pub fn format_module(module: &Module) -> String {
     for item in &module.items {
         format_item(item, &mut out);
     }
+    for declaration in &module.constructs {
+        format_construct(declaration, &mut out);
+    }
     out
 }
 
@@ -31,6 +34,41 @@ fn format_item(item: &Item, out: &mut String) {
             out.push('\n');
             format_block(&function.body, 2, out);
         }
+    }
+}
+
+fn format_construct(decl: &ConstructDeclaration, out: &mut String) {
+    out.push_str("\n");
+    out.push_str(match decl.kind {
+        ConstructKind::Trace => "trace",
+        ConstructKind::Cell => "cell",
+        ConstructKind::Vault => "vault",
+        ConstructKind::Proof => "proof",
+        ConstructKind::Phase => "phase",
+    });
+    out.push(' ');
+    out.push_str(&decl.name);
+    out.push('\n');
+    for member in &decl.members {
+        out.push_str("  ");
+        match member {
+            ConstructMember::Field { name, ty, .. } => {
+                out.push_str(name);
+                out.push_str(": ");
+                out.push_str(&ty.display_name());
+            }
+            ConstructMember::Clause { name, value, .. } => {
+                out.push_str(name);
+                out.push_str(": ");
+                out.push_str(value);
+            }
+            ConstructMember::Transition { from, to, .. } => {
+                out.push_str(from);
+                out.push_str(" -> ");
+                out.push_str(to);
+            }
+        }
+        out.push('\n');
     }
 }
 

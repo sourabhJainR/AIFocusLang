@@ -9,11 +9,37 @@ pub struct Module {
     pub span: Span,
     pub name: String,
     pub items: Vec<Item>,
+    pub constructs: Vec<ConstructDeclaration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
     Function(Function),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstructKind {
+    Trace,
+    Cell,
+    Vault,
+    Proof,
+    Phase,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstructDeclaration {
+    pub id: NodeId,
+    pub span: Span,
+    pub kind: ConstructKind,
+    pub name: String,
+    pub members: Vec<ConstructMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstructMember {
+    Field { name: String, ty: Type, span: Span },
+    Clause { name: String, value: String, span: Span },
+    Transition { from: String, to: String, span: Span },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

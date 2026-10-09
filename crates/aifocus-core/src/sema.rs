@@ -30,6 +30,14 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
         errors: Vec::new(),
     };
 
+    for declaration in &module.constructs {
+        checker.error(
+            "AIF610",
+            format!("AI Mode declaration '{}' is parsed but not yet semantically enforced", declaration.name),
+            declaration.span,
+        );
+    }
+
     for item in &module.items {
         let Item::Function(function) = item;
         let signature = FunctionSignature {
@@ -54,7 +62,7 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
     for _ in 0..module.items.len().max(1) {
         let before = checker.function_returns.clone();
         for item in &module.items {
-            let Item::Function(function) = item;
+            let Item::Function(function) = item else { continue; };
             if function.return_type.is_none() {
                 let mut locals = function
                     .params
@@ -74,8 +82,9 @@ pub fn analyze(module: &Module) -> Result<SemanticModel, Vec<Diagnostic>> {
     }
 
     for item in &module.items {
-        let Item::Function(function) = item;
-        checker.check_function(function);
+        if let Item::Function(function) = item {
+            checker.check_function(function);
+        }
     }
 
     if checker.errors.is_empty() {
