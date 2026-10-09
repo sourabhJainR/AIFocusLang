@@ -475,4 +475,27 @@ fn main()
         handle.cancel();
         assert_eq!(handle.join().unwrap(), 7);
     }
+
+    #[test]
+    fn structured_scope_enforces_shared_task_budget() {
+        use crate::resource_guard::{ResourceBudget, ResourceLimits};
+        let budget = ResourceBudget::new(ResourceLimits {
+            max_tasks: 1,
+            max_reserved_bytes: 1024,
+            max_operations: 100,
+        });
+        let mut first = StructuredScope::with_budget(budget.clone());
+        first.spawn("worker", |token| {
+            while !token.is_cancelled() {
+                thread::yield_now();
+            }
+        }).unwrap();
+        let mut second = StructuredScope::with_budget(budget.clone());
+        assert!(second.spawn("blocked", |_token| {}).unwrap_err().contains("AIF506"));
+        first.cancel("worker").unwrap();
+        first.finish().unwrap();
+        second.spawn("allowed", |_token| {}).unwrap();
+        second.finish().unwrap();
+        assert_eq!(budget.snapshot().active_tasks, 0);
+    }
 }
