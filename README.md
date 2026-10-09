@@ -54,7 +54,7 @@ Bootstrap-to-self-hosting development is in progress. The repository now has a d
 
 The repository is intentionally standalone: it has no runtime or build dependency on an external agent framework. Engineering feedback and learning are repository-local compiler facilities.
 
-See `docs/ROADMAP.md`, `docs/DESIGN.md`, and `docs/IMPLEMENTATION_PLAN.md`.
+See `docs/ROADMAP.md`, `docs/DESIGN.md`, `docs/IMPLEMENTATION_PLAN.md`, and the proposed [AI Mode language specification](docs/AI_MODE.md). AI Mode is currently a design specification, not yet accepted source syntax.
 
 ## Source files
 
