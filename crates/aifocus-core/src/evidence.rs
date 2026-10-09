@@ -49,8 +49,8 @@ impl EvidenceGraph {
     pub fn can_promote(
         &self,
         capability: &str,
-        canary_passed: bool,
-        holdout_pass_rate: u8,
+        _canary_passed: bool,
+        _holdout_pass_rate: u8,
     ) -> CapabilityEvaluation {
         let envelopes = self.envelopes.iter()
             .filter(|e| e.capability == capability)
