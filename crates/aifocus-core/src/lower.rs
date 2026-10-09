@@ -251,6 +251,17 @@ impl Lowerer {
             TypeKind::String => self.out.push_str("String"),
             TypeKind::Unit => self.out.push_str("()"),
             TypeKind::Named(name) => self.out.push_str(name),
+            TypeKind::Generic(name, args) => {
+                self.out.push_str(name);
+                self.out.push('<');
+                for (index, arg) in args.iter().enumerate() {
+                    if index > 0 {
+                        self.out.push_str(", ");
+                    }
+                    self.ty(arg);
+                }
+                self.out.push('>');
+            }
             TypeKind::List(element) => {
                 self.out.push_str("Vec<");
                 self.ty(element);
