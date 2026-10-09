@@ -238,3 +238,9 @@ mod tests {
         assert_eq!(budget.snapshot().reserved_bytes, 0);
     }
 }
+
+impl Default for ResourceBudget {
+    fn default() -> Self {
+        Self::new(ResourceLimits::default())
+    }
+}
