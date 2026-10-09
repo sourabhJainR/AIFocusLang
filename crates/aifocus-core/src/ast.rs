@@ -9,22 +9,28 @@ pub struct Module {
     pub span: Span,
     pub name: String,
     pub items: Vec<Item>,
+    pub constructs: Vec<ConstructDeclaration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
     Function(Function),
-    Trace(ConstructDeclaration),
-    Cell(ConstructDeclaration),
-    Vault(ConstructDeclaration),
-    Proof(ConstructDeclaration),
-    Phase(ConstructDeclaration),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstructKind {
+    Trace,
+    Cell,
+    Vault,
+    Proof,
+    Phase,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstructDeclaration {
     pub id: NodeId,
     pub span: Span,
+    pub kind: ConstructKind,
     pub name: String,
     pub members: Vec<ConstructMember>,
 }
