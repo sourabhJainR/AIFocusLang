@@ -705,7 +705,7 @@ fn run_function(
                 let callee = callee.clone();
                 let join = thread::Builder::new().name(format!("ardisa-{task_name}")).spawn(move || {
                     let _task_lease = task_lease;
-                    let function = child_program.functions.get(callee).ok_or_else(|| {
+                    let function = child_program.functions.get(&callee).ok_or_else(|| {
                         NativeError::InvalidProgram(format!("unknown function '{callee}'"))
                     })?;
                     run_function(&child_program, function, &call_args, Some(child_token), child_state, child_depth)
